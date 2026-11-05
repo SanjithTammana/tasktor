@@ -36,6 +36,7 @@ public sealed class PipeServer : IAsyncDisposable
     private readonly string _agentVersion;
     private readonly Dictionary<string, Func<PullMessage, JsonNode?>> _pulls = new(StringComparer.Ordinal);
     private readonly List<Session> _sessions = [];
+    private readonly Lock _sessionsGate = new(); // the loop adds and removes; dispose runs on another thread
     private readonly CancellationTokenSource _cts = new();
     private Task? _accept;
     private JsonNode? _latest;
@@ -61,7 +62,16 @@ public sealed class PipeServer : IAsyncDisposable
     /// </summary>
     public Func<string, NamedPipeServerStream, IReadOnlySet<Origin>> OriginsFor { get; set; } = DefaultOrigins;
 
-    public int ClientCount => _sessions.Count;
+    public int ClientCount
+    {
+        get
+        {
+            lock (_sessionsGate)
+            {
+                return _sessions.Count;
+            }
+        }
+    }
 
     /// <summary>Register a pull table (loop-only handler).</summary>
     public void RegisterPull(string table, Func<PullMessage, JsonNode?> handler) => _pulls[table] = handler;
@@ -83,7 +93,13 @@ public sealed class PipeServer : IAsyncDisposable
             }
         }
 
-        foreach (var s in _sessions.ToList())
+        List<Session> open;
+        lock (_sessionsGate)
+        {
+            open = [.. _sessions];
+        }
+
+        foreach (var s in open)
         {
             s.Close();
         }
@@ -131,7 +147,13 @@ public sealed class PipeServer : IAsyncDisposable
             }
 
             var session = new Session(this, stream);
-            _loop.Post(() => _sessions.Add(session));
+            _loop.Post(() =>
+            {
+                lock (_sessionsGate)
+                {
+                    _sessions.Add(session);
+                }
+            });
             session.Start();
         }
     }
@@ -149,7 +171,13 @@ public sealed class PipeServer : IAsyncDisposable
     private void OnPublished(SnapshotPublished p)
     {
         _latest = null;
-        foreach (var s in _sessions)
+        List<Session> current;
+        lock (_sessionsGate)
+        {
+            current = [.. _sessions];
+        }
+
+        foreach (var s in current)
         {
             s.MarkDirty();
         }
@@ -263,7 +291,10 @@ public sealed class PipeServer : IAsyncDisposable
 
             _leases.Clear();
             _flushTimer?.Dispose();
-            _server._sessions.Remove(this);
+            lock (_server._sessionsGate)
+            {
+                _server._sessions.Remove(this);
+            }
             Close();
         }
 

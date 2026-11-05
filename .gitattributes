@@ -1,0 +1,6 @@
+# Byte-exact files: their SHA-256 is part of a contract (prereg hash in models, extract hashes, fixtures). No EOL conversion.
+worker/prereg.json -text
+tests/fixtures/** -text
+*.f32 binary
+*.i32 binary
+*.csr binary
