@@ -7,7 +7,9 @@
   "groups": {
     "agents": ["claude.exe", "codex.exe", "cursor.exe", "aider", "gemini", "opencode.exe", "agent-desktop.exe", "AutoHotkey*.exe"],
     "call_apps": ["ms-teams.exe", "Teams.exe", "Zoom.exe", "webexmta.exe", "CiscoCollabHost.exe", "Discord.exe", "slack.exe"],
-    "opted_in": []
+    // Groups a guard may act on (U2 D-S4: opt-in per group, empty by default). Add exe globs to opt a group in.
+    "meeting_guarded": [],
+    "battery_guarded": []
   },
   "rules": [
     // A5 "disk-low" and "disk-filling" are built-in watches (max(10%, 15 GB) for 5 min; again after 5 GB more or 24 h;
@@ -49,6 +51,19 @@
     { "id": "unplugged-load", "description": "A8.2: unplugged while busy",
       "when": { "all": [ { "event": "power.unplugged" },
                          { "any": [ { "metric": "system.cpu_pct_2m", "above": 50 }, { "metric": "system.gpu_pct", "above": 50 }, { "metric": "jobs.running", "above": 0 } ] } ] },
-      "then": [ { "toast": "Unplugged while {process} is busy: ~{time_left} left at this rate", "buttons": ["efficiency.set", "battery.settings"] } ] }
+      "then": [ { "toast": "Unplugged while {process} is busy: ~{time_left} left at this rate", "buttons": ["efficiency.set", "battery.settings"] } ] },
+
+    // E2: one minute before a meeting, a Join toast (opens the link only when clicked).
+    { "id": "meeting-join", "description": "E2: a meeting is about to start",
+      "when": { "event": "meeting.soon" },
+      "then": [ { "toast": "{title} starts at {start}", "buttons": ["url.open", "snooze:5m"] } ] },
+    // E1: 24 h before a deadline (off).
+    { "id": "deadline-24h", "enabled": false, "description": "E1: a deadline is a day away",
+      "when": { "event": "deadline.soon" },
+      "then": [ { "toast": "Due {when} tomorrow: {title}", "buttons": ["open:module.deadlines"] } ] },
+    // I13 / E11: during event mode and focus blocks, refits and the content worker wait.
+    { "id": "event-mode-quiet", "description": "I13: event mode pauses background learning",
+      "when": { "any": [ { "state": "event_mode" }, { "state": "focus_block" } ] },
+      "then": [ { "pause": "refits" } ], "undo": true }
   ]
 }

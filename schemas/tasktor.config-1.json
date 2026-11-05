@@ -177,6 +177,72 @@
         }
       }
     },
+    "calendar": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "ics_files": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "deadlines_file": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "deadline_marker": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "event_marker": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "agents": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "permission_toast": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "space": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "folders": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "flyout": {
       "type": [
         "object",

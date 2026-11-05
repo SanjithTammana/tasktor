@@ -14,5 +14,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="rules.default.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\plugins-builtin\**\*" Exclude="..\..\plugins-builtin\**\__pycache__\**" LinkBase="plugins-builtin" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

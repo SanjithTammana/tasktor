@@ -27,6 +27,12 @@ public sealed record ConfigFile
 
     public FocusSettings? Focus { get; init; }
 
+    public CalendarSettings? Calendar { get; init; }
+
+    public AgentWatchSettings? Agents { get; init; }
+
+    public SpaceSettings? Space { get; init; }
+
     public FlyoutSettings? Flyout { get; init; }
 
     public WindowsSettings? Windows { get; init; }
@@ -108,6 +114,35 @@ public sealed record FocusBlockDef
 public sealed record FocusSettings
 {
     public IReadOnlyList<FocusPreset>? Presets { get; init; }
+}
+
+/// <summary>U2 calendar inputs (E1, E2, I13): local files only; ICS URLs live in the <c>tasktor.calendar</c> plugin's settings.</summary>
+public sealed record CalendarSettings
+{
+    /// <summary>Local <c>.ics</c> files the user picked.</summary>
+    public IReadOnlyList<string>? IcsFiles { get; init; }
+
+    /// <summary>E1's plain deadlines file; default <c>deadlines.txt</c> in the data folder.</summary>
+    public string? DeadlinesFile { get; init; }
+
+    /// <summary>All-day events whose title starts with this are deadlines (default <c>Due</c>).</summary>
+    public string? DeadlineMarker { get; init; }
+
+    /// <summary>Events whose title contains this open an event-mode window (I13, default <c>[focus]</c>).</summary>
+    public string? EventMarker { get; init; }
+}
+
+/// <summary>I1: which agents report through hooks (Q1: written only on confirm).</summary>
+public sealed record AgentWatchSettings
+{
+    /// <summary>Q2 permission toast (on by default).</summary>
+    public bool? PermissionToast { get; init; }
+}
+
+/// <summary>I7: extra folders the user adds to the space report.</summary>
+public sealed record SpaceSettings
+{
+    public IReadOnlyList<string>? Folders { get; init; }
 }
 
 public sealed record FlyoutSettings

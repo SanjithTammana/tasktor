@@ -17,6 +17,9 @@ public static class RulesLoader
 {
     public const int MaxToastButtons = 3;
 
+    /// <summary>A bare <c>{ "id", "enabled" }</c> entry: no condition and no actions.</summary>
+    private static bool IsToggle(Rule r) => r.Then.Count == 0 && r.When == new Condition();
+
     private static readonly JsonDocumentOptions DocOptions = new() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true, MaxDepth = 32 };
 
     /// <param name="defaultsText">The shipped <c>rules.default.json</c> (read-only in the install dir).</param>
@@ -50,8 +53,24 @@ public static class RulesLoader
         // Overlay: a user rule with the same id replaces the default; "enabled": false turns one off.
         var byId = new Dictionary<string, (Rule Rule, RuleOrigin Origin, int Line)>(StringComparer.Ordinal);
         var order = new List<string>();
-        foreach (var (rule, origin, line) in defaults.Rules.Concat(packs.SelectMany(p => p.Rules)).Concat(user.Rules))
+        foreach (var (entry, entryOrigin, entryLine) in defaults.Rules.Concat(packs.SelectMany(p => p.Rules)).Concat(user.Rules))
         {
+            var (rule, origin, line) = (entry, entryOrigin, entryLine);
+            if (IsToggle(rule))
+            {
+                if (byId.TryGetValue(rule.Id, out var prev))
+                {
+                    (rule, origin, line) = (prev.Rule with { Enabled = rule.Enabled }, prev.Origin, prev.Line); // the shipped rule, toggled
+                    byId[rule.Id] = (rule, origin, line);
+                    continue;
+                }
+                else if (rule.Enabled == true)
+                {
+                    errors.Add(new RuleError(rule.Id, origin, line, "no rule with this id to turn on"));
+                    continue;
+                }
+            }
+
             if (!byId.ContainsKey(rule.Id))
             {
                 order.Add(rule.Id);
@@ -163,11 +182,12 @@ public static class RulesLoader
                     i++;
                     try
                     {
-                        if (el.ValueKind == JsonValueKind.Object && el.TryGetProperty("enabled", out var en) && en.ValueKind == JsonValueKind.False
+                        if (el.ValueKind == JsonValueKind.Object && el.TryGetProperty("enabled", out var en) && en.ValueKind is JsonValueKind.False or JsonValueKind.True
                             && el.TryGetProperty("id", out var offId) && offId.ValueKind == JsonValueKind.String && !el.TryGetProperty("when", out _))
                         {
-                            // { "id": "x", "enabled": false } turns a rule off without restating it (D-H6).
-                            rules.Add((new Rule { Id = offId.GetString()!, Enabled = false, When = new Condition(), Then = [] }, origin, line));
+                            // { "id": "x", "enabled": false } turns a rule off without restating it (D-H6); "enabled": true turns
+                            // a shipped-off rule on the same way (Settings' toggles write this).
+                            rules.Add((new Rule { Id = offId.GetString()!, Enabled = en.ValueKind == JsonValueKind.True, When = new Condition(), Then = [] }, origin, line));
                             continue;
                         }
 

@@ -103,6 +103,8 @@ public static class ActionCatalog
         new("focus.skip", ActionClass.Reversible, "Skip", Surface.Flyout | Surface.Widget | Surface.Toast),
         new("focus.stop", ActionClass.Reversible, "Stop", Surface.Flyout | Surface.Widget | Surface.Toast),
         new("focus.extend", ActionClass.Reversible, "+5 min", Surface.Toast | Surface.Flyout),
+        new("event_mode.start", ActionClass.Reversible, "Start event mode", Surface.Flyout | Surface.Tray | Surface.Cli, Undo: "event_mode.stop"),
+        new("event_mode.stop", ActionClass.Reversible, "Stop event mode", Surface.Flyout | Surface.Tray | Surface.Cli),
         new("preset.arrange", ActionClass.Reversible, "Arrange", Surface.Flyout | Surface.Tray | Surface.Cli, Undo: "preset.undo"),
         new("preset.undo", ActionClass.Reversible, "Undo", Surface.Flyout | Surface.Toast),
         new("preset.apply", ActionClass.Reversible, "Apply", Surface.Flyout | Surface.Tray | Surface.Cli, UserOnly: true),

@@ -125,6 +125,26 @@ public sealed class RulesLoaderTests
     }
 
     [Fact]
+    public void A_bare_toggle_turns_a_shipped_off_rule_on_keeping_its_origin_and_builtin_flag()
+    {
+        var defaults = """
+            { "rules": [
+              { "id": "off", "enabled": false, "when": { "state": "on_battery" }, "then": [ { "pause": "refits" } ] },
+              { "id": "b", "builtin": true, "when": { "learned": { "stat": "silence", "key": "job.kind", "fallback": "10m" } }, "then": [ { "toast": "x" } ] } ] }
+            """;
+        var set = RulesLoader.Load(defaults, """{ "rules": [ { "id": "off", "enabled": true }, { "id": "b", "enabled": false }, { "id": "nothing", "enabled": true } ] }""");
+        var on = Assert.Single(set.Rules);
+        Assert.Equal("off", on.Rule.Id);
+        Assert.Equal(RuleOrigin.Default, on.Origin);
+        Assert.Contains("b", set.Disabled);
+        Assert.Equal("nothing", Assert.Single(set.Errors).Id);
+
+        var back = RulesLoader.Load(defaults, """{ "rules": [ { "id": "b", "enabled": true } ] }""");
+        Assert.Contains(back.Rules, r => r.Rule.Id == "b" && r.Rule.Builtin == true);
+        Assert.Empty(back.Errors);
+    }
+
+    [Fact]
     public void A_newer_schema_version_is_refused()
     {
         var set = RulesLoader.Load(null, """{ "schema_version": 2, "rules": [] }""");
