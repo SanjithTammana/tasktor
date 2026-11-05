@@ -186,9 +186,40 @@ internal static class Composition
             host.AddFeature(new FocusTimer(ctx, eventMode, new NotesStore(host.Store.NotesDir)) { TrackingOn = () => settings.ModuleOn("tracking") });
         }
 
+        if (settings.ModuleOn("tracking") && host.Key is { } key)
+        {
+            // C9 (T0 tracking): Windows hooks, idle and session sources; none elsewhere (the feature still runs, empty).
+            IEventSource<Contracts.Workflow.WindowEvent>? win = windows ? new WinEventSource(pid => processTable.ReadOne(new ProcKey(pid, 0))) : null;
+            IEventSource<Contracts.Workflow.PresenceEvent>? presence = windows ? new BothPresence(new IdleSource(), new SessionSource()) : null;
+            var store = host.Store;
+            host.AddFeature(new WorkflowTracking(ctx, win, presence, () => new Core.Workflow.StoreSet(new Core.Workflow.EventStore(store.EventsDb), new Core.Workflow.EpisodeStore(store.EpisodesDb)), key.Hasher("tok"))
+            {
+                PausedNow = () => host.Paused.Tracking,
+                OwnNames = [Environment.UserName],
+            });
+        }
+
         if (settings.ModuleOn("batteries"))
         {
             host.AddFeature(new DeviceBatteries(ctx, windows ? new BluetoothBatterySource() : new NoDevices()));
+        }
+    }
+
+    /// <summary>Idle and session presence as one source (the feature takes one).</summary>
+    private sealed class BothPresence(IEventSource<Contracts.Workflow.PresenceEvent> a, IEventSource<Contracts.Workflow.PresenceEvent> b) : IEventSource<Contracts.Workflow.PresenceEvent>
+    {
+        public string Name => "presence";
+
+        public void Start(Action<Contracts.Workflow.PresenceEvent> post)
+        {
+            a.Start(post);
+            b.Start(post);
+        }
+
+        public void Stop()
+        {
+            a.Stop();
+            b.Stop();
         }
     }
 
