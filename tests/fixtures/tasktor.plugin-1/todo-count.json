@@ -1,0 +1,17 @@
+{
+  "$schema": "../schemas/tasktor.plugin-1.json",
+  "contract": 1,
+  "id": "example.todo-count",
+  "name": "TODO count",
+  "version": "0.1.0",
+  "author": "Jane Doe",
+  "description": "Counts open TODO lines in one text file.",
+  "command": [ "python", "main.py" ],
+  "interval": "5m",
+  "timeout": "10s",
+  "reads": [ "The file you choose (setting)" ],
+  "network": [],
+  "settings": [ { "key": "file", "label": "File", "type": "path" } ],
+  "actions": [ { "id": "refresh", "label": "Refresh", "class": "reversible" } ],
+  "min_tasktor": "1.0"
+}

@@ -1,0 +1,7 @@
+{
+  "schema": "tasktor.action/1",
+  "action": "app.end",
+  "status": "partial",
+  "message": "Ended 27 of 29, 2 run as admin",
+  "items": [ { "item": "4242", "status": "ok" }, { "item": "4243", "status": "refused", "reason": "guard:integrity" } ]
+}

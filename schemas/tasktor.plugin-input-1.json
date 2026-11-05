@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tasktor:schema:tasktor.plugin-input-1.json",
+  "title": "Tasktor plugin input (stdin)",
+  "description": "Contract tasktor.plugin/1. Generated from the C# records in Tasktor.Contracts; do not edit by hand.",
+  "type": "object",
+  "properties": {
+    "contract": {
+      "type": "integer"
+    },
+    "call": {
+      "enum": [
+        "render",
+        "action"
+      ]
+    },
+    "action": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "args": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "settings": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "snapshot_path": {
+      "type": "string"
+    },
+    "data_dir": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "call",
+    "settings",
+    "snapshot_path"
+  ]
+}

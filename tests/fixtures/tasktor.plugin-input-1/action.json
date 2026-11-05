@@ -1,0 +1,1 @@
+{ "contract": 1, "call": "action", "action": "refresh", "args": {}, "settings": {}, "snapshot_path": "snapshot.json" }

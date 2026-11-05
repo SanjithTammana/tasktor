@@ -11,5 +11,6 @@
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <Using Include="Xunit" />
+    <Compile Include="$(MSBuildThisFileDirectory)Shared/*.cs" LinkBase="Shared" />
   </ItemGroup>
 </Project>

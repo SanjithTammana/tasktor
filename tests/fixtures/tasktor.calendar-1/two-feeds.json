@@ -1,0 +1,9 @@
+{
+  "schema": "tasktor.calendar/1",
+  "generated_at": "2026-11-04T14:00:00Z",
+  "calendars": [ { "id": "work", "name": "Work", "status": "ok" }, { "id": "home", "name": "Home", "status": "error", "error": "HTTP 404" } ],
+  "events": [
+    { "uid": "evt-1@example.com", "calendar": "work", "start": "2026-11-04T15:00:00Z", "end": "2026-11-04T15:30:00Z", "all_day": false, "title": "Standup", "location": "https://teams.microsoft.com/l/meetup-join/abc" },
+    { "uid": "evt-2@example.com", "calendar": "work", "start": "2026-11-20T00:00:00Z", "all_day": true, "title": "Due: Project report" }
+  ]
+}

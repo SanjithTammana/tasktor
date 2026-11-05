@@ -1,0 +1,16 @@
+{
+  "contract": 1,
+  "cards": [
+    {
+      "id": "main",
+      "title": "TODOs",
+      "icon": "list",
+      "severity": "normal",
+      "blocks": [
+        { "kind": "Metric", "priority": 1, "label": "Open", "value": 12 },
+        { "kind": "List", "priority": 2, "items": [ "Fix login", "Write docs" ], "max": 5 }
+      ],
+      "actions": [ { "id": "refresh", "label": "Refresh", "priority": 1 } ]
+    }
+  ]
+}

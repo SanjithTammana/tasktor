@@ -1,0 +1,10 @@
+{
+  "contract": 1,
+  "id": "example.pack",
+  "name": "Example pack",
+  "version": "0.1.0",
+  "author": "Jane Doe",
+  "plugins": [ "todo-count" ],
+  "rules": "rules.pack.json",
+  "config": "config.pack.json"
+}
