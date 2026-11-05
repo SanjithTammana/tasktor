@@ -100,6 +100,11 @@
       "when": { "event": "focus.block_end" },
       "then": [ { "toast": "{block} done. Next: {next}", "buttons": ["focus.next", "focus.extend", "focus.stop"] } ] },
 
+    // I11: a watched window has been gone for 30 s (needs the Module and a watch).
+    { "id": "window-missing", "description": "I11: a watched window closed",
+      "when": { "event": "window.missing" },
+      "then": [ { "toast": "{app} window closed?", "buttons": ["open:module.windows_watch", "snooze:1d"] } ] },
+
     // I13 / E11: during event mode and focus blocks, refits and the content worker wait.
     { "id": "event-mode-quiet", "description": "I13: event mode pauses background learning",
       "when": { "any": [ { "state": "event_mode" }, { "state": "focus_block" } ] },
