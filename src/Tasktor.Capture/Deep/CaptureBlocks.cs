@@ -130,7 +130,7 @@ public sealed class CaptureBlocks
     /// <summary>Drop pauses whose time has passed.</summary>
     public void Expire(DateTimeOffset now)
     {
-        if (_file.Blocks.RemoveAll(b => b.Kind == BlockKind.Pause && b.Until is { } u && u <= now) > 0)
+        if (_file.Blocks.RemoveAll(b => b.Kind is BlockKind.Pause or BlockKind.Tab && b.Until is { } u && u <= now) > 0)
         {
             Save();
         }
@@ -147,7 +147,7 @@ public sealed class CaptureBlocks
                 BlockKind.Schedule => InSchedule(b, now),
                 BlockKind.App => app is not null && b.Value is { } g && Glob.IsMatch(g, app),
                 BlockKind.Host => host is not null && b.Value is { } h && (host.Equals(h, StringComparison.OrdinalIgnoreCase) || host.EndsWith("." + h, StringComparison.OrdinalIgnoreCase)),
-                BlockKind.Tab => tab is not null && b.Value == tab,
+                BlockKind.Tab => tab is not null && b.Value == tab && (b.Until is not { } tu || now < tu),
                 _ => false,
             };
             if (hit)
