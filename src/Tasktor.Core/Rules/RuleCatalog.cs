@@ -23,7 +23,7 @@ public static class RuleCatalog
     {
         "file.created", "window.missing", "agent.state", "net.dropped", "job.new", "job.silent", "job.stuck", "job.done",
         "job.failed", "job.hogging", "job.longer_than_usual", "process.started", "process.exited", "power.changed",
-        "low_memory", "power.unplugged", "power.plugged", "disk.filling", "focus.block_end", "meeting.soon", "self.over_budget",
+        "low_memory", "power.unplugged", "power.plugged", "disk.filling", "focus.block_end", "meeting.soon", "deadline.soon", "self.over_budget",
     };
 
     /// <summary>Learned stats: <c>silence</c> (B2.2), <c>duration</c> (B2.7), <c>fill_rate</c> (A5), <c>growth</c> (A6).</summary>
