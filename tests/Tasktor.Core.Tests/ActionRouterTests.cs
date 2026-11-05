@@ -92,6 +92,10 @@ public sealed class ActionRouterTests
         { Origin.Rule, "learned.use_fallback", ActionStatus.Refused },
         { Origin.Toast, "job.log", ActionStatus.Refused },
         { Origin.Toast, "run", ActionStatus.Refused },
+        { Origin.Cli, "plugin.enable", ActionStatus.Refused },
+        { Origin.Tray, "proc.end", ActionStatus.Refused },
+        { Origin.Widget, "settings.reset", ActionStatus.Refused },
+        { Origin.Flyout, "plugin.enable", ActionStatus.Ok },
     };
 
     [Theory]

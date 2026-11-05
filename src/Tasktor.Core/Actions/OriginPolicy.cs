@@ -24,6 +24,21 @@ public sealed class OriginPolicy
     {
         ArgumentNullException.ThrowIfNull(def);
         ArgumentNullException.ThrowIfNull(req);
+        // Surface tags (U4 H-G3) are enforced: the CLI, widget, tray and toasts reach only rows offered there.
+        // The flyout and the shell host every page, so they reach every row; rules follow the rule row below.
+        var surface = req.Origin switch
+        {
+            Origin.Cli => Surface.Cli,
+            Origin.Widget => Surface.Widget,
+            Origin.Tray => Surface.Tray,
+            Origin.Toast => Surface.Toast,
+            _ => Surface.None,
+        };
+        if (surface != Surface.None && (def.Surfaces & surface) == 0)
+        {
+            return (PolicyVerdict.Refuse, "not_on_surface");
+        }
+
         var sensitiveArgs = def.ConfirmArgs is { } ca && req.Args is { } a && ca.Any(k => a.TryGetValue(k, out var v) && IsTrue(v));
         var needsConfirm = def.Class == ActionClass.Destructive || sensitiveArgs;
 

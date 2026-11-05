@@ -6,6 +6,10 @@ namespace Tasktor.Core.Rules;
 public enum RuleOrigin
 {
     Default,
+
+    /// <summary>A ticked entry of a pack's <c>rules.pack.json</c> (U5 amendment: every entry off until ticked).</summary>
+    Pack,
+
     User,
 }
 
@@ -20,7 +24,7 @@ public sealed record CompiledRule(Rule Rule, RuleOrigin Origin, int Line, TimeSp
 /// <summary>A rule that did not load (disabled, listed on the error card with its line number). The rest keep running.</summary>
 public sealed record RuleError(string? Id, RuleOrigin Origin, int Line, string Message)
 {
-    public string File => Origin == RuleOrigin.Default ? "rules.default.json" : "rules.json";
+    public string File => Origin switch { RuleOrigin.Default => "rules.default.json", RuleOrigin.Pack => "rules.pack.json", _ => "rules.json" };
 
     public override string ToString() => File + " line " + Line + (Id is null ? string.Empty : " (" + Id + ")") + ": " + Message;
 }
