@@ -4,7 +4,7 @@ using System.Text;
 using Tasktor.Contracts.Platform;
 using Tasktor.Contracts.Presets;
 
-namespace Tasktor.Shell.Windowing;
+namespace Tasktor.Core.Windows;
 
 /// <summary>A rectangle in physical pixels (virtual-screen coordinates).</summary>
 public readonly record struct RectPx(int X, int Y, int W, int H)

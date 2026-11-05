@@ -1,7 +1,7 @@
 using Tasktor.Contracts.Presets;
 using Tasktor.Core.Apps;
 
-namespace Tasktor.Shell.Windowing;
+namespace Tasktor.Core.Windows;
 
 /// <summary>What happened to one preset slot (D-W6's per-slot result list).</summary>
 public enum SlotOutcome : byte
