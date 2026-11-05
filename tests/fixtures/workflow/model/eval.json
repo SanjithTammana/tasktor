@@ -1,0 +1,90 @@
+{
+ "schema": "tasktor.eval/1",
+ "version": "v1",
+ "activated": true,
+ "gates": [
+  {
+   "id": "G0",
+   "value": 321.0,
+   "threshold": 300,
+   "pass": true,
+   "report_only": false
+  },
+  {
+   "id": "G1",
+   "value": 0.908888,
+   "threshold": 0.6,
+   "pass": true,
+   "report_only": false,
+   "null_value": 1.0
+  },
+  {
+   "id": "G2",
+   "value": 0.598286,
+   "threshold": 0.2,
+   "pass": true,
+   "report_only": false
+  },
+  {
+   "id": "G3",
+   "value": 0.741043,
+   "threshold": 0.6,
+   "pass": true,
+   "report_only": true
+  },
+  {
+   "id": "G4",
+   "value": 0.668845,
+   "threshold": 0.5,
+   "pass": true,
+   "report_only": false
+  },
+  {
+   "id": "G5",
+   "threshold": 0.8,
+   "pass": true,
+   "report_only": false
+  },
+  {
+   "id": "G6",
+   "value": 7.0,
+   "threshold": 3,
+   "pass": true,
+   "report_only": false,
+   "null_value": 0.0
+  },
+  {
+   "id": "G6b",
+   "value": 0.154746,
+   "threshold": 0.05,
+   "pass": true,
+   "report_only": false,
+   "null_value": 0.0
+  },
+  {
+   "id": "G7",
+   "value": 0.791756,
+   "pass": true,
+   "report_only": true
+  },
+  {
+   "id": "baseline_kmeans",
+   "value": 0.761904,
+   "pass": true,
+   "report_only": true
+  },
+  {
+   "id": "ami_app",
+   "value": 0.771507,
+   "pass": true,
+   "report_only": true
+  },
+  {
+   "id": "G0w",
+   "value": 363.0,
+   "threshold": 200,
+   "pass": true,
+   "report_only": true
+  }
+ ]
+}
