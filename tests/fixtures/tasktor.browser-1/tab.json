@@ -1,0 +1,9 @@
+{
+  "type": "tab",
+  "at": "2026-01-01T00:00:00Z",
+  "tab": 1,
+  "window": 2,
+  "host": "example.com",
+  "active": true,
+  "audible": false
+}
