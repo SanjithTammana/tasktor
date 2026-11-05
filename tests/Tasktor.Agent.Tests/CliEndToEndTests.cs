@@ -228,14 +228,14 @@ public sealed class CliEndToEndTests : IAsyncLifetime
         Assert.Contains("\"found\"", cli.Out, StringComparison.Ordinal);
 
         // The CLI may not enable a plugin (the consent dialog lives in the flyout).
-        await using (var c0 = await Hosts.Common.Pipe.PipeClient.ConnectAsync("cli", _agent.PipeName))
+        await using (var c0 = await Hosts.Common.Pipe.PipeClient.ConnectAsync("cli", _agent.PipeName, 10000))
         {
             var refused = await c0.ActAsync(new Contracts.Actions.ActionRequest { Action = "plugin.enable", Origin = Contracts.Actions.Origin.Cli, Target = new Dictionary<string, string> { ["plugin"] = "todo-count" } });
             Assert.Equal(Contracts.Actions.ActionStatus.Refused, refused.Status);
             Assert.Equal("origin_policy:not_on_surface", refused.Reason);
         }
 
-        await using var flyout = await Hosts.Common.Pipe.PipeClient.ConnectAsync("flyout", _agent.PipeName);
+        await using var flyout = await Hosts.Common.Pipe.PipeClient.ConnectAsync("flyout", _agent.PipeName, 10000);
         var ok = await flyout.ActAsync(new Contracts.Actions.ActionRequest { Action = "plugin.enable", Origin = Contracts.Actions.Origin.Flyout, Target = new Dictionary<string, string> { ["plugin"] = "todo-count" } });
         Assert.Equal(Contracts.Actions.ActionStatus.Ok, ok.Status);
         AgentFixture.WaitFor(() => _agent.Host.Publisher.Latest?.Cards?.Any(c => c.Id == "plugin.todo-count.main") == true, 20000);

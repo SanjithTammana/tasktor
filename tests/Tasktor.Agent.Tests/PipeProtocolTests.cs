@@ -21,7 +21,7 @@ public sealed class PipeProtocolTests : IAsyncLifetime
     [Fact]
     public async Task Hello_welcome_names_the_contracts()
     {
-        await using var c = await PipeClient.ConnectAsync("flyout", _agent.PipeName);
+        await using var c = await PipeClient.ConnectAsync("flyout", _agent.PipeName, 10000);
         Assert.NotNull(c.Welcome);
         Assert.Contains(ContractIds.Snapshot, c.Welcome!.Contracts);
     }
@@ -50,7 +50,7 @@ public sealed class PipeProtocolTests : IAsyncLifetime
     [Fact]
     public async Task Subscribe_sends_the_view_then_coalesced_deltas()
     {
-        await using var c = await PipeClient.ConnectAsync("flyout", _agent.PipeName);
+        await using var c = await PipeClient.ConnectAsync("flyout", _agent.PipeName, 10000);
         var deltas = new List<DeltaMessage>();
         c.Pushed += m =>
         {
@@ -88,12 +88,12 @@ public sealed class PipeProtocolTests : IAsyncLifetime
     {
         var runs = 0;
         await _agent.Host.OnLoop(() => _agent.Host.Scheduler.Register("procs", _ => runs++));
-        var c = await PipeClient.ConnectAsync("flyout", _agent.PipeName);
+        var c = await PipeClient.ConnectAsync("flyout", _agent.PipeName, 10000);
         await c.RequestAsync(new LeaseMessage { Source = "procs", IntervalMs = 1000, Columns = ["Usage"] });
         Assert.Equal(1, await _agent.Host.OnLoop(() => _agent.Host.Scheduler.LeaseCount("procs")));
         await c.DisposeAsync();
         AgentFixture.WaitFor(() => _agent.Host.OnLoop(() => _agent.Host.Scheduler.LeaseCount("procs")).Result == 0);
-        await using var c2 = await PipeClient.ConnectAsync("flyout", _agent.PipeName);
+        await using var c2 = await PipeClient.ConnectAsync("flyout", _agent.PipeName, 10000);
         var err = Assert.IsType<ErrorMessage>(await c2.RequestAsync(new LeaseMessage { Source = "nope", IntervalMs = 1000 }));
         Assert.Equal("unknown_source", err.Code);
     }
@@ -101,7 +101,7 @@ public sealed class PipeProtocolTests : IAsyncLifetime
     [Fact]
     public async Task A_cli_client_cannot_speak_as_the_flyout()
     {
-        await using var c = await PipeClient.ConnectAsync("cli", _agent.PipeName);
+        await using var c = await PipeClient.ConnectAsync("cli", _agent.PipeName, 10000);
         var r = await c.ActAsync(new ActionRequest { Action = "proc.end", Origin = Origin.Flyout, Target = new Dictionary<string, string> { ["pid"] = "100" } });
         Assert.Equal(ActionStatus.Refused, r.Status); // treated as CLI: destructive off
         Assert.Empty(_agent.Calls);
@@ -110,7 +110,7 @@ public sealed class PipeProtocolTests : IAsyncLifetime
     [Fact]
     public async Task Flyout_two_step_confirm_over_the_pipe()
     {
-        await using var c = await PipeClient.ConnectAsync("flyout", _agent.PipeName);
+        await using var c = await PipeClient.ConnectAsync("flyout", _agent.PipeName, 10000);
         var req = new ActionRequest { Action = "proc.end", Origin = Origin.Flyout, Target = new Dictionary<string, string> { ["pid"] = "100" } };
         var first = await c.ActAsync(req);
         Assert.Equal(ActionStatus.NeedsConfirm, first.Status);
@@ -123,7 +123,7 @@ public sealed class PipeProtocolTests : IAsyncLifetime
     [Fact]
     public async Task Unknown_pull_table_is_an_error()
     {
-        await using var c = await PipeClient.ConnectAsync("flyout", _agent.PipeName);
+        await using var c = await PipeClient.ConnectAsync("flyout", _agent.PipeName, 10000);
         Assert.Equal("unknown_table", Assert.IsType<ErrorMessage>(await c.RequestAsync(new PullMessage { Table = "secrets" })).Code);
         var catalog = await c.PullAsync("catalog");
         Assert.Contains("proc.end", catalog!.Data!.AsArray().Select(n => n!.GetValue<string>()));

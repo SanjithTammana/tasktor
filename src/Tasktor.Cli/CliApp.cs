@@ -102,7 +102,7 @@ public static class CliApp
     }
 
     private static async Task<PipeClient> Connect(CliIo io) =>
-        await PipeClient.ConnectAsync("cli", io.PipeName).ConfigureAwait(false);
+        await PipeClient.ConnectAsync("cli", io.PipeName, io.ConnectTimeoutMs).ConfigureAwait(false);
 
     private static async Task<int> Status(Args a, CliIo io)
     {
