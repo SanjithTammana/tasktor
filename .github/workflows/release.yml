@@ -1,0 +1,82 @@
+name: release
+
+# A tag v* builds the unsigned portable release (U1 D-H12) from source, on a clean runner, with the gates that only
+# Windows can run: G-aot (Native AOT publish, warnings as errors) and the full test suite. Publishes the zip and
+# SHA256SUMS.txt as build artifacts and on a draft GitHub release. No secrets are used.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: 1
+
+jobs:
+  portable:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build and test (all projects)
+        run: |
+          dotnet build Tasktor.sln -c Release -warnaserror
+          dotnet test Tasktor.sln -c Release --no-build
+
+      - name: Test (Python worker and first-party plugins)
+        run: |
+          pip install -r worker/requirements.txt
+          pytest worker
+
+      - name: G-aot — publish the agent with Native AOT (no trim / AOT warnings)
+        run: dotnet publish src/Tasktor.Agent/Tasktor.Agent.csproj -c Release -r win-x64 -p:PublishAot=true -warnaserror -o out/agent
+
+      - name: Publish the CLI and the capture host
+        run: |
+          dotnet publish src/Tasktor.Cli/Tasktor.Cli.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -warnaserror -o out/cli
+          dotnet publish src/Tasktor.Capture/Tasktor.Capture.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -warnaserror -o out/capture
+
+      - name: Assemble the portable folder
+        shell: pwsh
+        run: |
+          $version = if ($env:GITHUB_REF_NAME -like 'v*') { $env:GITHUB_REF_NAME } else { "dev-$($env:GITHUB_SHA.Substring(0, 8))" }
+          $root = "dist/tasktor-$version-win-x64"
+          New-Item -ItemType Directory -Force $root | Out-Null
+          Copy-Item out/agent/* $root -Recurse
+          Copy-Item out/cli/tasktor.exe $root
+          Copy-Item out/capture/tasktor-capture.exe $root
+          Copy-Item plugins-builtin "$root/plugins-builtin" -Recurse -Exclude "__pycache__"
+          New-Item -ItemType Directory -Force "$root/worker" | Out-Null
+          Copy-Item worker/tasktor_worker, worker/tasktor_reference, worker/tasktor_data "$root/worker" -Recurse -Exclude "__pycache__"
+          Copy-Item worker/prereg.json, worker/requirements.txt, worker/tasktor_progress.py "$root/worker"
+          Copy-Item schemas "$root/schemas" -Recurse
+          Copy-Item README.md, LICENSE $root
+          Get-ChildItem $root -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
+          Compress-Archive -Path "$root/*" -DestinationPath "dist/tasktor-$version-win-x64.zip"
+          Remove-Item $root -Recurse -Force
+          Get-ChildItem dist -File | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name
+          } | Set-Content -Encoding ascii dist/SHA256SUMS.txt
+          Get-Content dist/SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tasktor-portable
+          path: dist/*
+          if-no-files-found: error
+
+      - name: Draft a GitHub release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: gh release create $env:GITHUB_REF_NAME dist/* --draft --title $env:GITHUB_REF_NAME --notes "Unsigned portable build. Verify with SHA256SUMS.txt. See README: SmartScreen and antivirus."
