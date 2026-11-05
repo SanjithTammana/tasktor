@@ -257,6 +257,15 @@
         },
         "keep_warm": {
           "type": "boolean"
+        },
+        "pinned_cards": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
         }
       }
     },

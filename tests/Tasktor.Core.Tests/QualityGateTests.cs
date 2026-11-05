@@ -188,18 +188,11 @@ public sealed partial class QualityGateTests
     /// <summary>Catalog rows whose handler lands with a later milestone (C's card actions, T1 capture, the viewers).</summary>
     private static readonly IReadOnlyDictionary<string, string> Pending = new Dictionary<string, string>(StringComparer.Ordinal)
     {
-        ["summary"] = "M11 (C9 totals)",
-        ["workflow.rename"] = "M11 (C7 overrides)",
-        ["workflow.merge"] = "M11 (C7 overrides)",
-        ["workflow.wrong"] = "M11 (C9 card)",
         ["capture.pause"] = "M12",
         ["capture.resume"] = "M12",
         ["capture.exclude"] = "M12",
         ["capture.unexclude"] = "M12",
         ["capture.tab_pause"] = "M12",
-        ["open"] = "M13 (viewers open cards)",
-        ["card.pin"] = "M13",
-        ["card.unpin"] = "M13",
         ["preset.arrange"] = "M14 (U3)",
         ["preset.undo"] = "M14 (U3)",
         ["preset.apply"] = "M14 (U3)",

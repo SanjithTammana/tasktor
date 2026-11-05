@@ -92,3 +92,82 @@ public sealed class WorkflowTrackingTests : IDisposable
         Assert.Null(_rig.State.Current.Workflow);
     }
 }
+
+/// <summary>C7 rename / merge and the C9 summary, on the fixture model.</summary>
+public sealed class WorkflowSummaryTests : IDisposable
+{
+    private static readonly string ModelDir = Path.Combine(RepoPaths.Root, "tests", "fixtures", "workflow", "model");
+    private readonly FeatureRig _rig = new();
+    private readonly Fake<WindowEvent> _win = new();
+
+    public void Dispose() => _rig.Dispose();
+
+    private sealed class Fake<T> : IEventSource<T>
+    {
+        public Action<T>? Post { get; private set; }
+
+        public string Name => "fake";
+
+        public void Start(Action<T> post) => Post = post;
+
+        public void Stop() => Post = null;
+    }
+
+    private WorkflowTracking Tracking(WorkflowModel? model = null)
+    {
+        var layout = _rig.Store.Layout;
+        var t = new WorkflowTracking(_rig.Context, _win, null, () => new StoreSet(new EventStore(layout.EventsDb), new EpisodeStore(layout.EpisodesDb)), new KeyedHasher(Enumerable.Range(1, 32).Select(i => (byte)i).ToArray(), "tok"))
+        {
+            InlineStores = true,
+            Model = model,
+        };
+        _rig.Add(t);
+        return t;
+    }
+
+    private void Work(string exe, string title, uint pid, TimeSpan span)
+    {
+        _win.Post!(new WindowEvent(WindowEventKind.Foreground, (nint)pid, new ProcKey(pid, pid), 0, _rig.Clock.UtcNow) { Exe = exe, Title = Sensitive.Of(title) });
+        _rig.Loop.RunPending();
+        _rig.Advance(span, TimeSpan.FromSeconds(60));
+    }
+
+    [Fact]
+    public void The_summary_counts_minutes_per_workflow_including_earlier_runs_and_holds_no_titles()
+    {
+        var first = Tracking();
+        Work("code.exe", "FixtureSecretTitle - engine", 10, TimeSpan.FromMinutes(20));
+        Work("chrome.exe", "Docs", 20, TimeSpan.FromMinutes(10));
+        Work("code.exe", "b.rs", 10, TimeSpan.FromMinutes(1));
+        first.Disable();
+        _rig.Features.Remove(first);
+
+        var second = Tracking();
+        _rig.Loop.RunPending();
+        Work("chrome.exe", "Docs", 20, TimeSpan.FromMinutes(5));
+        Work("code.exe", "c.rs", 10, TimeSpan.FromMinutes(1));
+        var summary = second.SummaryNode("7d");
+        var by = summary["by_workflow"]!.AsObject();
+        Assert.True((double)by["Code"]! >= 20);
+        Assert.True((double)by["Chrome"]! >= 14);
+        Assert.Equal(1, (int)summary["active_days"]!);
+        Assert.DoesNotContain("FixtureSecretTitle", summary.ToJsonString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Rename_and_merge_apply_live_and_persist_for_the_next_refit()
+    {
+        var model = WorkflowModel.Open(ModelDir);
+        var t = Tracking(model);
+        var (a, b) = (model.Manifest.Clusters[0].Id, model.Manifest.Clusters[1].Id);
+        var r = _rig.Act(new Contracts.Actions.ActionRequest { Action = "workflow.rename", Origin = Contracts.Actions.Origin.Flyout, Target = new Dictionary<string, string> { ["workflow"] = a }, Args = new Dictionary<string, string> { ["name"] = "Thesis" } });
+        Assert.Equal(Contracts.Actions.ActionStatus.Ok, r.Status);
+        Assert.Equal("Thesis", t.NameOf(a));
+        Assert.Equal(Contracts.Actions.ActionStatus.Ok, _rig.Act(new Contracts.Actions.ActionRequest { Action = "workflow.merge", Origin = Contracts.Actions.Origin.Flyout, Target = new Dictionary<string, string> { ["workflow"] = b }, Args = new Dictionary<string, string> { ["into"] = a } }).Status);
+        Assert.Equal(Contracts.Actions.ActionStatus.Refused, _rig.Act(new Contracts.Actions.ActionRequest { Action = "workflow.merge", Origin = Contracts.Actions.Origin.Flyout, Target = new Dictionary<string, string> { ["workflow"] = a }, Args = new Dictionary<string, string> { ["into"] = b } }).Status); // no cycles
+        Assert.Equal(Contracts.Actions.ActionStatus.Refused, _rig.Act(new Contracts.Actions.ActionRequest { Action = "workflow.rename", Origin = Contracts.Actions.Origin.Flyout, Target = new Dictionary<string, string> { ["workflow"] = "nope" }, Args = new Dictionary<string, string> { ["name"] = "x" } }).Status);
+        var saved = System.Text.Json.JsonSerializer.Deserialize(File.ReadAllBytes(Path.Combine(_rig.Store.Layout.ModelsDir, "overrides.json")), Contracts.ContractsJsonContext.Default.OverridesFile)!;
+        Assert.Equal("Thesis", saved.Names[a]);
+        Assert.Equal(a, saved.Merge[b]);
+    }
+}
