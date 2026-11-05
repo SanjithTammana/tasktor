@@ -71,6 +71,22 @@
       "when": { "group": "agents", "busy_count_above": 2 }, "for": "1m", "cooldown": "1h",
       "then": [ { "toast": "{count} agents are busy at once", "buttons": ["agent.lower_newest", "open:module.agents"] }, { "badge": "{count}" } ] },
 
+    // I3 meeting guard (needs the Module): in a call, background learning waits; opted-in groups are lowered (off).
+    { "id": "call-quiet", "description": "I3: in a call, background learning waits",
+      "when": { "state": "in_call" }, "then": [ { "pause": "refits" } ], "undo": true },
+    { "id": "call-lower", "enabled": false, "description": "I3: in a call, opted-in apps run at lower priority",
+      "when": { "all": [ { "state": "in_call" }, { "group": "meeting_guarded", "running": true } ] },
+      "then": [ { "set_priority": "below_normal", "target": "group:meeting_guarded" } ], "undo": true },
+    // I4 power guard: on battery, refits wait (on); opted-in groups are restrained or capped (off). Undo when plugged in.
+    { "id": "battery-refits", "description": "I4: on battery, background learning waits",
+      "when": { "state": "on_battery" }, "then": [ { "pause": "refits" } ], "undo": true },
+    { "id": "battery-restrain", "enabled": false, "description": "I4: on battery, opted-in apps run in efficiency mode",
+      "when": { "all": [ { "state": "on_battery" }, { "group": "battery_guarded", "running": true } ] },
+      "then": [ { "efficiency": true, "target": "group:battery_guarded" }, { "set_priority": "below_normal", "target": "group:battery_guarded" } ], "undo": true },
+    { "id": "battery-cap", "enabled": false, "description": "I4: on battery, opted-in apps are capped to 2 cores",
+      "when": { "all": [ { "state": "on_battery" }, { "group": "battery_guarded", "running": true } ] },
+      "then": [ { "cap_cores": { "max": 2 }, "target": "group:battery_guarded" } ], "undo": true },
+
     // I13 / E11: during event mode and focus blocks, refits and the content worker wait.
     { "id": "event-mode-quiet", "description": "I13: event mode pauses background learning",
       "when": { "any": [ { "state": "event_mode" }, { "state": "focus_block" } ] },

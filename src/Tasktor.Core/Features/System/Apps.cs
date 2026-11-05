@@ -46,6 +46,26 @@ public sealed class Apps : Feature
 
     public ProcessTargets Targets { get; }
 
+    /// <summary>The rules file's process groups (D-H6 <c>group</c> conditions count their running processes).</summary>
+    public Func<IReadOnlyDictionary<string, IReadOnlyList<string>>> RuleGroups { get; set; } = () => new Dictionary<string, IReadOnlyList<string>>();
+
+    /// <summary>Running processes per rule group, from the latest names scan (busy is B's / I1's, added by them).</summary>
+    public override void Contribute(Rules.RuleInputs inputs, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(inputs);
+        foreach (var (name, globs) in RuleGroups())
+        {
+            if (globs.Count == 0)
+            {
+                inputs.Groups[name] = new Rules.GroupStatus(0, 0);
+                continue;
+            }
+
+            var count = _table.Rows.Values.Count(r => globs.Any(g => Glob.IsMatch(g, r.Exe)));
+            inputs.Groups[name] = new Rules.GroupStatus(count, 0);
+        }
+    }
+
     public IReadOnlyDictionary<ProcKey, ProcessRow> Table => _table.Rows;
 
     public IReadOnlyList<AppGroup> Groups => _groups;

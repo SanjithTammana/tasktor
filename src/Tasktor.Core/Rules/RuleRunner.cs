@@ -39,6 +39,9 @@ public sealed class RuleRunner
         _update = update;
         router.IsBuiltinRule = id => id is not null && Engine.Rules.Find(id)?.IsBuiltin == true;
         router.Register("alert.snooze", Snooze);
+        router.Register("rule.undo", UndoRule);
+        router.Register("badge.set", req => Badge(req, set: true));
+        router.Register("badge.clear", req => Badge(req, set: false));
         router.Register("alerts.snooze_all", _ => new PreparedAction
         {
             Summary = "Snooze alerts for 1 hour",
@@ -55,6 +58,12 @@ public sealed class RuleRunner
 
     /// <summary>Extra snooze hooks for built-in watches (e.g. A5's disk-low): rule id → (subject, until).</summary>
     public Dictionary<string, Action<string, DateTimeOffset>> SnoozeHooks { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Guards that are not rules (a core cap set by hand, B's paused jobs) for <c>state.guards</c>.</summary>
+    public List<Func<IEnumerable<GuardState>>> ExtraGuards { get; } = [];
+
+    /// <summary>Rule badges (D-H6 <c>badge</c>) by rule id: the tray shows them; cleared by the rule's undo.</summary>
+    public IReadOnlyDictionary<string, string> Badges => _badges;
 
     /// <summary>Hot reload: swap the set; removed rules' undo runs.</summary>
     public void SetRules(RuleSet set)
@@ -110,6 +119,8 @@ public sealed class RuleRunner
         var guards = Engine.Active
             .Where(a => Engine.Rules.Find(a.Rule)?.Rule.Undo == true)
             .Select(a => new GuardState { Rule = a.Rule, Text = Engine.Rules.Find(a.Rule)?.Rule.Description ?? a.Rule, Since = a.Since })
+            .DistinctBy(g => g.Rule)
+            .Concat(ExtraGuards.SelectMany(f => f()))
             .ToList();
         _update(s => s with
         {
@@ -165,6 +176,50 @@ public sealed class RuleRunner
                 }
             }
         }
+    }
+
+    private readonly Dictionary<string, string> _badges = new(StringComparer.Ordinal);
+
+    /// <summary>"Undo" on an active guard (core.guards): reverse it now; it stays off until its condition clears.</summary>
+    private PreparedAction UndoRule(ActionRequest req)
+    {
+        if (req.Target?.GetValueOrDefault("rule") is not { } rule || Engine.Rules.Find(rule) is null)
+        {
+            return new PreparedAction { Summary = "Undo", Refusal = "Which guard?" };
+        }
+
+        return new PreparedAction
+        {
+            Summary = "Undo " + rule,
+            Immediate = new ActionResult { Action = "rule.undo", Status = ActionStatus.Ok, Message = "Undone until the condition clears" },
+            Done = _ =>
+            {
+                Dispatch(Engine.UndoNow(rule));
+                Evaluate();
+            },
+        };
+    }
+
+    private PreparedAction Badge(ActionRequest req, bool set)
+    {
+        var rule = req.Target?.GetValueOrDefault("rule") ?? req.Toast ?? "badge";
+        var text = req.Args?.GetValueOrDefault("text") ?? "";
+        return new PreparedAction
+        {
+            Summary = set ? "Badge" : "Clear badge",
+            Immediate = new ActionResult { Action = req.Action, Status = ActionStatus.Ok },
+            Done = _ =>
+            {
+                if (set && text.Length > 0)
+                {
+                    _badges[rule] = text.Length > 8 ? text[..8] : text;
+                }
+                else
+                {
+                    _badges.Remove(rule);
+                }
+            },
+        };
     }
 
     private PreparedAction Snooze(ActionRequest req)
