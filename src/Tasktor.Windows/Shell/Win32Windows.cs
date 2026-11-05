@@ -124,6 +124,26 @@ public static unsafe partial class Win32Windows
         return 1;
     }
 
+    /// <summary>Read only the foreground window attributes needed for fullscreen classification.</summary>
+    public static WindowInfo? FullscreenWindow(long hwnd)
+    {
+        if (!OperatingSystem.IsWindows() || hwnd == 0) return null;
+        var handle = (nint)hwnd;
+        GetWindowThreadProcessId(handle, out var pid);
+        var style = (long)GetWindowLongPtrW(handle, GwlStyle);
+        Rect frame = default;
+        if (DwmGetWindowAttribute(handle, DwmwaExtendedFrameBounds, &frame, sizeof(Rect)) != 0) return null;
+        return new WindowInfo
+        {
+            Hwnd = hwnd,
+            Pid = pid,
+            AppId = string.Empty,
+            Class = ClassOf(handle),
+            FramePx = frame.ToPx(),
+            Show = (style & WsMinimize) != 0 ? ShowState.Minimized : (style & WsMaximize) != 0 ? ShowState.Maximized : ShowState.Normal,
+        };
+    }
+
     /// <summary><c>SHQueryUserNotificationState</c> for F7.</summary>
     public static NotificationState QueryNotificationState() =>
         OperatingSystem.IsWindows() && SHQueryUserNotificationState(out var s) == 0 ? (NotificationState)s : NotificationState.AcceptsNotifications;
