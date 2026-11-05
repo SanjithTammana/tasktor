@@ -1,0 +1,8 @@
+{
+  "schema": "tasktor.worker-job/1",
+  "extract": "train/v3",
+  "previous_model": "models/v2",
+  "overrides": "overrides.json",
+  "prereg": "prereg.json",
+  "output": "models/staging/v3"
+}

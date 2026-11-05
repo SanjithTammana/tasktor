@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tasktor:schema:tasktor.model-1.json",
+  "title": "Tasktor workflow model manifest (model.json)",
+  "description": "Contract tasktor.model/1. Generated from the C# records in Tasktor.Contracts; do not edit by hand.",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "prereg_hash": {
+      "type": "string"
+    },
+    "feature_spec": {
+      "type": "integer"
+    },
+    "extract_hash": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "apps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "context_apps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "weights": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "number"
+        },
+        "app": {
+          "type": "number"
+        },
+        "time": {
+          "type": "number"
+        },
+        "context": {
+          "type": "number"
+        },
+        "shape": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "text",
+        "app",
+        "time",
+        "context",
+        "shape"
+      ]
+    },
+    "dims": {
+      "type": "integer"
+    },
+    "pca_dims": {
+      "type": "integer"
+    },
+    "clusters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "stability": {
+            "type": "number"
+          },
+          "radius": {
+            "type": "number"
+          },
+          "exemplar_start": {
+            "type": "integer"
+          },
+          "exemplar_count": {
+            "type": "integer"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "split_from": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "merged_into": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status",
+          "radius",
+          "exemplar_start",
+          "exemplar_count"
+        ]
+      }
+    },
+    "workflows": {
+      "type": "array",
+      "items": {
+        "$ref": "#/properties/clusters/items"
+      }
+    },
+    "workflow_space": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "dtype": {
+            "type": "string"
+          },
+          "shape": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "dtype",
+          "shape",
+          "sha256"
+        ]
+      }
+    },
+    "activated": {
+      "type": "boolean"
+    },
+    "failed_gates": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "version",
+    "prereg_hash",
+    "extract_hash",
+    "created_at",
+    "apps",
+    "context_apps",
+    "weights",
+    "dims",
+    "pca_dims",
+    "clusters",
+    "files",
+    "activated"
+  ]
+}

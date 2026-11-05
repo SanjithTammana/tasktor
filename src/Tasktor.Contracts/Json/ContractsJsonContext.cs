@@ -10,6 +10,7 @@ using Tasktor.Contracts.Pipe;
 using Tasktor.Contracts.Plugins;
 using Tasktor.Contracts.Presets;
 using Tasktor.Contracts.Rules;
+using Tasktor.Contracts.Workflow;
 using SnapshotRecord = Tasktor.Contracts.Snapshot.Snapshot;
 
 namespace Tasktor.Contracts;
@@ -28,6 +29,13 @@ namespace Tasktor.Contracts;
     MaxDepth = 32,
     Converters = [typeof(UtcTimestampConverter)])]
 [JsonSerializable(typeof(SnapshotRecord))]
+[JsonSerializable(typeof(PreregFile))]
+[JsonSerializable(typeof(ExtractMeta))]
+[JsonSerializable(typeof(WorkerJob))]
+[JsonSerializable(typeof(ModelManifest))]
+[JsonSerializable(typeof(EvalReport))]
+[JsonSerializable(typeof(OverridesFile))]
+[JsonSerializable(typeof(CaptureEvent))]
 [JsonSerializable(typeof(Card))]
 [JsonSerializable(typeof(IReadOnlyList<Card>))]
 [JsonSerializable(typeof(Tasktor.Contracts.Snapshot.SnapshotState))]

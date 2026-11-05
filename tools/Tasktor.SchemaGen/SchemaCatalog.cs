@@ -34,6 +34,12 @@ public static class SchemaCatalog
             new("tasktor.export-1.json", ContractIds.Export, "Tasktor data export manifest", c.ExportManifest),
             new("tasktor.presets-1.json", ContractIds.Presets, "Tasktor window presets (presets.json)", c.PresetsFile),
             new("tasktor.config-1.json", ContractIds.Config, "Tasktor settings (config.json)", c.ConfigFile),
+            new("tasktor.prereg-1.json", ContractIds.Prereg, "Tasktor workflow learning thresholds (prereg.json)", c.PreregFile),
+            new("tasktor.extract-1.json", ContractIds.Extract, "Tasktor training extract metadata (meta.json)", c.ExtractMeta),
+            new("tasktor.worker-job-1.json", ContractIds.WorkerJob, "Tasktor learning worker job (stdin)", c.WorkerJob),
+            new("tasktor.model-1.json", ContractIds.Model, "Tasktor workflow model manifest (model.json)", c.ModelManifest),
+            new("tasktor.eval-1.json", ContractIds.Eval, "Tasktor workflow model evaluation (eval.json)", c.EvalReport),
+            new("tasktor.overrides-1.json", ContractIds.Overrides, "Tasktor workflow overrides (overrides.json)", c.OverridesFile),
         ];
     }
 

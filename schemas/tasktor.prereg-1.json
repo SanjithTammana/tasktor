@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tasktor:schema:tasktor.prereg-1.json",
+  "title": "Tasktor workflow learning thresholds (prereg.json)",
+  "description": "Contract tasktor.prereg/1. Generated from the C# records in Tasktor.Contracts; do not edit by hand.",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "integer"
+    },
+    "episodes": {
+      "type": "object",
+      "properties": {
+        "segment_min_ms": {
+          "type": "integer"
+        },
+        "glance_max_ms": {
+          "type": "integer"
+        },
+        "idle_split_ms": {
+          "type": "integer"
+        },
+        "activity_cap_ms": {
+          "type": "integer"
+        },
+        "window_active_ms": {
+          "type": "integer"
+        },
+        "window_min_active_ms": {
+          "type": "integer"
+        },
+        "idle_after_ms": {
+          "type": "integer"
+        }
+      }
+    },
+    "features": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "integer"
+        },
+        "buckets": {
+          "type": "integer"
+        },
+        "max_tokens": {
+          "type": "integer"
+        },
+        "min_df": {
+          "type": "integer"
+        },
+        "lsa_dims": {
+          "type": "integer"
+        },
+        "pca_dims": {
+          "type": "integer"
+        },
+        "min_app_activities": {
+          "type": "integer"
+        },
+        "context_apps": {
+          "type": "integer"
+        },
+        "text_weight": {
+          "type": "number"
+        },
+        "app_weight": {
+          "type": "number"
+        },
+        "time_weight": {
+          "type": "number"
+        },
+        "context_weight": {
+          "type": "number"
+        },
+        "shape_weight": {
+          "type": "number"
+        },
+        "term_min_activities": {
+          "type": "integer"
+        },
+        "term_min_days": {
+          "type": "integer"
+        }
+      }
+    },
+    "clustering": {
+      "type": "object",
+      "properties": {
+        "min_cluster_size": {
+          "type": "integer"
+        },
+        "min_cluster_size_frac": {
+          "type": "number"
+        },
+        "min_samples": {
+          "type": "integer"
+        },
+        "k_min": {
+          "type": "integer"
+        },
+        "k_max": {
+          "type": "integer"
+        },
+        "sample": {
+          "type": "integer"
+        },
+        "fit_cap": {
+          "type": "integer"
+        },
+        "fit_days": {
+          "type": "integer"
+        },
+        "seed": {
+          "type": "integer"
+        }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "properties": {
+        "g0_activities": {
+          "type": "integer"
+        },
+        "g0_days": {
+          "type": "integer"
+        },
+        "g0_hours": {
+          "type": "number"
+        },
+        "g0_windows": {
+          "type": "integer"
+        },
+        "g0_window_days": {
+          "type": "integer"
+        },
+        "g1_coverage": {
+          "type": "number"
+        },
+        "g2_dbcv": {
+          "type": "number"
+        },
+        "g3_show": {
+          "type": "number"
+        },
+        "g3_stable": {
+          "type": "number"
+        },
+        "g3_resamples": {
+          "type": "integer"
+        },
+        "g3_fraction": {
+          "type": "number"
+        },
+        "g4_ari": {
+          "type": "number"
+        },
+        "g5_persistence": {
+          "type": "number"
+        },
+        "g6_clusters": {
+          "type": "integer"
+        },
+        "g6b_gain": {
+          "type": "number"
+        },
+        "match_jaccard": {
+          "type": "number"
+        }
+      }
+    },
+    "assignment": {
+      "type": "object",
+      "properties": {
+        "floor": {
+          "type": "number"
+        },
+        "hysteresis": {
+          "type": "integer"
+        },
+        "radius_percentile": {
+          "type": "number"
+        },
+        "exemplars_per_cluster": {
+          "type": "integer"
+        }
+      }
+    }
+  }
+}
