@@ -15,4 +15,8 @@
     <Using Include="Xunit" />
     <Compile Include="$(MSBuildThisFileDirectory)Shared/*.cs" LinkBase="Shared" />
   </ItemGroup>
+  <!-- Helpers that need Tasktor.Core; test projects that reference Core set UsesCore. -->
+  <ItemGroup Condition="'$(UsesCore)' == 'true'">
+    <Compile Include="$(MSBuildThisFileDirectory)Shared/Core/*.cs" LinkBase="Shared/Core" />
+  </ItemGroup>
 </Project>
