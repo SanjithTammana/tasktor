@@ -95,6 +95,11 @@
       "when": { "metric": "connectivity.drops_10m", "above": 3 }, "cooldown": "1h",
       "then": [ { "toast": "The network dropped {value} times in 10 minutes", "severity": "warn", "buttons": ["open:module.connectivity"] } ] },
 
+    // E11: a focus or break block ended (needs the Focus Module).
+    { "id": "focus-block-end", "description": "E11: a focus block ended",
+      "when": { "event": "focus.block_end" },
+      "then": [ { "toast": "{block} done. Next: {next}", "buttons": ["focus.next", "focus.extend", "focus.stop"] } ] },
+
     // I13 / E11: during event mode and focus blocks, refits and the content worker wait.
     { "id": "event-mode-quiet", "description": "I13: event mode pauses background learning",
       "when": { "any": [ { "state": "event_mode" }, { "state": "focus_block" } ] },
