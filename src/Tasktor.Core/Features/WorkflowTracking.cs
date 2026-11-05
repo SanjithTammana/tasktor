@@ -1,11 +1,15 @@
 using System.Globalization;
+using System.Text.Json;
+using Tasktor.Contracts;
 using Tasktor.Contracts.Actions;
 using Tasktor.Contracts.Cards;
 using Tasktor.Contracts.Platform;
 using Tasktor.Contracts.Workflow;
 using Tasktor.Core.Actions;
+using Tasktor.Core.Features.Focus;
 using Tasktor.Core.Learning;
 using Tasktor.Core.Rules;
+using Tasktor.Core.Storage;
 using Tasktor.Core.Workflow;
 
 namespace Tasktor.Core.Features;
@@ -13,12 +17,17 @@ namespace Tasktor.Core.Features;
 /// <summary>
 /// C9 Workflow tracking (Module <c>tracking</c>, card <c>core.workflow</c>): window and presence events → privacy gate →
 /// episodes → stores; the open activity is assigned online (debounced 5 s, and on the 60 s tick) through the current
-/// model and <see cref="CurrentWorkflow"/> (workflow → cluster → app); closed activities feed today's totals. Disable
-/// closes the stores and releases the sources (D-C7 acceptance 1).
+/// model and <see cref="CurrentWorkflow"/> (workflow → cluster → app); closed activities are assigned (next app known),
+/// stored in <c>episodes.db</c> and feed today's totals, I6 and E11.2. C8 refits run when <see cref="RefitPlanner"/> says
+/// so: extract on the store writer, the Python worker off the loop, <see cref="ModelLoader"/> validates and swaps.
+/// Disable closes the stores and releases the sources (D-C7 acceptance 1).
 /// </summary>
 public sealed class WorkflowTracking : Feature
 {
     public static readonly TimeSpan Debounce = TimeSpan.FromSeconds(5);
+    public static readonly TimeSpan WorkerTimeout = TimeSpan.FromMinutes(20);
+    public static readonly TimeSpan RecentKeep = TimeSpan.FromDays(2);
+    public const string RefitTask = "refit";
 
     private readonly IEventSource<WindowEvent>? _windows;
     private readonly IEventSource<PresenceEvent>? _presence;
@@ -27,13 +36,21 @@ public sealed class WorkflowTracking : Feature
     private readonly PreregFile _prereg = new();
     private readonly Dictionary<(nint, ProcKey), int> _winIds = [];
     private readonly Dictionary<string, long> _today = new(StringComparer.Ordinal);
+    private readonly List<ClosedActivity> _recent = [];
+    private TokenBuckets? _buckets;
     private StoreWriter? _writer;
     private TrackingPipeline? _pipe;
     private CurrentWorkflow? _current;
+    private ModelLoader? _loader;
     private IDisposable? _tick;
     private IDisposable? _debounce;
+    private CancellationTokenSource? _refitCancel;
     private bool _paused;
     private int _day = int.MinValue;
+    private DateTimeOffset? _idleSince;
+    private long _total;
+    private long _newActivities;
+    private int _failures;
 
     public WorkflowTracking(FeatureContext context, IEventSource<WindowEvent>? windows, IEventSource<PresenceEvent>? presence, Func<StoreSet> openStores, KeyedHasher hasher)
         : base(context)
@@ -44,30 +61,80 @@ public sealed class WorkflowTracking : Feature
         _hasher = hasher;
     }
 
+    /// <summary>A closed activity as the totals and E11.2 see it: times, its label (cluster id or <c>app:&lt;exe&gt;</c>), confidence.</summary>
+    public sealed record ClosedActivity(DateTimeOffset Start, DateTimeOffset End, long ActiveMs, long IdleMs, string Label, double Confidence);
+
     public override string Id => "tracking";
 
     public override FeatureTier Tier => FeatureTier.Module;
 
-    /// <summary>The model in use (set by the loader after a swap; null = app fallback only).</summary>
+    /// <summary>The model in use (loaded at enable, replaced by a refit; null = app fallback only).</summary>
     public WorkflowModel? Model { get; set; }
+
+    public RefitPlanner Planner { get; } = new();
+
+    public ClusterFeedback Feedback { get; } = new();
 
     /// <summary>The host's persisted "pause tracking" flag (C3.1).</summary>
     public Func<bool> PausedNow { get; set; } = () => false;
 
+    /// <summary>C8 refit conditions from elsewhere: on AC (A8) …</summary>
+    public Func<bool> OnAc { get; set; } = () => true;
+
+    /// <summary>… and not in a call or event mode (I3, I13).</summary>
+    public Func<bool> Busy { get; set; } = () => false;
+
     /// <summary>The user's own names for redaction (Windows user name and display name).</summary>
     public IReadOnlyList<string> OwnNames { get; init; } = [];
+
+    /// <summary>Tests: write on the loop thread instead of the store writer thread.</summary>
+    public bool InlineStores { get; init; }
+
+    /// <summary>B5's internal task rows (the refit shows there).</summary>
+    public InternalTasks? Tasks { get; set; }
+
+    /// <summary>The thresholds file the worker reads; its hash must match every model (D-C6).</summary>
+    public string PreregPath { get; set; } = Path.Combine(AppContext.BaseDirectory, "worker", "prereg.json");
+
+    /// <summary>The bundled interpreter and the worker package folder (D-C11).</summary>
+    public string PythonExe { get; set; } = Path.Combine(AppContext.BaseDirectory, "worker", "python", OperatingSystem.IsWindows() ? "python.exe" : "bin/python3");
+
+    public string WorkerDir { get; set; } = Path.Combine(AppContext.BaseDirectory, "worker");
+
+    /// <summary>Runs one refit job and returns its exit code; the default starts the worker through <c>IProcessControl</c>. Off the loop.</summary>
+    public Func<WorkerJob, CancellationToken, Task<int>>? RunWorker { get; set; }
 
     public TrackingPipeline? Pipeline => _pipe;
 
     public IReadOnlyDictionary<string, long> TodayMs => _today;
 
+    public IReadOnlyList<ClosedActivity> Recent => _recent;
+
+    public CurrentWorkflow? Current => _current;
+
+    public long Refits { get; private set; }
+
+    /// <summary>Raised for each closed activity after assignment: the record, its label, the shown name, the confidence.</summary>
+    public event Action<ActivityRecord, string, string, double>? ActivityAssigned;
+
+    private string PlannerPath => Path.Combine(Context.Store.ModelsDir, "planner.json");
+
     protected override void OnEnable()
     {
-        _writer = StoreWriter.Threaded(_openStores());
+        var stores = _openStores();
+        _total = stores.Episodes.Activities;
+        _writer = InlineStores ? StoreWriter.Inline(stores) : StoreWriter.Threaded(stores);
+        _buckets = new TokenBuckets(_hasher, _prereg.Features.Buckets);
         var s = Context.Settings.Current.Tracking;
-        _pipe = new TrackingPipeline(new PrivacyGate(new Redactor(OwnNames), s?.ExcludeApps, s?.ExcludeTitles), new TokenBuckets(_hasher), _writer, _prereg);
+        _pipe = new TrackingPipeline(new PrivacyGate(new Redactor(OwnNames), s?.ExcludeApps, s?.ExcludeTitles), _buckets, _writer, _prereg);
         _pipe.ActivityClosed += OnClosed;
         _current = new CurrentWorkflow(_prereg.Assignment);
+        var preregHash = ModelLoader.HashOf(File.Exists(PreregPath) ? File.ReadAllBytes(PreregPath) : JsonSerializer.SerializeToUtf8Bytes(_prereg, ContractsJsonContext.Default.PreregFile));
+        _loader = new ModelLoader(Context.Store.ModelsDir, preregHash);
+        Model ??= _loader.LoadCurrent();
+        var planner = RefitPlannerStore.Load(PlannerPath);
+        Planner.Restore(planner.LastFit, planner.IntervalDays);
+        _failures = planner.FailuresInARow;
         _windows?.Start(e => Context.Loop.Post(() => OnWindow(e)));
         _presence?.Start(e => Context.Loop.Post(() => OnPresence(e)));
         _tick = Context.Loop.Every(TimeSpan.FromSeconds(60), OnTick);
@@ -81,12 +148,14 @@ public sealed class WorkflowTracking : Feature
         _presence?.Stop();
         _tick?.Dispose();
         _debounce?.Dispose();
+        _refitCancel?.Cancel();
         var now = Context.Clock.UtcNow;
         Raw(CaptureKind.AgentStop, now, null, null, null);
         _pipe?.Flush(Mono(now));
         _writer?.Dispose(); // drains and closes both stores
         _writer = null;
         _pipe = null;
+        Tasks?.Remove(RefitTask);
         Context.UpdateState(st => st with { Workflow = null });
     }
 
@@ -167,6 +236,12 @@ public sealed class WorkflowTracking : Feature
             PresenceKind.Suspend => CaptureKind.Suspend,
             _ => CaptureKind.Resume,
         };
+        _idleSince = e.Kind switch
+        {
+            PresenceKind.IdleStart or PresenceKind.Lock => _idleSince ?? e.AtUtc,
+            PresenceKind.IdleEnd or PresenceKind.Unlock or PresenceKind.Resume => null,
+            _ => _idleSince,
+        };
         Raw(kind, e.AtUtc, null, null, null, e.Idle);
     }
 
@@ -175,6 +250,23 @@ public sealed class WorkflowTracking : Feature
         var now = Context.Clock.UtcNow;
         SyncPause(now);
         AssignOpen();
+        var idleFor = _idleSince is { } since ? now - since : TimeSpan.Zero;
+        if (!_paused && Planner.Due(now, idleFor, OnAc(), Busy(), _newActivities, (int)Math.Min(int.MaxValue, _total)))
+        {
+            StartRefit();
+        }
+    }
+
+    private ActivityFeatures Features(IReadOnlyList<KeyValuePair<string, long>> tokens, float[] dense, string app, string? prev, string? next)
+    {
+        var buckets = tokens.Select(t => (Bucket: _buckets!.Of(t.Key), Ms: (double)t.Value)).GroupBy(x => x.Bucket).Select(g => (g.Key, g.Sum(x => x.Ms))).OrderBy(x => x.Key).ToList();
+        return new ActivityFeatures([.. buckets.Select(b => b.Key)], [.. buckets.Select(b => b.Item2)], [.. dense.Select(f => (double)f)], app, prev, next);
+    }
+
+    private static string Display(string app)
+    {
+        var name = app.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? app[..^4] : app;
+        return name.Length > 0 ? char.ToUpperInvariant(name[0]) + name[1..] : name;
     }
 
     /// <summary>Assign the open activity and update the shown workflow (C9).</summary>
@@ -189,25 +281,45 @@ public sealed class WorkflowTracking : Feature
         LevelResult? cluster = null;
         if (Model is { } m)
         {
-            var buckets = open.Tokens.Select(t => (_hasherBucket(t.Key), (double)t.Value)).GroupBy(x => x.Item1).Select(g => (g.Key, g.Sum(x => x.Item2))).OrderBy(x => x.Key).ToList();
             var now = Context.Clock.UtcNow;
-            var dense = TrainingExtract.Dense(now.ToUnixTimeMilliseconds() - open.ActiveMs, (int)TimeZoneInfo.Local.GetUtcOffset(now).TotalMinutes, open.ActiveMs, 0, 0, 0, 0).Select(f => (double)f).ToList();
-            var (id, conf) = m.Assign(m.Project(m.Vector(new ActivityFeatures([.. buckets.Select(b => b.Key)], [.. buckets.Select(b => b.Item2)], dense, open.App, null, null))));
+            var dense = TrainingExtract.Dense(now.ToUnixTimeMilliseconds() - open.ActiveMs, (int)TimeZoneInfo.Local.GetUtcOffset(now).TotalMinutes, open.ActiveMs, 0, 0, 0, 0);
+            var (id, conf) = m.Assign(m.Project(m.Vector(Features([.. open.Tokens], dense, open.App, null, null))));
             cluster = new LevelResult(id, m.Cluster(id)?.Name, conf);
         }
 
-        var name = open.App.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? open.App[..^4] : open.App;
-        if (_current.Update(null, cluster, open.App, name.Length > 0 ? char.ToUpperInvariant(name[0]) + name[1..] : name))
+        if (_current.Update(null, cluster, open.App, Display(open.App)))
         {
             var shown = _current.Shown;
             Context.UpdateState(s => s with { Workflow = shown });
         }
     }
 
-    private int _hasherBucket(string token) => new TokenBuckets(_hasher).Of(token);
-
     private void OnClosed(ActivityRecord a)
     {
+        string? cluster = null;
+        double conf = 0;
+        var level = "app";
+        if (Model is { } m)
+        {
+            var dense = TrainingExtract.Dense(a.StartUtcMs, a.TzMin, a.ActiveMs, a.IdleMs, a.Glances, a.TitleChanges, a.JobFrac);
+            (cluster, conf) = m.Assign(m.Project(m.Vector(Features(a.Tokens, dense, a.App, a.PrevApp, a.NextApp))));
+            if (cluster is not null)
+            {
+                level = "activity";
+            }
+        }
+
+        var shown = cluster is not null && conf >= _prereg.Assignment.Floor && _current?.IsSuppressed(cluster) != true;
+        var label = shown ? cluster! : "app:" + a.App;
+        var name = shown ? Model!.Cluster(cluster)?.Name ?? cluster! : Display(a.App);
+        if (shown)
+        {
+            Feedback.Shown(cluster!);
+        }
+
+        var version = Model?.Version;
+        _writer?.Enqueue(s => s.Episodes.Assign(s.Base + a.Index, version, cluster, conf, level));
+
         var day = Days.Of(a.StartUtcMs, a.TzMin);
         if (day != _day)
         {
@@ -215,8 +327,204 @@ public sealed class WorkflowTracking : Feature
             _day = day;
         }
 
-        var key = _current?.Shown?.Name ?? a.App;
-        _today[key] = _today.GetValueOrDefault(key) + a.ActiveMs;
+        _today[name] = _today.GetValueOrDefault(name) + a.ActiveMs;
+        var start = DateTimeOffset.FromUnixTimeMilliseconds(a.StartUtcMs);
+        _recent.Add(new ClosedActivity(start, start + TimeSpan.FromMilliseconds(a.EndMs - a.StartMs), a.ActiveMs, a.IdleMs, label, shown ? conf : 0));
+        _recent.RemoveAll(r => r.End < Context.Clock.UtcNow - RecentKeep);
+        _total++;
+        _newActivities++;
+        ActivityAssigned?.Invoke(a, label, name, shown ? conf : 0);
+    }
+
+    /// <summary>
+    /// E11.2: C's numbers for a focus block from the closed activities inside it (overlap-weighted): the share in the
+    /// intended label (cluster id or <c>app:&lt;exe&gt;</c>; the block's most common label when none was picked), label
+    /// switches, idle share and mean confidence. Null when nothing closed inside the block.
+    /// </summary>
+    public BlockMeasures? Measure(DateTimeOffset from, DateTimeOffset to, string? intended)
+    {
+        var parts = _recent.Where(r => r.End > from && r.Start < to).OrderBy(r => r.Start)
+            .Select(r =>
+            {
+                var span = (r.End - r.Start).TotalMilliseconds;
+                var overlap = (Min(r.End, to) - Max(r.Start, from)).TotalMilliseconds;
+                var frac = span > 0 ? Math.Clamp(overlap / span, 0, 1) : 1;
+                return (r.Label, Active: r.ActiveMs * frac, Idle: r.IdleMs * frac, r.Confidence);
+            })
+            .Where(p => p.Active > 0)
+            .ToList();
+        if (parts.Count == 0)
+        {
+            return null;
+        }
+
+        var total = parts.Sum(p => p.Active);
+        var target = intended ?? parts.GroupBy(p => p.Label).MaxBy(g => g.Sum(p => p.Active))!.Key;
+        var onIntent = parts.Where(p => p.Label == target).Sum(p => p.Active) / total;
+        var switches = parts.Zip(parts.Skip(1)).Count(x => x.First.Label != x.Second.Label);
+        var idle = parts.Sum(p => p.Idle);
+        return new BlockMeasures(Math.Round(onIntent, 6), switches, Math.Round(idle / (total + idle), 6), null, Math.Round(parts.Average(p => p.Confidence), 6));
+    }
+
+    private static DateTimeOffset Min(DateTimeOffset a, DateTimeOffset b) => a < b ? a : b;
+
+    private static DateTimeOffset Max(DateTimeOffset a, DateTimeOffset b) => a > b ? a : b;
+
+    /// <summary>C8 refit now (the planner said so, or <c>tasktor refit</c>): extract → worker → validate → swap.</summary>
+    public bool StartRefit()
+    {
+        if (Planner.Running || _writer is null || _loader is null)
+        {
+            return false;
+        }
+
+        Planner.Running = true;
+        var now = Context.Clock.UtcNow;
+        var version = "v" + now.UtcDateTime.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        var extract = Path.Combine(Context.Store.ExtractDir, version);
+        var staging = Path.Combine(Context.Store.ModelsDir, "staging", version);
+        var overrides = Path.Combine(Context.Store.ModelsDir, "overrides.json");
+        var job = new WorkerJob
+        {
+            Extract = extract,
+            PreviousModel = Model?.Directory,
+            Overrides = File.Exists(overrides) ? overrides : null,
+            Prereg = PreregPath,
+            Output = staging,
+        };
+        _refitCancel = new CancellationTokenSource();
+        var token = _refitCancel.Token;
+        var c = _prereg.Clustering;
+        Tasks?.Set(new ProgressRow { Id = RefitTask, Label = "Workflow refit", Stage = "extract", State = Contracts.Jobs.ProgressState.Running, UpdatedUtc = now }, () => _refitCancel?.Cancel());
+        Context.Log.Info("workflow.refit_start", Logging.LogField.Of("new", _newActivities));
+        _writer.Enqueue(s =>
+        {
+            int rows;
+            try
+            {
+                rows = TrainingExtract.Write(s.Episodes, extract, version, now, c.FitDays, c.FitCap).Count;
+            }
+            catch (Exception e) when (e is IOException or SqliteException or UnauthorizedAccessException)
+            {
+                rows = -1;
+            }
+
+            Context.Loop.Post(() => Launch(job, rows, token));
+        });
+        return true;
+    }
+
+    private void Launch(WorkerJob job, int rows, CancellationToken token)
+    {
+        if (rows < 0 || token.IsCancellationRequested)
+        {
+            Finish(job, -1);
+            return;
+        }
+
+        Tasks?.Set(new ProgressRow { Id = RefitTask, Label = "Workflow refit", Stage = "fits", Msg = rows + " activities", State = Contracts.Jobs.ProgressState.Running, UpdatedUtc = Context.Clock.UtcNow }, () => _refitCancel?.Cancel());
+        var run = RunWorker ?? DefaultRunWorker;
+        Context.OffLoop(() =>
+        {
+            int code;
+            try
+            {
+                code = run(job, token).GetAwaiter().GetResult();
+            }
+            catch (Exception e) when (e is OperationCanceledException or IOException or InvalidOperationException or System.ComponentModel.Win32Exception)
+            {
+                code = -1;
+            }
+
+            Context.Loop.Post(() => Finish(job, code));
+        });
+    }
+
+    private async Task<int> DefaultRunWorker(WorkerJob job, CancellationToken token)
+    {
+        var pc = Context.Processes ?? throw new InvalidOperationException("no process control");
+        var handle = pc.StartWorker(new WorkerSpec
+        {
+            Kind = WorkerKind.Learning,
+            Exe = PythonExe,
+            Args = ["-I", "-m", "tasktor_worker"],
+            WorkingDir = WorkerDir,
+            Stdin = JsonSerializer.Serialize(job, ContractsJsonContext.Default.WorkerJob),
+            MemoryMb = 1536,
+            TimeoutMs = (int)WorkerTimeout.TotalMilliseconds,
+            ClearEnv = ["PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP"],
+            Eco = true,
+        });
+        using var reg = token.Register(() => pc.CancelWorker(handle));
+        var exit = await pc.WaitWorker(handle, token).ConfigureAwait(false);
+        return exit.TimedOut ? -1 : exit.ExitCode ?? -1;
+    }
+
+    private void Finish(WorkerJob job, int code)
+    {
+        var now = Context.Clock.UtcNow;
+        var reason = code == 0 ? _loader?.Validate(job.Output) : "worker exit " + code;
+        if (reason is null && _loader is not null && Enabled)
+        {
+            var previous = Model;
+            Model = _loader.Swap(job.Output);
+            Feedback.Reset();
+            _current?.ClearSuppressed();
+            var (g5, newCluster) = Persistence(Model, previous);
+            Planner.OnFitResult(now, g5, newCluster);
+            _newActivities = 0;
+            _failures = 0;
+            Refits++;
+            Context.Log.Info("workflow.refit_done", Logging.LogField.Of("version", Model.Version), Logging.LogField.Of("clusters", Model.Manifest.Clusters.Count));
+            AssignOpen();
+        }
+        else
+        {
+            // A failed or refused fit counts as today's attempt (no retry storm); the current model stays.
+            _failures++;
+            Planner.OnFitResult(now, null, newCluster: false);
+            Planner.Restore(now, Planner.Interval.TotalDays);
+            Context.Log.Warn("workflow.refit_failed", Logging.LogField.Of("reason", reason ?? "disabled"), Logging.LogField.Of("in_a_row", _failures));
+            TryDelete(job.Output);
+        }
+
+        TryDelete(job.Extract);
+        Context.Persist(PlannerPath, RefitPlannerStore.Bytes(new RefitPlannerFile { LastFit = Planner.LastFit, IntervalDays = Planner.Interval.TotalDays, FailuresInARow = _failures }));
+        Tasks?.Remove(RefitTask);
+    }
+
+    /// <summary>G5 from the new model's eval.json, and whether a cluster id is new against the previous model.</summary>
+    private static (double? G5, bool NewCluster) Persistence(WorkflowModel model, WorkflowModel? previous)
+    {
+        double? g5 = null;
+        try
+        {
+            var eval = JsonSerializer.Deserialize(File.ReadAllBytes(Path.Combine(model.Directory, "eval.json")), ContractsJsonContext.Default.EvalReport);
+            g5 = eval?.Gates.FirstOrDefault(g => g.Id == "G5")?.Value;
+        }
+        catch (Exception e) when (e is IOException or JsonException)
+        {
+            g5 = null;
+        }
+
+        var old = previous?.Manifest.Clusters.Select(c => c.Id).ToHashSet(StringComparer.Ordinal);
+        var fresh = old is not null && model.Manifest.Clusters.Any(c => !old.Contains(c.Id));
+        return (g5, fresh);
+    }
+
+    private static void TryDelete(string dir)
+    {
+        try
+        {
+            if (Directory.Exists(dir))
+            {
+                Directory.Delete(dir, recursive: true);
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // left for the next start's cleanup
+        }
     }
 
     private PreparedAction Wrong(ActionRequest req)
@@ -227,13 +535,24 @@ public sealed class WorkflowTracking : Feature
             return new PreparedAction { Summary = "That's wrong", Refusal = "Nothing learned is shown now" };
         }
 
+        var hide = Feedback.Wrong(id);
         return new PreparedAction
         {
             Summary = "That's wrong",
-            Immediate = new ActionResult { Action = "workflow.wrong", Status = ActionStatus.Ok, Message = "Noted: shown as the app until the next refit" },
+            Immediate = new ActionResult
+            {
+                Action = "workflow.wrong",
+                Status = ActionStatus.Ok,
+                Message = hide ? "Hidden until the next refit: shown by app meanwhile" : "Noted",
+            },
             Done = _ =>
             {
-                _current!.Suppress(id);
+                if (hide)
+                {
+                    _current!.Suppress(id);
+                    Context.Log.Info("workflow.cluster_hidden", Logging.LogField.Of("wrong_share", Math.Round(Feedback.WrongShare(id), 2)));
+                }
+
                 AssignOpen();
             },
         };
@@ -262,7 +581,7 @@ public sealed class WorkflowTracking : Feature
         };
         if (top.Count > 0)
         {
-            blocks.Insert(1, new ListBlock { Label = "Today", Items = Value.FromRawJson(System.Text.Json.JsonSerializer.Serialize<IReadOnlyList<string>>(top, Contracts.ContractsJsonContext.Default.IReadOnlyListString)), Max = 3, Priority = 2 });
+            blocks.Insert(1, new ListBlock { Label = "Today", Items = Value.FromRawJson(JsonSerializer.Serialize<IReadOnlyList<string>>(top, ContractsJsonContext.Default.IReadOnlyListString)), Max = 3, Priority = 2 });
         }
 
         if (Model is null)
