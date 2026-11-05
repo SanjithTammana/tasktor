@@ -185,7 +185,8 @@ internal static class Composition
         });
 
         // One WinEventSource for C9 and I11 (it keeps one hook thread): started while either subscriber needs it.
-        var windowEvents = windows ? new SharedSource<Contracts.Workflow.WindowEvent>(new WinEventSource(pid => processTable.ReadOne(new ProcKey(pid, 0)))) : null;
+        var winEvents = windows ? new WinEventSource(pid => processTable.ReadOne(new ProcKey(pid, 0))) : null;
+        var windowEvents = winEvents is null ? null : new SharedSource<Contracts.Workflow.WindowEvent>(winEvents);
 
         WorkflowTracking? tracking = null;
         if (settings.ModuleOn("tracking"))
@@ -262,12 +263,13 @@ internal static class Composition
         {
             host.AddFeature(new DeviceBatteries(ctx, windows ? new BluetoothBatterySource() : new NoDevices()));
         }
-        AddWindowsFeatures(host, windows, windowEvents?.Subscriber());
+        AddWindowsFeatures(host, windows, windowEvents, winEvents);
     }
 
-    private static void AddWindowsFeatures(AgentHost host, bool windows, IEventSource<Contracts.Workflow.WindowEvent>? events)
+    private static void AddWindowsFeatures(AgentHost host, bool windows, SharedSource<Contracts.Workflow.WindowEvent>? events, WinEventSource? source)
     {
-        var fullscreen = new Core.Features.Windows.FullscreenSource(host.NewFeatureContext(), events)
+        // D-W9: its own subscription to the shared WinEventSource (foreground events only), whatever the Modules.
+        var fullscreen = new Core.Features.Windows.FullscreenSource(host.NewFeatureContext(), events?.Subscriber())
         {
             Window = windows ? Windows.Shell.Win32Windows.FullscreenWindow : _ => null,
             Monitors = windows ? Windows.Shell.Win32Windows.Monitors : () => [],
@@ -275,12 +277,6 @@ internal static class Composition
         };
         host.AddFeature(fullscreen);
         if (!host.Settings.ModuleOn("presets")) return;
-        var watch = windows ? new Windows.Shell.WindowInterventionWatch() : null;
-        if (watch is not null)
-        {
-            host.Own(watch);
-            host.NewFeatureContext().OffLoop(watch.Start);
-        }
         bool Frozen(uint pid) => Core.Features.Windows.FrozenWindowGuard.IsFrozen(host.Store.Frozen, pid);
         bool Launch(Contracts.Presets.PresetLaunch app)
         {
@@ -292,12 +288,15 @@ internal static class Composition
             }
             catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException) { return false; }
         }
+        // U3: one hook thread. Interventions and launched windows come from WinEventSource's lifecycle lease, held only
+        // while a restore waits (no second hook, no polling).
         var restorer = new Core.Features.Windows.PresetRestorer(host.NewFeatureContext())
         {
+            Events = events?.Subscriber(),
+            LeaseLifecycle = source is null ? null : source.LeaseLifecycle,
             Windows = windows ? () => Windows.Shell.Win32Windows.Enumerate(Frozen) : () => [],
             Monitors = windows ? Windows.Shell.Win32Windows.Monitors : () => [],
             IsFrozen = windows ? Frozen : _ => false,
-            UserChangedSince = watch is null ? (_, _) => true : watch.ChangedSince,
             Move = windows ? move => Windows.Shell.Win32Windows.Place(move.Hwnd, move.Rect, move.Show, Frozen) : _ => false,
             Launch = windows ? exe => Launch(new Contracts.Presets.PresetLaunch { Exe = exe }) : _ => false,
             LaunchWithArgs = windows ? Launch : null,

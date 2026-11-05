@@ -210,6 +210,11 @@ public sealed class WorkflowTracking : Feature
     public void OnWindow(WindowEvent e)
     {
         ArgumentNullException.ThrowIfNull(e);
+        if (e.Kind > WindowEventKind.MinimizeEnd)
+        {
+            return; // lifecycle kinds (show / destroy / move) are for presets and the switcher, never recorded
+        }
+
         SyncPause(e.AtUtc);
         if (e.Exe is not { Length: > 0 } exe)
         {
@@ -222,13 +227,19 @@ public sealed class WorkflowTracking : Feature
             _winIds[key] = win = _winIds.Count + 1;
         }
 
-        var kind = e.Kind switch
+        CaptureKind? mapped = e.Kind switch
         {
             WindowEventKind.Foreground => CaptureKind.Foreground,
             WindowEventKind.TitleChanged => CaptureKind.Title,
             WindowEventKind.MinimizeStart => CaptureKind.Minimize,
-            _ => CaptureKind.Restore,
+            WindowEventKind.MinimizeEnd => CaptureKind.Restore,
+            _ => null,
         };
+        if (mapped is not { } kind)
+        {
+            return;
+        }
+
         Raw(kind, e.AtUtc, exe.ToLowerInvariant(), win, e.Title?.Reveal());
         _debounce?.Dispose();
         _debounce = Context.Loop.At(Context.Clock.UtcNow + Debounce, AssignOpen);

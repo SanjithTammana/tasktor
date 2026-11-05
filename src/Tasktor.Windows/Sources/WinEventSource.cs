@@ -18,11 +18,17 @@ public sealed unsafe partial class WinEventSource : IEventSource<WindowEvent>
     private const uint EventSystemMinimizeStart = 0x0016;
     private const uint EventSystemMinimizeEnd = 0x0017;
     private const uint EventObjectNameChange = 0x800C;
+    private const uint EventSystemMoveSizeStart = 0x000A;
+    private const uint EventSystemMoveSizeEnd = 0x000B;
+    private const uint EventObjectDestroy = 0x8001;
+    private const uint EventObjectShow = 0x8002;
     private const uint WineventOutOfContext = 0x0000;
     private const uint WineventSkipOwnProcess = 0x0002;
     private const uint WmQuit = 0x0012;
     private const uint WmFocus = 0x8001; // WM_APP + 1: move the title hook to a process
+    private const uint WmLifecycle = 0x8002; // WM_APP + 2: install or remove the lifecycle hooks to match the lease count
     private const uint Flags = WineventOutOfContext | WineventSkipOwnProcess;
+    private const uint GaRoot = 2;
 
     private static WinEventSource? s_current;
     private readonly ConcurrentQueue<(uint Event, nint Hwnd)> _raw = new();
@@ -32,6 +38,9 @@ public sealed unsafe partial class WinEventSource : IEventSource<WindowEvent>
     private Action<WindowEvent>? _post;
     private nint _titleHook;
     private uint _titlePid;
+    private int _lifecycleLeases;
+    private nint _showDestroyHook;
+    private nint _moveSizeHook;
 
     public WinEventSource(Func<uint, ProcessRow?> readProcess) => _readProcess = readProcess;
 
@@ -66,6 +75,60 @@ public sealed unsafe partial class WinEventSource : IEventSource<WindowEvent>
         }
     }
 
+    /// <summary>
+    /// U3: show / destroy / move-size events, only while at least one lease is held (presets during a restore, the
+    /// switcher while the Windows Module is on). Thread-safe; dispose the lease to release it.
+    /// </summary>
+    public IDisposable LeaseLifecycle()
+    {
+        Interlocked.Increment(ref _lifecycleLeases);
+        SyncLifecycleSoon();
+        return new LifecycleLease(this);
+    }
+
+    private void SyncLifecycleSoon()
+    {
+        if (_threadId != 0)
+        {
+            PostThreadMessageW(_threadId, WmLifecycle, 0, 0);
+        }
+    }
+
+    private sealed class LifecycleLease(WinEventSource owner) : IDisposable
+    {
+        private int _released;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _released, 1) == 0)
+            {
+                Interlocked.Decrement(ref owner._lifecycleLeases);
+                owner.SyncLifecycleSoon();
+            }
+        }
+    }
+
+    /// <summary>On the hook thread: lifecycle hooks on while leased, off otherwise.</summary>
+    private void SyncLifecycle()
+    {
+        var want = Volatile.Read(ref _lifecycleLeases) > 0;
+        if (want && _showDestroyHook == 0)
+        {
+            _showDestroyHook = SetWinEventHook(EventObjectDestroy, EventObjectShow, 0, &Callback, 0, 0, Flags);
+            _moveSizeHook = SetWinEventHook(EventSystemMoveSizeStart, EventSystemMoveSizeEnd, 0, &Callback, 0, 0, Flags);
+        }
+        else if (!want && _showDestroyHook != 0)
+        {
+            UnhookWinEvent(_showDestroyHook);
+            if (_moveSizeHook != 0)
+            {
+                UnhookWinEvent(_moveSizeHook);
+            }
+
+            (_showDestroyHook, _moveSizeHook) = (0, 0);
+        }
+    }
+
     public void Stop()
     {
         if (_threadId != 0)
@@ -81,10 +144,13 @@ public sealed unsafe partial class WinEventSource : IEventSource<WindowEvent>
 
     private void Run(ManualResetEventSlim ready)
     {
-        _threadId = GetCurrentThreadId();
+        Msg queue;
+        PeekMessageW(&queue, 0, 0, 0, 0); // create this thread's message queue before anyone posts to it
         var fg = SetWinEventHook(EventSystemForeground, EventSystemForeground, 0, &Callback, 0, 0, Flags);
         var min = SetWinEventHook(EventSystemMinimizeStart, EventSystemMinimizeEnd, 0, &Callback, 0, 0, Flags);
         Failed = fg == 0;
+        _threadId = GetCurrentThreadId();
+        SyncLifecycle(); // a lease taken before the thread was ready
         ready.Set();
         try
         {
@@ -97,6 +163,12 @@ public sealed unsafe partial class WinEventSource : IEventSource<WindowEvent>
                     continue;
                 }
 
+                if (msg.Message == WmLifecycle)
+                {
+                    SyncLifecycle();
+                    continue;
+                }
+
                 TranslateMessage(&msg);
                 DispatchMessageW(&msg);
                 Drain();
@@ -104,7 +176,7 @@ public sealed unsafe partial class WinEventSource : IEventSource<WindowEvent>
         }
         finally
         {
-            foreach (var h in new[] { fg, min, _titleHook })
+            foreach (var h in new[] { fg, min, _titleHook, _showDestroyHook, _moveSizeHook })
             {
                 if (h != 0)
                 {
@@ -114,6 +186,7 @@ public sealed unsafe partial class WinEventSource : IEventSource<WindowEvent>
 
             _titleHook = 0;
             _titlePid = 0;
+            (_showDestroyHook, _moveSizeHook) = (0, 0);
         }
     }
 
@@ -139,6 +212,26 @@ public sealed unsafe partial class WinEventSource : IEventSource<WindowEvent>
     {
         while (_raw.TryDequeue(out var r))
         {
+            var lifecycle = r.Event switch
+            {
+                EventObjectShow => WindowEventKind.Shown,
+                EventObjectDestroy => WindowEventKind.Destroyed,
+                EventSystemMoveSizeStart => WindowEventKind.MoveSizeStart,
+                EventSystemMoveSizeEnd => WindowEventKind.MoveSizeEnd,
+                _ => (WindowEventKind?)null,
+            };
+            if (lifecycle is { } life)
+            {
+                // Numbers only: no title, no process read (a destroyed window has neither). Shown is top-level only.
+                if (life != WindowEventKind.Shown || GetAncestor(r.Hwnd, GaRoot) == r.Hwnd)
+                {
+                    GetWindowThreadProcessId(r.Hwnd, out var lpid);
+                    _post?.Invoke(new WindowEvent(life, r.Hwnd, new ProcKey(lpid, 0), Environment.TickCount64, DateTimeOffset.UtcNow));
+                }
+
+                continue;
+            }
+
             GetWindowThreadProcessId(r.Hwnd, out var pid);
             var kind = r.Event switch
             {
@@ -202,6 +295,12 @@ public sealed unsafe partial class WinEventSource : IEventSource<WindowEvent>
 
     [LibraryImport("user32.dll")]
     private static partial int GetMessageW(Msg* msg, nint hwnd, uint min, uint max);
+
+    [LibraryImport("user32.dll")]
+    private static partial int PeekMessageW(Msg* msg, nint hwnd, uint min, uint max, uint remove);
+
+    [LibraryImport("user32.dll")]
+    private static partial nint GetAncestor(nint hwnd, uint flags);
 
     [LibraryImport("user32.dll")]
     private static partial int TranslateMessage(Msg* msg);
