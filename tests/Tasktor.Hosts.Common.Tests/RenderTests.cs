@@ -291,7 +291,7 @@ public sealed partial class RenderTests
     private static partial Regex CatalogRow();
 
     /// <summary>Cards whose owners land in later milestones (M12 capture, M14 presets / shell).</summary>
-    private static readonly HashSet<string> Later = ["core.capture", "module.presets"];
+    private static readonly HashSet<string> Later = ["module.presets"]; // M14 (U3)
 
     [Fact]
     public void Every_card_in_the_catalog_has_a_provider()

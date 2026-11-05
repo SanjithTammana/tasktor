@@ -19,6 +19,7 @@ public static class ContractIds
     public const string Model = "tasktor.model/1";
     public const string Eval = "tasktor.eval/1";
     public const string Overrides = "tasktor.overrides/1";
+    public const string CaptureControl = "tasktor.capture-control/1";
 
     /// <summary>
     /// Base of each schema's <c>$id</c>. A URN, so the repo names no domain it does not own; files that want
