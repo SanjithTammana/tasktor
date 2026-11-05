@@ -9,6 +9,7 @@ using Tasktor.Core.Features.Focus;
 using Tasktor.Core.Features.Folders;
 using Tasktor.Core.Features.Guards;
 using Tasktor.Core.Features.Network;
+using Tasktor.Core.Features.Projects;
 using Tasktor.Core.Features.Space;
 using Tasktor.Core.Features.SystemMonitor;
 using Tasktor.Core.Plugins;
@@ -139,11 +140,13 @@ internal static class Composition
         host.AddFeature(power);
         host.Rules.ExtraGuards.Add(power.ManualGuards);
 
+        MeetingGuard? meeting = null;
         if (settings.ModuleOn("meeting_guard"))
         {
-            var meeting = new MeetingGuard(ctx, windows ? new CallStateSource() : null, () => next?.MeetingNow is not null) { CallApps = () => Group("call_apps") };
-            host.AddFeature(meeting);
-            power.Notices.Add(() => meeting.Notice);
+            var guard = new MeetingGuard(ctx, windows ? new CallStateSource() : null, () => next?.MeetingNow is not null) { CallApps = () => Group("call_apps") };
+            meeting = guard;
+            host.AddFeature(guard);
+            power.Notices.Add(() => guard.Notice);
         }
 
         if (settings.ModuleOn("agents"))
@@ -181,28 +184,147 @@ internal static class Composition
             RecycleBinBytes = windows ? Windows.Shell.WindowsShell.RecycleBinBytes : () => null,
         });
 
-        if (settings.ModuleOn("focus"))
-        {
-            host.AddFeature(new FocusTimer(ctx, eventMode, new NotesStore(host.Store.NotesDir)) { TrackingOn = () => settings.ModuleOn("tracking") });
-        }
+        // One WinEventSource for C9 and I11 (it keeps one hook thread): started while either subscriber needs it.
+        var windowEvents = windows ? new SharedSource<Contracts.Workflow.WindowEvent>(new WinEventSource(pid => processTable.ReadOne(new ProcKey(pid, 0)))) : null;
 
-        if (settings.ModuleOn("tracking") && host.Key is { } key)
+        WorkflowTracking? tracking = null;
+        if (settings.ModuleOn("tracking"))
         {
             // C9 (T0 tracking): Windows hooks, idle and session sources; none elsewhere (the feature still runs, empty).
-            IEventSource<Contracts.Workflow.WindowEvent>? win = windows ? new WinEventSource(pid => processTable.ReadOne(new ProcKey(pid, 0))) : null;
             IEventSource<Contracts.Workflow.PresenceEvent>? presence = windows ? new BothPresence(new IdleSource(), new SessionSource()) : null;
             var store = host.Store;
-            host.AddFeature(new WorkflowTracking(ctx, win, presence, () => new Core.Workflow.StoreSet(new Core.Workflow.EventStore(store.EventsDb), new Core.Workflow.EpisodeStore(store.EpisodesDb)), key.Hasher("tok"))
+            tracking = new WorkflowTracking(ctx, windowEvents?.Subscriber(), presence, () => new Core.Workflow.StoreSet(new Core.Workflow.EventStore(store.EventsDb), new Core.Workflow.EpisodeStore(store.EpisodesDb)), host.Key.Hasher("tok"))
             {
                 PausedNow = () => host.Paused.Tracking,
                 OwnNames = [Environment.UserName],
-            });
+                OnAc = () => host.State.Current.Power is not { OnBattery: true },
+                Busy = () => eventMode.Active is not null || meeting?.InCall() == true,
+                Tasks = host.InternalTasks,
+                PreregPath = Path.Combine(host.Options.InstallDir, "worker", "prereg.json"),
+                PythonExe = Path.Combine(host.Options.InstallDir, "worker", "python", windows ? "python.exe" : "bin/python3"),
+                WorkerDir = Path.Combine(host.Options.InstallDir, "worker"),
+            };
+            host.AddFeature(tracking);
+
+            // Forget tracking: stop and close both stores before track\ goes, reopen fresh ones after.
+            host.Forgetter.Before[ForgetScope.Tracking].Add(() => host.Loop.InvokeAsync(() =>
+            {
+                tracking.Disable();
+                return true;
+            }));
+            host.Forgetter.After[ForgetScope.Tracking].Add(() => host.Loop.InvokeAsync(() =>
+            {
+                tracking.Model = null;
+                tracking.Enable();
+                return true;
+            }));
+        }
+
+        if (settings.ModuleOn("focus"))
+        {
+            var focus = new FocusTimer(ctx, eventMode, new NotesStore(host.Store.NotesDir)) { TrackingOn = () => settings.ModuleOn("tracking") && tracking is not null };
+            if (tracking is not null)
+            {
+                focus.Measure = tracking.Measure;
+                focus.CurrentWorkflow = () => tracking.Current?.Shown?.Id;
+            }
+
+            host.AddFeature(focus);
+        }
+
+        if (settings.ModuleOn("projects"))
+        {
+            var projects = new ProjectTime(ctx, new ProjectMap(host.Store.Projects));
+            host.AddFeature(projects);
+            if (tracking is not null)
+            {
+                tracking.ActivityAssigned += (a, label, _, _) => projects.Add(label, a.ActiveMs, DateTimeOffset.FromUnixTimeMilliseconds(a.StartUtcMs));
+            }
+        }
+
+        if (settings.ModuleOn("windows_watch"))
+        {
+            // I11 watches are user-authored (app + title pattern); none until the flyout's picker writes them (M14).
+            host.AddFeature(new WindowWatch(ctx, windowEvents?.Subscriber()));
         }
 
         if (settings.ModuleOn("batteries"))
         {
             host.AddFeature(new DeviceBatteries(ctx, windows ? new BluetoothBatterySource() : new NoDevices()));
         }
+    }
+
+    /// <summary>
+    /// One underlying event source shared by several features: started on the first subscriber's Start, stopped when the
+    /// last one stops; each event goes to every started subscriber.
+    /// </summary>
+    private sealed class SharedSource<T>(IEventSource<T> inner)
+    {
+        private readonly Lock _gate = new();
+        private readonly List<Action<T>> _posts = [];
+
+        public IEventSource<T> Subscriber() => new Sub(this);
+
+        private void Fan(T item)
+        {
+            Action<T>[] posts;
+            lock (_gate)
+            {
+                posts = [.. _posts];
+            }
+
+            foreach (var p in posts)
+            {
+                p(item);
+            }
+        }
+
+        private sealed class Sub(SharedSource<T> owner) : IEventSource<T>
+        {
+            private Action<T>? _post;
+
+            public string Name => owner.Name;
+
+            public void Start(Action<T> post)
+            {
+                bool first;
+                lock (owner._gate)
+                {
+                    _post = post;
+                    owner._posts.Add(post);
+                    first = owner._posts.Count == 1;
+                }
+
+                if (first)
+                {
+                    owner.Inner.Start(owner.Fan);
+                }
+            }
+
+            public void Stop()
+            {
+                bool last;
+                lock (owner._gate)
+                {
+                    if (_post is null || !owner._posts.Remove(_post))
+                    {
+                        return;
+                    }
+
+                    _post = null;
+                    last = owner._posts.Count == 0;
+                }
+
+                if (last)
+                {
+                    owner.Inner.Stop();
+                }
+            }
+        }
+
+        private string Name => inner.Name;
+
+        private IEventSource<T> Inner => inner;
     }
 
     /// <summary>Idle and session presence as one source (the feature takes one).</summary>

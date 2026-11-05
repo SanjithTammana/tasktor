@@ -26,6 +26,8 @@ public sealed class CurrentWorkflow
 
     public void ClearSuppressed() => _suppressed.Clear();
 
+    public bool IsSuppressed(string clusterId) => _suppressed.Contains(clusterId);
+
     /// <summary>Feed one round of results; returns true when the shown value changed.</summary>
     public bool Update(LevelResult? workflow, LevelResult? cluster, string app, string appName)
     {
@@ -97,6 +99,13 @@ public sealed class RefitPlanner
     public bool EarlyRequested { get; private set; }
 
     public bool Running { get; set; }
+
+    /// <summary>Restore the persisted cadence (planner.json).</summary>
+    public void Restore(DateTimeOffset? lastFit, double intervalDays)
+    {
+        LastFit = lastFit;
+        Interval = TimeSpan.FromDays(Math.Clamp(intervalDays, 7, 28));
+    }
 
     public bool Due(DateTimeOffset now, TimeSpan idleFor, bool onAc, bool busy, long newActivities, int activitiesTotal)
     {
