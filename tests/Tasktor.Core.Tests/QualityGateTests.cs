@@ -188,9 +188,6 @@ public sealed partial class QualityGateTests
     /// <summary>Catalog rows whose handler lands with a later milestone (C's card actions, T1 capture, the viewers).</summary>
     private static readonly IReadOnlyDictionary<string, string> Pending = new Dictionary<string, string>(StringComparer.Ordinal)
     {
-        ["preset.arrange"] = "M14 (U3)",
-        ["preset.undo"] = "M14 (U3)",
-        ["preset.apply"] = "M14 (U3)",
     };
 
     [GeneratedRegex(@"Register\(""(?<id>[a-z_.]+)""")]

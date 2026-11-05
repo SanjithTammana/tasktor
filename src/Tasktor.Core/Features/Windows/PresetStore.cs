@@ -32,7 +32,7 @@ public sealed class PresetStore(FeatureContext context)
             Error = "presets.json line " + ((ex.LineNumber ?? 0) + 1) + ": " + ex.Message.Split('\n')[0];
             Current = new PresetsFile { Presets = [] };
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Error = "Unable to read presets.json";
             Current = new PresetsFile { Presets = [] };
@@ -59,11 +59,23 @@ public sealed class PresetStore(FeatureContext context)
 
     private static void Validate(PresetsFile file)
     {
-        if (file.Schema != ContractIds.Presets || file.Presets.Any(p => string.IsNullOrWhiteSpace(p.Name) || p.Slots.Count(s => s.Focus == true) > 1 ||
-            p.Slots.Any(s => s.Desktop != "current" || string.IsNullOrWhiteSpace(s.App.AppId) || string.IsNullOrWhiteSpace(s.Place.Monitor) || s.Place.Rect.W <= 0 || s.Place.Rect.H <= 0)) ||
-            file.Presets.Select(p => p.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count() != file.Presets.Count)
+        if (file.Schema != ContractIds.Presets || file.Presets is null) throw new JsonException("Invalid preset file");
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var preset in file.Presets)
         {
-            throw new JsonException("Invalid preset");
+            if (preset is null || string.IsNullOrWhiteSpace(preset.Name) || !names.Add(preset.Name) || preset.Slots is null)
+                throw new JsonException("Invalid preset");
+            if (preset.Fancyzones?.Any(layout => layout is null || string.IsNullOrWhiteSpace(layout.Monitor) || string.IsNullOrWhiteSpace(layout.Layout)) == true)
+                throw new JsonException("Invalid FancyZones layout");
+            var focused = 0;
+            foreach (var slot in preset.Slots)
+            {
+                if (slot is null || slot.App is null || slot.Place is null || slot.Place.Rect is null || slot.Desktop != "current" ||
+                    string.IsNullOrWhiteSpace(slot.App.AppId) || string.IsNullOrWhiteSpace(slot.Place.Monitor) || slot.Place.Rect.W <= 0 || slot.Place.Rect.H <= 0 ||
+                    (slot.Launch is { } launch && (string.IsNullOrWhiteSpace(launch.Exe) || launch.Args?.Any(a => a is null) == true)))
+                    throw new JsonException("Invalid preset slot");
+                if (slot.Focus == true && ++focused > 1) throw new JsonException("More than one focused slot");
+            }
         }
     }
 }
