@@ -74,6 +74,18 @@ internal sealed class AgentFixture : IAsyncDisposable
         Host.Start();
         Host.OnLoop(() => Host.UpdateState(s => s with { System = new SystemState { CpuPct = 34, Verdict = "CPU 34%: worker 2 cores" } })).GetAwaiter().GetResult();
         WaitFor(() => Host.Publisher.Latest?.State.System?.CpuPct == 34);
+        WaitFor(() =>
+        {
+            try
+            {
+                Hosts.Common.Pipe.PipeClient.ConnectAsync("probe", PipeName, 2000).GetAwaiter().GetResult().DisposeAsync().AsTask().GetAwaiter().GetResult();
+                return true;
+            }
+            catch (Hosts.Common.Pipe.AgentNotRunningException)
+            {
+                return false;
+            }
+        }, 20000);
     }
 
     public TempStore Store { get; }
@@ -102,7 +114,7 @@ internal sealed class AgentFixture : IAsyncDisposable
     {
         var o = new StringWriter();
         var e = new StringWriter();
-        var code = await CliApp.RunAsync(args, new CliIo { Out = o, Err = e, In = new StringReader(stdin ?? string.Empty), PipeName = PipeName, DataDir = Store.Root }).ConfigureAwait(false);
+        var code = await CliApp.RunAsync(args, new CliIo { Out = o, Err = e, In = new StringReader(stdin ?? string.Empty), PipeName = PipeName, DataDir = Store.Root, ConnectTimeoutMs = 10000 }).ConfigureAwait(false);
         return (code, o.ToString(), e.ToString());
     }
 

@@ -18,6 +18,9 @@ public sealed record CliIo
 
     public IClock Clock { get; init; } = SystemClock.Instance;
 
+    /// <summary>How long to wait for the agent's pipe (tests on slow runners raise it).</summary>
+    public int ConnectTimeoutMs { get; init; } = 1500;
+
     public static CliIo Console() => new() { Out = System.Console.Out, Err = System.Console.Error, In = System.Console.In };
 }
 
