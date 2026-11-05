@@ -223,8 +223,10 @@ public sealed class AgentHost : IAsyncDisposable
     /// <summary>Raised on the loop after the rule set changed (features re-read groups, the error card updates).</summary>
     public event Action<RuleSet>? RulesReloaded;
 
-    private string? KnownFolder(string name) => name switch
+    /// <summary>Known Folders by name for rules and features (never literal user paths in shipped files).</summary>
+    public static string? KnownFolder(string name) => name switch
     {
+        "OneDrive" => Environment.GetEnvironmentVariable("OneDrive") is { Length: > 0 } od ? od : null,
         "Downloads" => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads"),
         "Documents" => Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
         "Desktop" => Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),

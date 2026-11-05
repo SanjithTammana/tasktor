@@ -1,6 +1,15 @@
 using Tasktor.Contracts.Platform;
 using Tasktor.Core.Apps;
+using Tasktor.Core.Calendar;
 using Tasktor.Core.Features;
+using Tasktor.Core.Features.Agents;
+using Tasktor.Core.Features.Calendar;
+using Tasktor.Core.Features.Devices;
+using Tasktor.Core.Features.Focus;
+using Tasktor.Core.Features.Folders;
+using Tasktor.Core.Features.Guards;
+using Tasktor.Core.Features.Network;
+using Tasktor.Core.Features.Space;
 using Tasktor.Core.Features.SystemMonitor;
 using Tasktor.Core.Plugins;
 using Tasktor.Core.Storage;
@@ -36,6 +45,7 @@ internal static class Composition
         {
             var (apps, pdh) = AddSystemMonitor(host, windows, processTable);
             AddJobWatch(host, windows, processTable, apps, pdh);
+            AddSourcesAndGuards(host, windows, processTable, apps);
         });
         return host;
     }
@@ -97,6 +107,98 @@ internal static class Composition
         }
 
         return (apps, pdh);
+    }
+
+    /// <summary>Section U2: calendar, guards, agents, folders, connectivity, space, focus and device batteries.</summary>
+    private static void AddSourcesAndGuards(AgentHost host, bool windows, Win32ProcessTable processTable, Apps apps)
+    {
+        var ctx = host.NewFeatureContext();
+        var settings = host.Settings;
+        IReadOnlyList<string> Group(string name) => host.Rules.Engine.Rules.Groups.GetValueOrDefault(name) ?? [];
+        apps.RuleGroups = () => host.Rules.Engine.Rules.Groups;
+        host.Rules.RunCommand = ToolProcess.Start;
+
+        var calendarOn = new[] { "next_event", "deadlines", "event_mode", "meeting_guard" }.Any(settings.ModuleOn);
+        var feed = calendarOn ? new CalendarFeed(ctx, new CalendarSource(() => settings.Current.Calendar, host.Store, host.Loop.Clock)) : null;
+        NextEvent? next = null;
+        if (feed is not null && settings.ModuleOn("next_event"))
+        {
+            host.AddFeature(next = new NextEvent(ctx, feed));
+        }
+
+        if (feed is not null && settings.ModuleOn("deadlines"))
+        {
+            host.AddFeature(new Deadlines(ctx, feed));
+        }
+
+        // Event mode is plumbing for E11 too: always on; calendar windows only with its Module.
+        var eventMode = new EventMode(ctx, settings.ModuleOn("event_mode") ? feed : null);
+        host.AddFeature(eventMode);
+
+        var power = new PowerGuard(ctx, apps, eventMode);
+        host.AddFeature(power);
+        host.Rules.ExtraGuards.Add(power.ManualGuards);
+
+        if (settings.ModuleOn("meeting_guard"))
+        {
+            var meeting = new MeetingGuard(ctx, windows ? new CallStateSource() : null, () => next?.MeetingNow is not null) { CallApps = () => Group("call_apps") };
+            host.AddFeature(meeting);
+            power.Notices.Add(() => meeting.Notice);
+        }
+
+        if (settings.ModuleOn("agents"))
+        {
+            var profile = AgentHost.KnownFolder("UserProfile");
+            host.AddFeature(new AgentWatch(ctx, apps, new AgentHookSource(host.Store.AgentsDir), windows ? processTable.ReadOne : PortableProcessTable.ReadOne, windows ? ProcessInfo.CommandLine : _ => null)
+            {
+                AgentGroup = () => Group("agents"),
+                WindowInFront = windows ? chain => chain.Contains(ProcessInfo.ForegroundPid()) : null,
+                ShowWindow = windows ? Windows.Shell.WindowsShell.ShowWindowOf : null,
+                ClaudeSettingsPath = () => profile is null ? null : Path.Combine(profile, ".claude", "settings.json"),
+            });
+        }
+
+        if (settings.ModuleOn("folders"))
+        {
+            var folders = new FolderAction(ctx, list => new FolderWatchSource(list, () => host.Loop.Clock.UtcNow))
+            {
+                Folders = () => FolderAction.FoldersOf(host.Rules.Engine.Rules, AgentHost.KnownFolder),
+            };
+            host.AddFeature(folders);
+            host.RulesReloaded += _ => folders.Rewatch();
+        }
+
+        if (settings.ModuleOn("connectivity"))
+        {
+            var net = windows ? new ConnectivitySource() : null;
+            var listeners = new ListenerSource(processTable);
+            host.AddFeature(new Connectivity(ctx, net, net) { TopConnections = windows ? listeners.TopConnections : null });
+        }
+
+        host.AddFeature(new SpaceReport(ctx, new CacheLocator(Environment.GetEnvironmentVariable, AgentHost.KnownFolder, Directory.Exists, ToolProcess.FirstLine))
+        {
+            Folder = AgentHost.KnownFolder,
+            RecycleBinBytes = windows ? Windows.Shell.WindowsShell.RecycleBinBytes : () => null,
+        });
+
+        if (settings.ModuleOn("focus"))
+        {
+            host.AddFeature(new FocusTimer(ctx, eventMode, new NotesStore(host.Store.NotesDir)) { TrackingOn = () => settings.ModuleOn("tracking") });
+        }
+
+        if (settings.ModuleOn("batteries"))
+        {
+            host.AddFeature(new DeviceBatteries(ctx, windows ? new BluetoothBatterySource() : new NoDevices()));
+        }
+    }
+
+    private sealed class NoDevices : ITableSource<string, DeviceBattery>
+    {
+        public string Name => "no-devices";
+
+        public void Read(ICollection<KeyValuePair<string, DeviceBattery>> into, ColumnSet columns)
+        {
+        }
     }
 
     private sealed class NoBattery : IMetricSource
