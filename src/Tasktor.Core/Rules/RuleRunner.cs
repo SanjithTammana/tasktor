@@ -40,6 +40,7 @@ public sealed class RuleRunner
         router.IsBuiltinRule = id => id is not null && Engine.Rules.Find(id)?.IsBuiltin == true;
         router.Register("alert.snooze", Snooze);
         router.Register("rule.undo", UndoRule);
+        router.Register("run", RunCommandAction);
         router.Register("badge.set", req => Badge(req, set: true));
         router.Register("badge.clear", req => Badge(req, set: false));
         router.Register("alerts.snooze_all", _ => new PreparedAction
@@ -58,6 +59,9 @@ public sealed class RuleRunner
 
     /// <summary>Extra snooze hooks for built-in watches (e.g. A5's disk-low): rule id → (subject, until).</summary>
     public Dictionary<string, Action<string, DateTimeOffset>> SnoozeHooks { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Starts a rule's declared command (argv, no shell). Composition: a plain process start; tests record.</summary>
+    public Func<IReadOnlyList<string>, bool> RunCommand { get; set; } = _ => false;
 
     /// <summary>Guards that are not rules (a core cap set by hand, B's paused jobs) for <c>state.guards</c>.</summary>
     public List<Func<IEnumerable<GuardState>>> ExtraGuards { get; } = [];
@@ -196,6 +200,38 @@ public sealed class RuleRunner
             {
                 Dispatch(Engine.UndoNow(rule));
                 Evaluate();
+            },
+        };
+    }
+
+    /// <summary>
+    /// D-H6 <c>run</c>: a command declared in the same rule's <c>commands</c>, offered only as a toast button; the click is the
+    /// confirmation (the router admits toast-origin requests only as offered). Placeholders fill from the toast's fields
+    /// and Known Folders; an unresolved placeholder refuses. Never a shell: argv goes to the process as is.
+    /// </summary>
+    private PreparedAction RunCommandAction(ActionRequest req)
+    {
+        var ruleId = req.Target?.GetValueOrDefault("rule");
+        var name = req.Target?.GetValueOrDefault("command");
+        if (ruleId is null || name is null || Engine.Rules.Find(ruleId)?.Rule.Commands?.GetValueOrDefault(name) is not { Count: > 0 } command)
+        {
+            return new PreparedAction { Summary = "Run", Refusal = "That command is not declared by the rule" };
+        }
+
+        var fields = req.Args ?? new Dictionary<string, string>();
+        var argv = command.Select(a => Placeholders.Fill(a, fields, Engine.KnownFolder)).ToList();
+        if (argv.Any(a => System.Text.RegularExpressions.Regex.IsMatch(a, @"\{[A-Za-z_]+\}")))
+        {
+            return new PreparedAction { Summary = "Run " + name, Refusal = "The command has a placeholder Tasktor cannot fill" };
+        }
+
+        return new PreparedAction
+        {
+            Summary = "Run " + name,
+            Run = _ =>
+            {
+                var ok = RunCommand(argv);
+                return new ActionResult { Action = "run", Status = ok ? ActionStatus.Ok : ActionStatus.Failed, Message = ok ? "Started " + name : "Could not start " + name };
             },
         };
     }

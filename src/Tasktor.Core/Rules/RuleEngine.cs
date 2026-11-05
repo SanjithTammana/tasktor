@@ -29,6 +29,9 @@ public sealed class RuleEngine
     /// <param name="knownFolder">Resolves <c>{Downloads}</c>-style names to paths (never literal paths in shipped rules).</param>
     public RuleEngine(Func<string, string?>? knownFolder = null) => _knownFolder = knownFolder ?? (_ => null);
 
+    /// <summary>Resolves Known Folder names (<c>Downloads</c> → its path) for placeholders.</summary>
+    public Func<string, string?> KnownFolder => _knownFolder;
+
     public RuleSet Rules => _set;
 
     /// <summary>Hot reload: swap the rule set. State of rules that still exist is kept; removed rules emit their undo.</summary>
