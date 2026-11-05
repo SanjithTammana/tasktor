@@ -3,7 +3,7 @@
 Update this file after every milestone step. The next session starts here.
 
 ## Current milestone
-M4 Actions and rules. M0–M3 are done.
+M5 Pipe protocol and CLI. M0–M4 are done.
 
 ## Done
 - Design signed (`docs/design/`).
@@ -16,8 +16,10 @@ M4 Actions and rules. M0–M3 are done.
 
 - **M3 State, cards and snapshot.** `JsonPointer` (Contracts; resolve / apply patch), `JsonDiff` (minimal replace / add / remove), `StateTracker` (state record → JSON Patch deltas under `/state`), `CardTemplates` (cards from every `ICardProvider`; change detected by structure), `SnapshotPublisher` (change-driven: `MarkChanged` schedules one publish at the earliest allowed time; ≤ 1 write/s; none while nothing changes; raises `Published` with the ops for the pipe), `AtomicFile` + `CoalescingWriter` (temp + rename; newest bytes only; off-loop), `GlanceText` (≤ 127 chars). Tests: published snapshot equals `tests/fixtures/tasktor.snapshot-1/full.json`; every binding resolves; publishes only on change and ≤ 1/s with the newest value; idle agent schedules nothing; random deltas replayed onto a mirror reproduce the state.
 
+- **M4 Actions and rules.** `ActionCatalog` (closed list: class, `surface` tags, undo pairs, `UserOnly`, `LiftsBlock`, built-in-only, confirm-args), `OriginPolicy` (D-H4 table + CLI `--yes` / `cli.allow_destructive`), `GuardChain` (identity recheck, own user, integrity, protected, denylist incl. freeze-spared shell hosts), `ActionRouter` (catalog → policy → guards → 30 s single-use confirm token bound to the request → off-loop handler → result back on the loop → log), `ToastOffers`. Rules: `RuleCatalog` (metrics, states, events, learned stats), `RulesLoader` (JSON with comments, per-rule validation with line numbers, defaults overlaid by user rules by id, `enabled: false`, groups, grouping, arrange consent), `RuleSet`, `RuleActionMap` (grammar → catalog requests), `RuleEngine` (per-subject evaluation: jobs / processes / events / metric instances; `for`, `cooldown`, re-arm, `undo` in reverse order, removed-subject and removed-rule undo; toasts ≤ 3 buttons; `run` only as a toast button; capture blocks never undone), `Placeholders`. Table-driven tests for every origin × class row and every loader refusal.
+
 ## Next
-- M4: `ActionCatalog` (surface tags, classes), `OriginPolicy`, `GuardChain`, `ActionRouter` (30 s confirm tokens, off-loop handlers, log), `RulesLoader` / `RuleSet` / `RuleEngine` (grammar v1, refusals).
+- M5: pipe server + client (hello / subscribe / pull / act / lease, JSON lines), CLI verbs and exit codes, `TextRenderer`, end-to-end tests with an in-process agent.
 
 ## Interpretations
 - **Linux build set.** CI's Linux job builds `Tasktor.Linux.slnf`, a solution filter without `Tasktor.Flyout` and `Tasktor.Widget` (WinUI / Windows App SDK do not build on Linux). The Windows job builds `Tasktor.sln`.
@@ -34,6 +36,12 @@ M4 Actions and rules. M0–M3 are done.
 - **Own log sink instead of `Microsoft.Extensions.Logging`.** H6 asks for an AOT-safe logger without personal data; a 150-line `LogSink` with typed `LogField`s (primitives or `Sensitive<T>` only) keeps the agent dependency-free and makes redaction structural.
 - **`AppGrouper` system bucket:** a process with no readable path that is not the user's own, plus PIDs 0 and 4, goes to "System / services" (A2.1 step 6).
 - **Snapshot publishing is change-driven, not ticked.** D-H3 says ≤ 1/s on change; D-A3 says an idle agent wakes about once a minute. A 1 s timer would wake the agent 60 times a minute, so state updates call `MarkChanged`, which schedules a single publish at max(now, last + 1 s).
+- **A toast click is the confirmation.** D-H4 lets a toast run destructive actions "only the toast itself offered" (e.g. `run`, A6's Close). A toast cannot show a second step, so for origin `toast` the offer (registered in `ToastOffers` when shown, withdrawn when the toast goes) replaces the confirm token.
+- **The critical denylist blocks every mutating action**, not only End: priority, EcoQoS, caps, close and freeze on `csrss`, `lsass`, `dwm`, `explorer`, `tasktor-core` … are refused; read-only actions (open file location) pass. A3 only promises "End disabled"; changing a critical process's priority is no safer.
+- **`preset.apply` is reversible-class but user-only**: U3 lets click / hotkey / `tasktor preset apply` move and launch without a confirm, while rules may only `arrange`. `UserOnly` encodes "never from a rule" (also used for `run` and `plugin.enable`).
+- **Rule actions map onto catalog actions**: `pause: refits|tracking|capture` → `<x>.pause`; `pause: job:<id>|group:<g>` → `job.pause` (+ `mode`); `set_priority` → `priority.set`; `efficiency` → `efficiency.set`; `cap_cores` → `cores.cap`; `plugin_action: "<plugin>:<action>"` → `plugin.action`; `arrange` → `preset.arrange`; `capture_pause` / `capture_exclude` → `capture.pause` / `capture.exclude`; `use_fallback` / `relearn` → `learned.*`. Undo uses each row's catalog `Undo` partner; capture rows have none, so a rule never lifts a block.
+- **Toast button vocabulary:** `open:<card>`, `run:<command>`, `snooze:<duration>`, or any catalog action offered on the toast surface (e.g. `job.log`, `rule.its_fine`, `disk.storage_settings`).
+- **`pause: content`** pauses the content worker through `refits.pause` with target `{worker: content}` (I3, I13 mention pausing "the content worker" next to refits).
 - **Package pins.** xUnit 2.9.3, Test SDK 17.14.1, BannedApiAnalyzers 4.14.0, Windows App SDK 2.5.1 (the version the U4 sources cite).
 
 ## Needs Windows verification

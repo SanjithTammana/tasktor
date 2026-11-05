@@ -93,6 +93,11 @@ public static class DurationText
             return ((int)span.TotalMinutes).ToString(CultureInfo.InvariantCulture) + " min";
         }
 
+        if (span.TotalDays >= 1 && span.Ticks % TimeSpan.TicksPerDay == 0)
+        {
+            return ((int)span.TotalDays).ToString(CultureInfo.InvariantCulture) + " d";
+        }
+
         if (span.TotalHours < 48)
         {
             var h = (int)span.TotalHours;
