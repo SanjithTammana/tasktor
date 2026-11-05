@@ -162,5 +162,10 @@ public sealed class PipeClient : IAsyncDisposable
         {
             w.TrySetException(new AgentNotRunningException("disconnected"));
         }
+
+        Closed?.Invoke();
     }
+
+    /// <summary>Raised once on the reader thread when the connection ends (the agent quit or the pipe broke).</summary>
+    public event Action? Closed;
 }
