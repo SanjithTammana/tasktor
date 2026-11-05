@@ -30,15 +30,42 @@ internal static class Program
         }
 
         var store = StoreLayout.Resolve(dataDir, AppContext.BaseDirectory);
+
+        // C §1: capture refuses to start without a valid consent record (D-C22), whoever started it.
+        var consents = new ConsentStore(store, (_, _) => { });
+        consents.Load();
+        if (!consents.HasModule("capture"))
+        {
+            return 3; // CaptureSupervisor.ExitNoConsent: the agent shows "no consent on record" and does not restart
+        }
+
+        var protection = OperatingSystem.IsWindows() ? Windows.Security.Dpapi.Protection : KeyProtection.None;
+        var key = InstallKey.LoadOrCreate(store, protection); // the agent's install key, DPAPI-protected for this user
+        var now = () => DateTimeOffset.UtcNow;
         var blocks = new CaptureBlocks(store.CaptureBlocks);
-        var endpoint = new BrowserEndpoint(blocks, () => DateTimeOffset.UtcNow);
-        var control = new CaptureControl(blocks, () => DateTimeOffset.UtcNow) { ResolveTab = endpoint.ResolveTab };
+        var vault = new RawVault(Path.Combine(store.CaptureDir, "raw"), key.EncryptionKey("capture-vault"));
+        vault.Purge(now()); // 7-day retention at start
+        var recorder = new Recording.CaptureRecorder(vault, blocks, now);
+        var endpoint = new BrowserEndpoint(blocks, now);
+        endpoint.ContextChanged += (browser, tab, ctx) => recorder.Browser(browser, tab, ctx);
+        var control = new CaptureControl(blocks, now)
+        {
+            ResolveTab = endpoint.ResolveTab,
+            RecordsToday = () => recorder.RecordsToday,
+            ForgetSince = recorder.ForgetSince,
+        };
         control.Changed += endpoint.NotifyBlocksChanged;
 
-        // Context the browser queued while this host was not running: drained under the writer's mutex, then kept for the
-        // capture pipeline (never logged: it holds hostnames).
-        var (queued, invalid) = QueueDrain.Drain(Path.Combine(store.CaptureDir, "nmh-queue.jsonl"));
-        _ = (queued.Count, invalid);
+        // Context the browser queued while this host was not running: drained under the writer's mutex and recorded as
+        // queued (blocks still apply; never logged: it holds hostnames). Queued lines carry no browser: recorded as chrome.
+        var (queued, _) = QueueDrain.Drain(Path.Combine(store.CaptureDir, "nmh-queue.jsonl"));
+        foreach (var m in queued)
+        {
+            if (m is Contracts.Capture.BrowserTab t)
+            {
+                recorder.Browser("chrome", t.Tab, new TabContext(t.Host is null ? null : Contracts.Platform.Sensitive.Of(t.Host), Secure: true, t.Active, t.Active), queued: true);
+            }
+        }
 
         await using var browser = new CapturePipeServer(endpoint);
         await using var ctl = new ControlPipeServer(control);
@@ -53,6 +80,7 @@ internal static class Program
         };
         AppDomain.CurrentDomain.ProcessExit += (_, _) => stop.TrySetResult();
         using var expiry = new Timer(_ => endpoint.NotifyBlocksChanged(), null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+        using var retention = new Timer(_ => vault.Purge(now()), null, TimeSpan.FromHours(1), TimeSpan.FromHours(1));
         await stop.Task.ConfigureAwait(false);
         return 0;
     }

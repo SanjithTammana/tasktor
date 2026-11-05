@@ -36,6 +36,9 @@ public sealed class BrowserEndpoint
     /// <summary>Raised after any block change; the server pushes <see cref="StateFor"/> to every session.</summary>
     public event Action? BlocksChanged;
 
+    /// <summary>A tab's context changed (browser, tab, context): the recorder writes it unless a block applies.</summary>
+    public event Action<string, int, TabContext>? ContextChanged;
+
     public long Rejected { get; private set; }
 
     public long Accepted { get; private set; }
@@ -57,6 +60,7 @@ public sealed class BrowserEndpoint
         ArgumentNullException.ThrowIfNull(message);
         var replies = new List<BrowserMessage>();
         var changed = false;
+        (string Browser, int Tab, TabContext Ctx)? context = null;
         lock (_gate)
         {
             var now = _now();
@@ -95,11 +99,13 @@ public sealed class BrowserEndpoint
                     var known = _tabs.TryGetValue(key, out var prev);
                     var sameHost = known && prev!.Host == host;
                     _tabs[key] = new TabContext(host, !sameHost || prev!.Secure, known ? prev!.Visible : t.Active, t.Active);
+                    context = (browser, t.Tab, _tabs[key]);
                     break;
                 case BrowserFocus f when f.Field is "none" or "text" or "secure":
                     if (_tabs.TryGetValue((browser, f.Tab), out var tc))
                     {
                         _tabs[(browser, f.Tab)] = tc with { Secure = f.Field == "secure" };
+                        context = (browser, f.Tab, _tabs[(browser, f.Tab)]);
                     }
 
                     break;
@@ -107,6 +113,7 @@ public sealed class BrowserEndpoint
                     if (_tabs.TryGetValue((browser, v.Tab), out var tv))
                     {
                         _tabs[(browser, v.Tab)] = tv with { Visible = v.Visible };
+                        context = (browser, v.Tab, _tabs[(browser, v.Tab)]);
                     }
 
                     break;
@@ -132,6 +139,11 @@ public sealed class BrowserEndpoint
         if (changed)
         {
             BlocksChanged?.Invoke();
+        }
+
+        if (context is { } changedTab)
+        {
+            ContextChanged?.Invoke(changedTab.Browser, changedTab.Tab, changedTab.Ctx);
         }
 
         return replies;

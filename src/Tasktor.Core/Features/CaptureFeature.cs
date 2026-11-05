@@ -36,6 +36,28 @@ public sealed class CaptureFeature : Feature
 
     public CaptureStatus? Status { get; private set; }
 
+    /// <summary>Starts and restarts the capture host while this Module is on (D-H9); null = started elsewhere (tests, dev).</summary>
+    public CaptureSupervisor? Supervisor
+    {
+        get => _supervisor;
+        init
+        {
+            _supervisor = value;
+            if (value is not null)
+            {
+                value.Changed += () =>
+                {
+                    Refresh();
+                    if (value.Running)
+                    {
+                        _ = Context.Loop.At(Context.Clock.UtcNow + TimeSpan.FromSeconds(2), Refresh); // the host's pipes come up
+                    }
+                };
+            }
+        }
+    }
+
+    private readonly CaptureSupervisor? _supervisor;
     private IDisposable? _refresh;
 
     protected override void OnEnable()
@@ -46,12 +68,14 @@ public sealed class CaptureFeature : Feature
         Context.Router.Register("capture.unexclude", Unexclude);
         Context.Router.Register("capture.tab_pause", TabPause);
         Context.Router.Register("capture.forget", Forget);
+        _supervisor?.Start();
         Refresh();
         _refresh = Context.Loop.Every(TimeSpan.FromMinutes(1), Refresh); // pauses expire host-side; one cheap call a minute
     }
 
     protected override void OnDisable()
     {
+        _supervisor?.Stop();
         _refresh?.Dispose();
         Status = null;
         Context.UpdateState(s => s with { Capture = null });
@@ -134,6 +158,16 @@ public sealed class CaptureFeature : Feature
             },
         };
     }
+
+    /// <summary>The error card's words for a supervisor failure (turning the Module off and on again retries).</summary>
+    public static string FailureWords(string failure) => failure switch
+    {
+        "no_consent" => "Capture needs your consent first",
+        "refused" => "Capture stopped: no consent on record",
+        "crashed" => "Capture stopped after repeated crashes; turn the Module off and on to retry",
+        "start_failed" => "Capture could not start; turn the Module off and on to retry",
+        _ => "Capture is not running",
+    };
 
     private static string Words(string refusal) => refusal switch
     {
@@ -250,14 +284,16 @@ public sealed class CaptureFeature : Feature
         }
 
         var s = Status;
-        var badge = s is null ? "Capture is not running"
+        var failure = s is null ? _supervisor?.Failure : null;
+        var badge = failure is not null ? FailureWords(failure)
+            : s is null ? "Capture is not running"
             : !s.On ? "Capture off"
             : s.PausedIndefinitely ? "Paused until you resume"
             : s.PausedUntil is { } u ? "Paused until " + u.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture)
             : "Recording";
         var blocks = new List<Block>
         {
-            new BadgeBlock { Text = Value.Literal(badge), Severity = Value.Literal(s is { On: true } && s.PausedUntil is null && !s.PausedIndefinitely ? "warn" : "normal"), Priority = 1 },
+            new BadgeBlock { Text = Value.Literal(badge), Severity = Value.Literal(failure is "crashed" or "start_failed" ? "critical" : s is { On: true } && s.PausedUntil is null && !s.PausedIndefinitely ? "warn" : "normal"), Priority = 1 },
             new MetricBlock { Label = "Records today", Value = Value.Binding("/state/capture/records_today"), Priority = 3 },
         };
         if (s is { Blocks.Count: > 0 })

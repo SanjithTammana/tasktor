@@ -252,7 +252,10 @@ internal static class Composition
         {
             // T1 agent side: the card and capture.* actions over tasktor-capture's control pipe. While that host is not
             // running the link fails fast and the card says capture is not running.
-            host.AddFeature(new CaptureFeature(ctx, (cmd, ct) => Hosts.Common.Pipe.CaptureLink.SendAsync(cmd, ct)));
+            // D-H9: the agent starts tasktor-capture in a kill-on-close Job Object only while this Module is on and its consent
+            // (D-C22) is on record, and restarts a crash at most 3 times an hour.
+            var supervisor = new CaptureSupervisor(ctx, CaptureSupervisor.DefaultSpec(AppContext.BaseDirectory, host.Store.Root), () => host.Consents.HasModule("capture"));
+            host.AddFeature(new CaptureFeature(ctx, (cmd, ct) => Hosts.Common.Pipe.CaptureLink.SendAsync(cmd, ct)) { Supervisor = supervisor });
         }
 
         if (settings.ModuleOn("batteries"))
