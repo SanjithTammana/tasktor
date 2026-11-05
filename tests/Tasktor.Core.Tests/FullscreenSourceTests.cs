@@ -27,5 +27,11 @@ public sealed class FullscreenSourceTests
         feature.Contribute(inputs, rig.Clock.UtcNow);
         Assert.Equal("borderless", inputs.States["fullscreen"]);
         Assert.Equal(1, rig.RulesDirtyCount);
+        feature.Disable();
+        feature.Enable();
+        Assert.Equal(Fullscreen.None, rig.State.Current.Fullscreen);
+        feature.OnEvent(new WindowEvent(WindowEventKind.Foreground, 1, new ProcKey(1, 0), 0, rig.Clock.UtcNow));
+        rig.Pump();
+        Assert.Equal(Fullscreen.Borderless, rig.State.Current.Fullscreen);
     }
 }

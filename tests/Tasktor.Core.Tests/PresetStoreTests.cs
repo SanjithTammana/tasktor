@@ -32,4 +32,13 @@ public sealed class PresetStoreTests
         Assert.Contains("line 2", store.Error);
         Assert.Equal(text, File.ReadAllText(rig.Store.Layout.Presets));
     }
+    [Fact]
+    public void NullPresetEntryIsReportedAsInvalid()
+    {
+        using var rig = new FeatureRig();
+        File.WriteAllText(rig.Store.Layout.Presets, "{\"presets\":[null]}");
+        var store = new PresetStore(rig.Context);
+        Assert.Empty(store.Load().Presets);
+        Assert.NotNull(store.Error);
+    }
 }
