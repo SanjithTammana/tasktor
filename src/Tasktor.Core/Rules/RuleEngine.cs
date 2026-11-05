@@ -49,7 +49,24 @@ public sealed class RuleEngine
 
     /// <summary>Active (fired, not yet cleared) rule subjects: for the guards card and "Undo".</summary>
     public IEnumerable<(string Rule, string Subject, DateTimeOffset Since)> Active =>
-        _states.Where(kv => kv.Value.Active).Select(kv => (kv.Key.Rule, kv.Key.Subject, kv.Value.FiredAt));
+        _states.Where(kv => kv.Value.Active && !kv.Value.Overridden).Select(kv => (kv.Key.Rule, kv.Key.Subject, kv.Value.FiredAt));
+
+    /// <summary>
+    /// The user's "Undo" on an active guard: emit its undo now and keep it from firing again until its condition clears
+    /// (otherwise it would re-apply at the next evaluation).
+    /// </summary>
+    public List<RuleOutput> UndoNow(string ruleId)
+    {
+        var outputs = new List<RuleOutput>();
+        foreach (var (key, st) in _states.Where(kv => kv.Key.Rule == ruleId && kv.Value.Active && !kv.Value.Overridden))
+        {
+            outputs.AddRange(st.Undo.Select(u => new RuleOutput(key.Rule, key.Subject, null, u, IsUndo: true)));
+            st.Undo.Clear();
+            st.Overridden = true;
+        }
+
+        return outputs;
+    }
 
     public List<RuleOutput> Evaluate(DateTimeOffset now, RuleInputs inputs)
     {
@@ -90,6 +107,7 @@ public sealed class RuleEngine
                 else if (!matched && st.Active)
                 {
                     st.Active = false;
+                    st.Overridden = false;
                     if (rule.Rule.Undo == true)
                     {
                         outputs.AddRange(st.Undo.Select(u => new RuleOutput(rule.Id, subject.Id, null, u, IsUndo: true)));
@@ -385,6 +403,9 @@ public sealed class RuleEngine
         public DateTimeOffset FiredAt { get; set; }
 
         public List<ActionRequest> Undo { get; } = [];
+
+        /// <summary>Undone by the user while still matching: stays quiet until the condition clears.</summary>
+        public bool Overridden { get; set; }
     }
 }
 
