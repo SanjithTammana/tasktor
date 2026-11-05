@@ -229,9 +229,11 @@ public sealed class ActionRouter
                 _loop.Post(() =>
                 {
                     var merged = Merge(result, items);
-                    Finish(req, prep, merged).ContinueWith(t => tcs.SetResult(t.Result), TaskScheduler.Default);
+                    tcs.SetResult(Finish(req, prep, merged).Result); // Finish completes synchronously
                 });
             },
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously, // only posts to the loop: no thread-pool hop to wait for
             TaskScheduler.Default);
         return tcs.Task;
     }

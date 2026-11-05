@@ -14,8 +14,9 @@ public sealed class SpaceReportTests : IDisposable
     [Fact]
     public void Caches_resolve_env_first_then_defaults_and_only_existing_paths_show()
     {
+        static string P(params string[] parts) => Path.Combine(parts); // the locator joins with the OS separator
         var env = new Dictionary<string, string> { ["HF_HOME"] = "/data/hf", ["NUGET_PACKAGES"] = "/nope" };
-        var exists = new HashSet<string> { "/data/hf/hub", "/home/u/.nuget/packages", "/home/u/.m2/repository", "/la/pip/Cache" };
+        var exists = new HashSet<string> { P("/data/hf", "hub"), P("/home/u", ".nuget", "packages"), P("/home/u", ".m2", "repository"), P("/la", "pip", "Cache") };
         var cli = new List<IReadOnlyList<string>>();
         var loc = new CacheLocator(env.GetValueOrDefault, k => k switch { "UserProfile" => "/home/u", "LocalAppData" => "/la", _ => null }, exists.Contains, argv =>
         {
@@ -25,8 +26,8 @@ public sealed class SpaceReportTests : IDisposable
         exists.Add("/npm/cache");
         var found = loc.Locate();
         Assert.Equal(["pip", "npm", "Hugging Face", "Maven", "NuGet"], found.Select(c => c.Name));
-        Assert.Equal("/data/hf/hub", found.Single(c => c.Name == "Hugging Face").Path);
-        Assert.Equal("/home/u/.nuget/packages", found.Single(c => c.Name == "NuGet").Path); // env path missing → default
+        Assert.Equal(P("/data/hf", "hub"), found.Single(c => c.Name == "Hugging Face").Path);
+        Assert.Equal(P("/home/u", ".nuget", "packages"), found.Single(c => c.Name == "NuGet").Path); // env path missing → default
         Assert.Equal("/npm/cache", found.Single(c => c.Name == "npm").Path); // from the CLI only because nothing else existed
         Assert.DoesNotContain(cli, a => a[0] == "pip"); // pip's default existed: its CLI was never asked
     }
