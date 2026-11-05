@@ -79,4 +79,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
-        run: gh release create $env:GITHUB_REF_NAME dist/* --draft --title $env:GITHUB_REF_NAME --notes "Unsigned portable build. Verify with SHA256SUMS.txt. See README: SmartScreen and antivirus."
+        run: |
+          gh release create $env:GITHUB_REF_NAME dist/* --draft --title $env:GITHUB_REF_NAME --notes "Unsigned portable build. Verify with SHA256SUMS.txt. See README: SmartScreen and antivirus."
