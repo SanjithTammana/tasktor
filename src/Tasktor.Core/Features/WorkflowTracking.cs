@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json.Nodes;
 using System.Text.Json;
 using Tasktor.Contracts;
 using Tasktor.Contracts.Actions;
@@ -10,6 +11,7 @@ using Tasktor.Core.Features.Focus;
 using Tasktor.Core.Learning;
 using Tasktor.Core.Rules;
 using Tasktor.Core.Storage;
+using Tasktor.Core.Time;
 using Tasktor.Core.Workflow;
 
 namespace Tasktor.Core.Features;
@@ -36,6 +38,8 @@ public sealed class WorkflowTracking : Feature
     private readonly PreregFile _prereg = new();
     private readonly Dictionary<(nint, ProcKey), int> _winIds = [];
     private readonly Dictionary<string, long> _today = new(StringComparer.Ordinal);
+    private readonly SortedDictionary<int, Dictionary<string, long>> _daily = [];
+    private OverridesFile _overrides = new();
     private readonly List<ClosedActivity> _recent = [];
     private TokenBuckets? _buckets;
     private StoreWriter? _writer;
@@ -140,6 +144,12 @@ public sealed class WorkflowTracking : Feature
         _tick = Context.Loop.Every(TimeSpan.FromSeconds(60), OnTick);
         Raw(CaptureKind.AgentStart, Context.Clock.UtcNow, null, null, null);
         Context.Router.Register("workflow.wrong", Wrong);
+        Context.Router.Register("workflow.rename", Rename);
+        Context.Router.Register("workflow.merge", Merge);
+        Context.Router.Register("summary", req => new PreparedAction { Summary = "Summary", Immediate = new ActionResult { Action = "summary", Status = ActionStatus.Ok, Message = SummaryNode(req.Args?.GetValueOrDefault("since")).ToJsonString() } });
+        Context.RegisterPull("summary", pull => SummaryNode(pull.Args?.GetValueOrDefault("since")));
+        _overrides = ReadOverrides();
+        LoadHistory(stores.Base);
     }
 
     protected override void OnDisable()
@@ -284,7 +294,8 @@ public sealed class WorkflowTracking : Feature
             var now = Context.Clock.UtcNow;
             var dense = TrainingExtract.Dense(now.ToUnixTimeMilliseconds() - open.ActiveMs, (int)TimeZoneInfo.Local.GetUtcOffset(now).TotalMinutes, open.ActiveMs, 0, 0, 0, 0);
             var (id, conf) = m.Assign(m.Project(m.Vector(Features([.. open.Tokens], dense, open.App, null, null))));
-            cluster = new LevelResult(id, m.Cluster(id)?.Name, conf);
+            id = MergedInto(id);
+            cluster = new LevelResult(id, NameOf(id), conf);
         }
 
         if (_current.Update(null, cluster, open.App, Display(open.App)))
@@ -309,9 +320,10 @@ public sealed class WorkflowTracking : Feature
             }
         }
 
+        cluster = MergedInto(cluster);
         var shown = cluster is not null && conf >= _prereg.Assignment.Floor && _current?.IsSuppressed(cluster) != true;
         var label = shown ? cluster! : "app:" + a.App;
-        var name = shown ? Model!.Cluster(cluster)?.Name ?? cluster! : Display(a.App);
+        var name = shown ? NameOf(cluster)! : Display(a.App);
         if (shown)
         {
             Feedback.Shown(cluster!);
@@ -328,6 +340,7 @@ public sealed class WorkflowTracking : Feature
         }
 
         _today[name] = _today.GetValueOrDefault(name) + a.ActiveMs;
+        AddDaily(day, name, a.ActiveMs);
         var start = DateTimeOffset.FromUnixTimeMilliseconds(a.StartUtcMs);
         _recent.Add(new ClosedActivity(start, start + TimeSpan.FromMilliseconds(a.EndMs - a.StartMs), a.ActiveMs, a.IdleMs, label, shown ? conf : 0));
         _recent.RemoveAll(r => r.End < Context.Clock.UtcNow - RecentKeep);
@@ -555,6 +568,184 @@ public sealed class WorkflowTracking : Feature
 
                 AssignOpen();
             },
+        };
+    }
+
+    // ---------------- C7 names and merges, C9 totals and summary ----------------
+
+    private string OverridesPath => Path.Combine(Context.Store.ModelsDir, "overrides.json");
+
+    private OverridesFile ReadOverrides()
+    {
+        try
+        {
+            return File.Exists(OverridesPath) ? JsonSerializer.Deserialize(File.ReadAllBytes(OverridesPath), ContractsJsonContext.Default.OverridesFile) ?? new() : new();
+        }
+        catch (JsonException)
+        {
+            return new();
+        }
+    }
+
+    /// <summary>A merged cluster shows as the one it was merged into until the next fit makes the union one id (C7).</summary>
+    private string? MergedInto(string? id)
+    {
+        for (var i = 0; id is not null && i < 8 && _overrides.Merge.TryGetValue(id, out var to); i++)
+        {
+            id = to;
+        }
+
+        return id;
+    }
+
+    /// <summary>The user's name for a cluster or workflow wins over the model's auto name.</summary>
+    public string? NameOf(string? id) => id is null ? null : _overrides.Names.GetValueOrDefault(id) ?? Model?.Cluster(id)?.Name ?? Model?.Workflow(id)?.Name ?? id;
+
+    private void SaveOverrides(OverridesFile o)
+    {
+        _overrides = o;
+        Context.Persist(OverridesPath, JsonSerializer.SerializeToUtf8Bytes(o, ContractsJsonContext.Default.OverridesFile));
+    }
+
+    private bool Known(string id) => Model?.Cluster(id) is not null || Model?.Workflow(id) is not null;
+
+    private PreparedAction Rename(ActionRequest req)
+    {
+        var id = req.Target?.GetValueOrDefault("workflow");
+        var name = req.Args?.GetValueOrDefault("name")?.Trim();
+        if (id is null || !Known(id))
+        {
+            return new PreparedAction { Summary = "Rename", Refusal = "No such workflow in the current model" };
+        }
+
+        if (name is not { Length: > 0 and <= 80 })
+        {
+            return new PreparedAction { Summary = "Rename", Refusal = "A name has 1–80 characters" };
+        }
+
+        return new PreparedAction
+        {
+            Summary = "Rename",
+            Immediate = new ActionResult { Action = "workflow.rename", Status = ActionStatus.Ok, Message = "Renamed; kept across refits" },
+            Done = _ =>
+            {
+                SaveOverrides(_overrides with { Names = new Dictionary<string, string>(_overrides.Names, StringComparer.Ordinal) { [id] = name } });
+                AssignOpen();
+            },
+        };
+    }
+
+    private PreparedAction Merge(ActionRequest req)
+    {
+        var from = req.Target?.GetValueOrDefault("workflow");
+        var into = req.Args?.GetValueOrDefault("into");
+        if (from is null || into is null || from == into || !Known(from) || !Known(into))
+        {
+            return new PreparedAction { Summary = "Merge", Refusal = "Merge needs two different workflows of the current model" };
+        }
+
+        if (MergedInto(into) == from)
+        {
+            return new PreparedAction { Summary = "Merge", Refusal = "That would merge a workflow into itself" };
+        }
+
+        return new PreparedAction
+        {
+            Summary = "Merge",
+            Immediate = new ActionResult { Action = "workflow.merge", Status = ActionStatus.Ok, Message = "Merged; the next refit fits them as one" },
+            Done = _ =>
+            {
+                SaveOverrides(_overrides with { Merge = new Dictionary<string, string>(_overrides.Merge, StringComparer.Ordinal) { [from] = into } });
+                AssignOpen();
+            },
+        };
+    }
+
+    private void AddDaily(int day, string name, long ms)
+    {
+        if (!_daily.TryGetValue(day, out var d))
+        {
+            _daily[day] = d = new Dictionary<string, long>(StringComparer.Ordinal);
+        }
+
+        d[name] = d.GetValueOrDefault(name) + ms;
+        while (_daily.Count > 31)
+        {
+            _daily.Remove(_daily.Keys.First());
+        }
+    }
+
+    /// <summary>Earlier runs' totals (30 days) from episodes.db, read off the loop on its own read-only connection.</summary>
+    private void LoadHistory(long runBase)
+    {
+        var path = Context.Store.EpisodesDb;
+        var model = Model;
+        var from = (Context.Clock.UtcNow - TimeSpan.FromDays(30)).ToUnixTimeMilliseconds();
+        Context.OffLoop(() =>
+        {
+            var rows = new List<(int Day, string App, string? Cluster, double Conf, long Ms)>();
+            try
+            {
+                using var db = SqliteDb.Open(path, readOnly: true);
+                using var q = db.Prepare("SELECT a.day, a.app, s.cluster, COALESCE(s.confidence, 0), a.active_ms FROM activity a LEFT JOIN assignment s ON s.activity = a.id WHERE a.start_utc_ms >= ? AND a.id < ?");
+                q.BindAll(from, runBase);
+                while (q.Step())
+                {
+                    rows.Add(((int)q.Int64(0), q.Text(1)!, q.IsNull(2) ? null : q.Text(2), q.Double(3), q.Int64(4)));
+                }
+            }
+            catch (SqliteException)
+            {
+                return; // a new install: no history yet
+            }
+
+            Context.Loop.Post(() =>
+            {
+                foreach (var r in rows)
+                {
+                    var cluster = MergedInto(r.Cluster);
+                    var shown = cluster is not null && r.Conf >= _prereg.Assignment.Floor && model?.Cluster(cluster) is not null;
+                    AddDaily(r.Day, shown ? NameOf(cluster)! : Display(r.App), r.Ms);
+                }
+            });
+        });
+    }
+
+    /// <summary>
+    /// <c>tasktor summary</c> (numbers only, U1 D5): active minutes per workflow (or app) over the last days, from the
+    /// in-memory daily totals. No titles; names are the cluster names the card shows.
+    /// </summary>
+    public JsonObject SummaryNode(string? since)
+    {
+        var span = DurationText.TryParse(since ?? "7d", out var s) && s > TimeSpan.Zero ? s : TimeSpan.FromDays(7);
+        var now = Context.Clock.UtcNow;
+        var today = Days.Of(now.ToUnixTimeMilliseconds(), (int)TimeZoneInfo.Local.GetUtcOffset(now).TotalMinutes);
+        var firstDay = today - Math.Max(0, (int)Math.Ceiling(span.TotalDays) - 1);
+        var by = new Dictionary<string, long>(StringComparer.Ordinal);
+        var days = 0;
+        foreach (var (day, d) in _daily.Where(kv => kv.Key >= firstDay && kv.Key <= today))
+        {
+            days++;
+            foreach (var (name, ms) in d)
+            {
+                by[name] = by.GetValueOrDefault(name) + ms;
+            }
+        }
+
+        var workflows = new JsonObject();
+        foreach (var (name, ms) in by.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key, StringComparer.Ordinal))
+        {
+            workflows[name] = Math.Round(ms / 60_000.0, 1);
+        }
+
+        return new JsonObject
+        {
+            ["since"] = DurationText.Humanize(span),
+            ["active_days"] = days,
+            ["active_min"] = Math.Round(by.Values.Sum() / 60_000.0, 1),
+            ["switches_today"] = _current?.Shown?.SwitchesToday ?? 0,
+            ["model"] = Model?.Version ?? "none (shown by app)",
+            ["by_workflow"] = workflows,
         };
     }
 

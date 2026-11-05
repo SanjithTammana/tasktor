@@ -151,6 +151,9 @@ public sealed record FlyoutSettings
 
     /// <summary>"Keep the window ready" (U4 D-G2).</summary>
     public bool KeepWarm { get; init; }
+
+    /// <summary>Cards pinned to Home, in order (<c>card.pin</c> / <c>card.unpin</c>).</summary>
+    public IReadOnlyList<string>? PinnedCards { get; init; }
 }
 
 public sealed record WindowsSettings

@@ -329,6 +329,49 @@ public sealed class AgentHost : IAsyncDisposable
         }
     }
 
+    /// <summary><c>open</c>: show the flyout, at a card when one is named (the flyout handles <c>tasktor://open</c>).</summary>
+    private PreparedAction OpenCard(ActionRequest req)
+    {
+        var card = req.Target?.GetValueOrDefault("card");
+        if (card is not null && !System.Text.RegularExpressions.Regex.IsMatch(card, "^[a-z0-9_.]{1,80}$"))
+        {
+            return new PreparedAction { Summary = "Open", Refusal = "Not a card id" };
+        }
+
+        var uri = card is null ? "tasktor://open" : "tasktor://open?card=" + card;
+        return new PreparedAction
+        {
+            Summary = card is null ? "Open Tasktor" : "Open " + card,
+            Run = _ => new ActionResult { Action = "open", Status = Options.Launch(uri) ? ActionStatus.Ok : ActionStatus.Failed, Message = card },
+        };
+    }
+
+    /// <summary><c>card.pin</c> / <c>card.unpin</c>: Home's pinned cards, kept in <c>config.json</c> (Flyout settings).</summary>
+    private PreparedAction Pin(ActionRequest req, bool pin)
+    {
+        var card = req.Target?.GetValueOrDefault("card");
+        if (card is null || Cards.Find(card) is null && pin)
+        {
+            return new PreparedAction { Summary = pin ? "Pin" : "Unpin", Refusal = "No such card" };
+        }
+
+        return new PreparedAction
+        {
+            Summary = (pin ? "Pin " : "Unpin ") + card,
+            Immediate = new ActionResult { Action = req.Action, Status = ActionStatus.Ok },
+            Done = _ => Settings.Update(c =>
+            {
+                var list = (c.Flyout?.PinnedCards ?? []).Where(x => x != card).ToList();
+                if (pin)
+                {
+                    list.Add(card);
+                }
+
+                return c with { Flyout = (c.Flyout ?? new Contracts.Config.FlyoutSettings()) with { PinnedCards = list.Count == 0 ? null : list } };
+            }),
+        };
+    }
+
     private void RegisterCoreHandlers()
     {
         PreparedAction Toggle(string summary, Func<PausedState, PausedState> change) => new()
@@ -348,6 +391,9 @@ public sealed class AgentHost : IAsyncDisposable
         Router.Register("tracking.resume", _ => Toggle("Tracking resumed", p => p with { Tracking = false }));
         Router.Register("refits.pause", _ => Toggle("Refits paused", p => p with { Refits = true }));
         Router.Register("refits.resume", _ => Toggle("Refits resumed", p => p with { Refits = false }));
+        Router.Register("open", OpenCard);
+        Router.Register("card.pin", req => Pin(req, pin: true));
+        Router.Register("card.unpin", req => Pin(req, pin: false));
         Router.Register("status", _ => new PreparedAction { Summary = "status", Immediate = new ActionResult { Action = "status", Status = ActionStatus.Ok } });
         Router.Register("quit", _ => new PreparedAction
         {
