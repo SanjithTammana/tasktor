@@ -193,6 +193,7 @@ public sealed class AgentHost : IAsyncDisposable
         RulesDirty = Rules.MarkDirty,
         RuleEnabled = id => Rules.Engine.Rules.IsOn(id),
         OffLoop = Options.OffLoopReads ?? (work => Task.Run(work)),
+        RegisterExport = Exporter.Register,
     };
 
     /// <summary>Attach and enable a feature (loop-only after start).</summary>

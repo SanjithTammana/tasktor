@@ -67,6 +67,9 @@ public sealed class StoreLayout
 
     public string Projects => Path.Combine(StateDir, "projects.json");
 
+    /// <summary>I14 drop counts per hour (30 days), for the card and the <c>connectivity_hourly</c> export.</summary>
+    public string Connectivity => Path.Combine(StateDir, "connectivity.json");
+
     public string CaptureBlocks => Path.Combine(StateDir, "capture-blocks.json");
 
     public string LearnedVolumes => Path.Combine(StateDir, "volume-kinds.json");
