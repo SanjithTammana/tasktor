@@ -3,7 +3,7 @@
 Update this file after every milestone step. The next session starts here.
 
 ## Current milestone
-M5 Pipe protocol and CLI. M0–M4 are done.
+M6 Storage, privacy, export. M0–M5 are done.
 
 ## Done
 - Design signed (`docs/design/`).
@@ -18,8 +18,10 @@ M5 Pipe protocol and CLI. M0–M4 are done.
 
 - **M4 Actions and rules.** `ActionCatalog` (closed list: class, `surface` tags, undo pairs, `UserOnly`, `LiftsBlock`, built-in-only, confirm-args), `OriginPolicy` (D-H4 table + CLI `--yes` / `cli.allow_destructive`), `GuardChain` (identity recheck, own user, integrity, protected, denylist incl. freeze-spared shell hosts), `ActionRouter` (catalog → policy → guards → 30 s single-use confirm token bound to the request → off-loop handler → result back on the loop → log), `ToastOffers`. Rules: `RuleCatalog` (metrics, states, events, learned stats), `RulesLoader` (JSON with comments, per-rule validation with line numbers, defaults overlaid by user rules by id, `enabled: false`, groups, grouping, arrange consent), `RuleSet`, `RuleActionMap` (grammar → catalog requests), `RuleEngine` (per-subject evaluation: jobs / processes / events / metric instances; `for`, `cooldown`, re-arm, `undo` in reverse order, removed-subject and removed-rule undo; toasts ≤ 3 buttons; `run` only as a toast button; capture blocks never undone), `Placeholders`. Table-driven tests for every origin × class row and every loader refusal.
 
+- **M5 Pipe protocol and CLI.** `Tasktor.Hosts.Common`: `PipeName` (`tasktor-<hash of SID>`; `TASKTOR_PIPE` override), `PipeFraming` (JSON lines, 4 MB line cap), `PipeClient` (hello, id-matched replies, pushed deltas), `BindingResolver`, `CardFitter` (S 2/1, M 5/3, L 9/4, flyout all), `IBlockRenderer<T>`. `Tasktor.Agent`: `PipeServer` (current-user only via `PipeOptions.CurrentUserOnly`, ≤ 16 clients, reader posts to the loop, writer drains a queue; `hello` / `subscribe` (initial view + per-client diff, ≤ 1 delta / 500 ms) / `pull` / `act` / `lease` (dies with the connection); origins bound to the client), `AgentHost` (composition root: loop, scheduler, state, cards, publisher, router, pipe, coalesced snapshot file, core handlers), `Program` (single instance mutex, `--data-dir`). `Tasktor.Core`: `StoreLayout` (every D-H8 path; portable flag; `TASKTOR_DATA_DIR`). `Tasktor.Cli`: `CliApp` (status, job, proc, pause/resume, summary, open, forget, export data, settings, preset, log, agent-hook, uninstall; exit codes 0 / 1 / 2 / 3 / 4), `TextRenderer`, `job set|done|rm` and `agent-hook` writing files without the agent. 21 end-to-end tests drive an in-process agent through the CLI and raw pipe.
+
 ## Next
-- M5: pipe server + client (hello / subscribe / pull / act / lease, JSON lines), CLI verbs and exit codes, `TextRenderer`, end-to-end tests with an in-process agent.
+- M6: `SettingsStore` (config.json with comments, migrate + `.bak`), `ConsentStore`, `InstallKey` (DPAPI on Windows, fake provider in tests) + HKDF, `Forgetter`, `SelfUseCounter`, `DataExporter` (CSV + JSONL + manifest) and `worker/tasktor_data`.
 
 ## Interpretations
 - **Linux build set.** CI's Linux job builds `Tasktor.Linux.slnf`, a solution filter without `Tasktor.Flyout` and `Tasktor.Widget` (WinUI / Windows App SDK do not build on Linux). The Windows job builds `Tasktor.sln`.
@@ -42,10 +44,17 @@ M5 Pipe protocol and CLI. M0–M4 are done.
 - **Rule actions map onto catalog actions**: `pause: refits|tracking|capture` → `<x>.pause`; `pause: job:<id>|group:<g>` → `job.pause` (+ `mode`); `set_priority` → `priority.set`; `efficiency` → `efficiency.set`; `cap_cores` → `cores.cap`; `plugin_action: "<plugin>:<action>"` → `plugin.action`; `arrange` → `preset.arrange`; `capture_pause` / `capture_exclude` → `capture.pause` / `capture.exclude`; `use_fallback` / `relearn` → `learned.*`. Undo uses each row's catalog `Undo` partner; capture rows have none, so a rule never lifts a block.
 - **Toast button vocabulary:** `open:<card>`, `run:<command>`, `snooze:<duration>`, or any catalog action offered on the toast surface (e.g. `job.log`, `rule.its_fine`, `disk.storage_settings`).
 - **`pause: content`** pauses the content worker through `refits.pause` with target `{worker: content}` (I3, I13 mention pausing "the content worker" next to refits).
+- **Pipe origins are bound to the client.** Any process of the user can open the pipe, so a client may only act with the origin its hello name maps to (`flyout` → flyout + toast, `widget`, `shell`); every other client acts as the CLI, so the CLI's `--yes` + `cli.allow_destructive` rule cannot be bypassed by claiming `flyout`. `PipeServer.OriginsFor` is the hook where Windows verifies the client's image path (see Windows checks).
+- **Current-user pipe ACL via `PipeOptions.CurrentUserOnly`**, which sets a current-user-only DACL on Windows and owner-only permissions on Unix sockets, on both server and client.
+- **CLI `--yes` travels as `confirm: "--yes"`** on the action request; the router accepts it only for origin `cli`.
+- **`tasktor forget capture --since …`** maps to the catalog's `capture.forget`; other `forget` verbs to `forget` with target `{what}`.
 - **Package pins.** xUnit 2.9.3, Test SDK 17.14.1, BannedApiAnalyzers 4.14.0, Windows App SDK 2.5.1 (the version the U4 sources cite).
 
 ## Needs Windows verification
 - **M0 / CI:** the `windows` job builds `Tasktor.sln` including the WinUI 3 Flyout and the Widget project. **Verified green on `windows-latest`** (run 41963321717). Keep watching it as UI code lands.
+
+- **M5 / pipe ACL:** on Windows, run the agent, then from a second user account run `tasktor status` → expect exit 3 (cannot open another user's pipe). From the same account, `Get-ChildItem \\.\pipe\ | Select-String tasktor` shows one pipe; `(Get-Acl \\.\pipe\tasktor-…).Access` lists only the current user. Confirm a remote client is rejected: from another PC on the LAN, `[System.IO.Pipes.NamedPipeClientStream]::new('<pc>','tasktor-…').Connect(2000)` must fail.
+- **M5 / client image check:** wire `PipeServer.OriginsFor` to `GetNamedPipeClientProcessId` + `QueryFullProcessImageName` so only `Tasktor.Flyout.exe` / `Tasktor.Widget.exe` / `tasktor-shell.exe` from the install dir get viewer origins (implemented in M14's composition; check by connecting with a PowerShell client named `flyout` and confirming `proc.end` is refused as CLI).
 
 ## Blockers
 - **.NET install script blocked.** `dotnet-install.sh` cannot reach `builds.dotnet.microsoft.com` (the session proxy returns 403). Worked around: `apt-get install dotnet-sdk-10.0` from the Ubuntu archive (SDK 10.0.114, which satisfies `global.json` 10.0.100 / latestFeature). `scripts/cloud-setup.sh` now falls back to apt. Not blocking.

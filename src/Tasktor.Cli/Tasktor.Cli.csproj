@@ -9,5 +9,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Tasktor.Hosts.Common/Tasktor.Hosts.Common.csproj" />
+    <ProjectReference Include="../Tasktor.Core/Tasktor.Core.csproj" />
   </ItemGroup>
 </Project>

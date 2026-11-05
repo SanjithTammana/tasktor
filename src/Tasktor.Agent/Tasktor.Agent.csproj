@@ -10,5 +10,6 @@
   <ItemGroup>
     <ProjectReference Include="../Tasktor.Core/Tasktor.Core.csproj" />
     <ProjectReference Include="../Tasktor.Windows/Tasktor.Windows.csproj" />
+    <ProjectReference Include="../Tasktor.Hosts.Common/Tasktor.Hosts.Common.csproj" />
   </ItemGroup>
 </Project>
