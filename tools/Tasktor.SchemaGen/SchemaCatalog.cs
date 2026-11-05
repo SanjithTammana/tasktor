@@ -40,6 +40,8 @@ public static class SchemaCatalog
             new("tasktor.model-1.json", ContractIds.Model, "Tasktor workflow model manifest (model.json)", c.ModelManifest),
             new("tasktor.eval-1.json", ContractIds.Eval, "Tasktor workflow model evaluation (eval.json)", c.EvalReport),
             new("tasktor.overrides-1.json", ContractIds.Overrides, "Tasktor workflow overrides (overrides.json)", c.OverridesFile),
+            new("tasktor.capture-command-1.json", ContractIds.CaptureControl, "Tasktor agent → capture host command", c.CaptureCommand),
+            new("tasktor.capture-status-1.json", ContractIds.CaptureControl, "Tasktor capture host status", c.CaptureStatus),
         ];
     }
 

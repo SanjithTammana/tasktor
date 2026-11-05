@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Tasktor.Contracts.Actions;
 using Tasktor.Contracts.Agents;
 using Tasktor.Contracts.Calendar;
+using Tasktor.Contracts.Capture;
 using Tasktor.Contracts.Cards;
 using Tasktor.Contracts.Export;
 using Tasktor.Contracts.Jobs;
@@ -35,6 +36,8 @@ namespace Tasktor.Contracts;
 [JsonSerializable(typeof(ModelManifest))]
 [JsonSerializable(typeof(EvalReport))]
 [JsonSerializable(typeof(OverridesFile))]
+[JsonSerializable(typeof(CaptureCommand))]
+[JsonSerializable(typeof(CaptureStatus))]
 [JsonSerializable(typeof(CaptureEvent))]
 [JsonSerializable(typeof(Card))]
 [JsonSerializable(typeof(IReadOnlyList<Card>))]
