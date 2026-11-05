@@ -36,6 +36,8 @@ public sealed class CaptureFeature : Feature
 
     public CaptureStatus? Status { get; private set; }
 
+    private IDisposable? _refresh;
+
     protected override void OnEnable()
     {
         Context.Router.Register("capture.pause", Pause);
@@ -45,10 +47,12 @@ public sealed class CaptureFeature : Feature
         Context.Router.Register("capture.tab_pause", TabPause);
         Context.Router.Register("capture.forget", Forget);
         Refresh();
+        _refresh = Context.Loop.Every(TimeSpan.FromMinutes(1), Refresh); // pauses expire host-side; one cheap call a minute
     }
 
     protected override void OnDisable()
     {
+        _refresh?.Dispose();
         Status = null;
         Context.UpdateState(s => s with { Capture = null });
     }

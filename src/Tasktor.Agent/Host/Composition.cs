@@ -250,9 +250,9 @@ internal static class Composition
 
         if (settings.ModuleOn("capture"))
         {
-            // T1 agent side: the card and capture.* actions. The link to tasktor-capture's pipe is set when that host
-            // runs (M12 server side); until then the card says capture is not running and actions refuse.
-            host.AddFeature(new CaptureFeature(ctx, link: null));
+            // T1 agent side: the card and capture.* actions over tasktor-capture's control pipe. While that host is not
+            // running the link fails fast and the card says capture is not running.
+            host.AddFeature(new CaptureFeature(ctx, (cmd, ct) => Hosts.Common.Pipe.CaptureLink.SendAsync(cmd, ct)));
         }
 
         if (settings.ModuleOn("batteries"))
