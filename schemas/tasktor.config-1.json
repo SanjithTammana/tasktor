@@ -1,0 +1,346 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tasktor:schema:tasktor.config-1.json",
+  "title": "Tasktor settings (config.json)",
+  "description": "Contract tasktor.config/1. Generated from the C# records in Tasktor.Contracts; do not edit by hand.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "schema_version": {
+      "type": "integer"
+    },
+    "cli": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "allow_destructive": {
+          "type": "boolean"
+        }
+      }
+    },
+    "modules": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "boolean"
+      }
+    },
+    "thresholds": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "warn": {
+            "type": "number"
+          },
+          "critical": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "display": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "network_bits": {
+          "type": "boolean"
+        },
+        "hidden_rows": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "hidden_pages": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "jobs": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "watch": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "excludes": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "learning": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "finished_toast": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "focus": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "presets": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "blocks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string"
+                    },
+                    "minutes": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "minutes"
+                  ]
+                }
+              },
+              "repeat": {
+                "type": "boolean"
+              },
+              "long_break_every": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "long_break_minutes": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "blocks"
+            ]
+          }
+        }
+      }
+    },
+    "flyout": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "hotkey": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "keep_warm": {
+          "type": "boolean"
+        }
+      }
+    },
+    "windows": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "hotkey": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "replace_alt_tab": {
+          "type": "boolean"
+        },
+        "this_desktop_only": {
+          "type": "boolean"
+        }
+      }
+    },
+    "tracking": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "exclude_apps": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "exclude_titles": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "retention_days": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    },
+    "capture": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "edge_line": {
+          "type": "boolean"
+        },
+        "edge_line_edge": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "schedule": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "object",
+            "properties": {
+              "days": {
+                "type": "string"
+              },
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "mode": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "days",
+              "from",
+              "to",
+              "mode"
+            ]
+          }
+        },
+        "exclude_apps": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "exclude_hosts": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "disk": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "off": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "include_removable": {
+          "type": "boolean"
+        }
+      }
+    },
+    "update_check": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "start_with_windows": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    }
+  }
+}

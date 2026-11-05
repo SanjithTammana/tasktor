@@ -1,0 +1,42 @@
+{
+  "schema": "tasktor.export/1",
+  "exported_at": "2026-11-04T12:00:00Z",
+  "tasktor_version": "0.1.0",
+  "since": "30d",
+  "format": "both",
+  "tables": [
+    {
+      "name": "jobs_runs",
+      "schema": "tasktor.export/1#jobs_runs",
+      "rows": 2,
+      "files": [
+        "jobs_runs.csv",
+        "jobs_runs.jsonl"
+      ],
+      "columns": [
+        "kind",
+        "ended_at",
+        "duration_s",
+        "exit_code",
+        "good"
+      ]
+    },
+    {
+      "name": "selfuse",
+      "schema": "tasktor.export/1#selfuse",
+      "rows": 2,
+      "files": [
+        "selfuse.csv",
+        "selfuse.jsonl"
+      ],
+      "columns": [
+        "feature",
+        "count"
+      ]
+    }
+  ],
+  "left_out": [
+    "capture_keys: needs --include-capture",
+    "events_raw: needs --include-raw"
+  ]
+}

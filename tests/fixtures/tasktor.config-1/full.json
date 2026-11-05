@@ -1,0 +1,17 @@
+{
+  "$schema": "schemas/tasktor.config-1.json",
+  "schema_version": 1,
+  "cli": { "allow_destructive": false },
+  "modules": { "tracking": true, "ports": true, "capture": false },
+  "thresholds": { "cpu": { "warn": 80, "critical": 95 }, "ram": { "warn": 85, "critical": 95 } },
+  "display": { "network_bits": true, "hidden_rows": [ "gpu" ], "hidden_pages": [ "Windows" ] },
+  "jobs": { "watch": [ "blender.exe" ], "excludes": [ "--serve" ], "learning": true, "finished_toast": true },
+  "focus": { "presets": [ { "name": "Pomodoro", "blocks": [ { "kind": "focus", "minutes": 25 }, { "kind": "break", "minutes": 5 } ], "repeat": true, "long_break_every": 4, "long_break_minutes": 15 } ] },
+  "flyout": { "hotkey": "Win+Alt+T", "keep_warm": false },
+  "windows": { "hotkey": "Alt+`", "replace_alt_tab": false, "this_desktop_only": true },
+  "tracking": { "exclude_apps": [ "keepass*.exe" ], "exclude_titles": [ "*Private*" ], "retention_days": 30 },
+  "capture": { "edge_line": true, "schedule": [ { "days": "weekdays", "from": "09:00", "to": "17:00", "mode": "never" } ] },
+  "disk": { "off": [ "E:" ], "include_removable": false },
+  "update_check": false,
+  "start_with_windows": true
+}

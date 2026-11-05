@@ -174,4 +174,41 @@ public sealed class CliEndToEndTests : IAsyncLifetime
         Assert.False(File.Exists(_agent.Store.Layout.Snapshot + ".tmp"));
         await Task.CompletedTask;
     }
+
+    [Fact]
+    public async Task Export_data_writes_a_manifest_and_says_plain_text()
+    {
+        var to = Path.Combine(_agent.Store.Root, "out");
+        var (code, output, err) = await _agent.Cli("export", "data", "--to", to);
+        Assert.Equal(ExitCode.Ok, code);
+        Assert.Contains("plain text", err + output, StringComparison.Ordinal);
+        Assert.True(File.Exists(Path.Combine(to, "manifest.json")));
+        Assert.Equal(ExitCode.NeedsConfirm, (await _agent.Cli("export", "data", "--to", to + "2", "--include-raw")).Code);
+        Assert.Equal(ExitCode.Ok, (await _agent.Cli("export", "data", "--to", to + "3", "--include-raw", "--yes")).Code);
+    }
+
+    [Fact]
+    public async Task Forget_is_destructive_on_the_cli()
+    {
+        Directory.CreateDirectory(_agent.Store.Layout.StateDir);
+        File.WriteAllText(_agent.Store.Layout.JobKinds, "{}");
+        Assert.Equal(ExitCode.Refused, (await _agent.Cli("forget", "learned", "--yes")).Code);
+        await _agent.Host.OnLoop(() => _agent.Host.CliAllowDestructive = true);
+        Assert.Equal(ExitCode.NeedsConfirm, (await _agent.Cli("forget", "learned")).Code);
+        Assert.True(File.Exists(_agent.Store.Layout.JobKinds));
+        var r = await _agent.Cli("forget", "learned", "--yes");
+        Assert.Equal(ExitCode.Ok, r.Code);
+        Assert.False(File.Exists(_agent.Store.Layout.JobKinds));
+    }
+
+    [Fact]
+    public async Task Settings_round_trip_through_a_zip()
+    {
+        File.WriteAllText(_agent.Store.Layout.Config, """{ "schema_version": 1, "update_check": true }""");
+        var zip = Path.Combine(_agent.Store.Root, "settings.zip");
+        Assert.Equal(ExitCode.Ok, (await _agent.Cli("settings", "export", zip)).Code);
+        Assert.True(File.Exists(zip));
+        await _agent.Host.OnLoop(() => _agent.Host.CliAllowDestructive = true);
+        Assert.Equal(ExitCode.Ok, (await _agent.Cli("settings", "import", zip, "--yes")).Code);
+    }
 }
