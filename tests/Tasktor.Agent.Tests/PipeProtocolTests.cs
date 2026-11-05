@@ -159,4 +159,24 @@ public sealed class PipeProtocolTests : IAsyncLifetime
 
         public ValueTask DisposeAsync() => _s.DisposeAsync();
     }
+
+}
+
+public sealed class PersistenceTests
+{
+    [Fact]
+    public async Task Pause_survives_an_agent_restart()
+    {
+        using var store = new Tasktor.Tests.Shared.TempStore();
+        await using (var a = new Host.AgentHost(new Host.AgentOptions { Store = store.Layout, PipeName = "tasktor-p-" + Guid.NewGuid().ToString("N")[..8], LogWriter = new Core.Logging.MemoryLogWriter() }))
+        {
+            a.Start();
+            var r = await a.OnLoop(() => a.Router.Submit(new ActionRequest { Action = "tracking.pause", Origin = Origin.Tray }));
+            await r;
+            AgentFixture.WaitFor(() => a.Paused.Tracking);
+        }
+
+        await using var b = new Host.AgentHost(new Host.AgentOptions { Store = store.Layout, PipeName = "tasktor-p-" + Guid.NewGuid().ToString("N")[..8], LogWriter = new Core.Logging.MemoryLogWriter() });
+        Assert.True(b.Paused.Tracking);
+    }
 }

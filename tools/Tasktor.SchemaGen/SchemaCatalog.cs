@@ -33,6 +33,7 @@ public static class SchemaCatalog
             new("tasktor.calendar-1.json", ContractIds.Calendar, "Tasktor calendar events file", c.CalendarFile),
             new("tasktor.export-1.json", ContractIds.Export, "Tasktor data export manifest", c.ExportManifest),
             new("tasktor.presets-1.json", ContractIds.Presets, "Tasktor window presets (presets.json)", c.PresetsFile),
+            new("tasktor.config-1.json", ContractIds.Config, "Tasktor settings (config.json)", c.ConfigFile),
         ];
     }
 

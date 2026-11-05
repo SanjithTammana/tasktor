@@ -3,7 +3,7 @@
 Update this file after every milestone step. The next session starts here.
 
 ## Current milestone
-M6 Storage, privacy, export. M0–M5 are done.
+M7 Plugin host. M0–M6 are done.
 
 ## Done
 - Design signed (`docs/design/`).
@@ -20,8 +20,10 @@ M6 Storage, privacy, export. M0–M5 are done.
 
 - **M5 Pipe protocol and CLI.** `Tasktor.Hosts.Common`: `PipeName` (`tasktor-<hash of SID>`; `TASKTOR_PIPE` override), `PipeFraming` (JSON lines, 4 MB line cap), `PipeClient` (hello, id-matched replies, pushed deltas), `BindingResolver`, `CardFitter` (S 2/1, M 5/3, L 9/4, flyout all), `IBlockRenderer<T>`. `Tasktor.Agent`: `PipeServer` (current-user only via `PipeOptions.CurrentUserOnly`, ≤ 16 clients, reader posts to the loop, writer drains a queue; `hello` / `subscribe` (initial view + per-client diff, ≤ 1 delta / 500 ms) / `pull` / `act` / `lease` (dies with the connection); origins bound to the client), `AgentHost` (composition root: loop, scheduler, state, cards, publisher, router, pipe, coalesced snapshot file, core handlers), `Program` (single instance mutex, `--data-dir`). `Tasktor.Core`: `StoreLayout` (every D-H8 path; portable flag; `TASKTOR_DATA_DIR`). `Tasktor.Cli`: `CliApp` (status, job, proc, pause/resume, summary, open, forget, export data, settings, preset, log, agent-hook, uninstall; exit codes 0 / 1 / 2 / 3 / 4), `TextRenderer`, `job set|done|rm` and `agent-hook` writing files without the agent. 21 end-to-end tests drive an in-process agent through the CLI and raw pipe.
 
+- **M6 Storage, privacy, export.** `tasktor.config/1` (`ConfigFile`, schema + fixture), `SettingsStore` (comments, forward migration with `.bak`, broken file left untouched + error, newer version refused), `ConsentStore` (modules, plugins pinned to manifest + command SHA-256, arrange rules), `InstallKey` (32 bytes; `KeyProtection` = DPAPI current user on Windows via P/Invoke in `Tasktor.Windows.Security.Dpapi`, none in tests; HKDF hash keys `tasktor/hash/…` vs encryption keys `tasktor/enc/…`; unreadable key replaced), `Forgetter` (learned / tracking / capture / all, stops owners first, keeps settings, rules, key, consents, notes, presets, plugins, frozen recovery; capture time-range hook), `SelfUseCounter`, `DataExporter` (CSV + JSONL per table via `Utf8JsonWriter`, manifest, raw / capture gates, cloud-folder detection), `SettingsArchive` (export / validated import / reset / log bundle), `LogScanner` (actions_log, alerts_log from H6 lines). Agent handlers: `forget`, `capture.forget`, `export.data`, `settings.export|import|reset`, `log.bundle`, `uninstall`; pause persists in `state\pause.json`. Python `worker/tasktor_data.load(folder)` with tests against `tests/fixtures/export-sample` (which C# reproduces byte for byte).
+
 ## Next
-- M6: `SettingsStore` (config.json with comments, migrate + `.bak`), `ConsentStore`, `InstallKey` (DPAPI on Windows, fake provider in tests) + HKDF, `Forgetter`, `SelfUseCounter`, `DataExporter` (CSV + JSONL + manifest) and `worker/tasktor_data`.
+- M7: `PluginHost` (discovery, stdin/stdout protocol, 64 KB cap, schema + subset check, ≤ 3 cards / ≤ 3 actions, timeout kill, off after 3 failures, consent pinned to hashes), packs, Job Object adapter [W], `examples/plugins/todo-count`.
 
 ## Interpretations
 - **Linux build set.** CI's Linux job builds `Tasktor.Linux.slnf`, a solution filter without `Tasktor.Flyout` and `Tasktor.Widget` (WinUI / Windows App SDK do not build on Linux). The Windows job builds `Tasktor.sln`.
@@ -48,6 +50,9 @@ M6 Storage, privacy, export. M0–M5 are done.
 - **Current-user pipe ACL via `PipeOptions.CurrentUserOnly`**, which sets a current-user-only DACL on Windows and owner-only permissions on Unix sockets, on both server and client.
 - **CLI `--yes` travels as `confirm: "--yes"`** on the action request; the router accepts it only for origin `cli`.
 - **`tasktor forget capture --since …`** maps to the catalog's `capture.forget`; other `forget` verbs to `forget` with target `{what}`.
+- **`forget all` keeps** settings, rules, consents, the install key, notes, presets, plugins and plugin data, `pause.json` and `frozen.json` (frozen-job recovery must survive a forget). `forget tracking` also removes `state\projects.json` (I6's map is keyed by workflow ids that tracking produced).
+- **`actions_log` / `alerts_log` exports come from the log files** (U2: "from H6; names only"), parsed back by `LogScanner`.
+- **Golden files** (`tests/fixtures/export-sample`) are regenerated with `TASKTOR_REGEN_FIXTURES=1 dotnet test`; normal runs only compare.
 - **Package pins.** xUnit 2.9.3, Test SDK 17.14.1, BannedApiAnalyzers 4.14.0, Windows App SDK 2.5.1 (the version the U4 sources cite).
 
 ## Needs Windows verification
@@ -55,6 +60,9 @@ M6 Storage, privacy, export. M0–M5 are done.
 
 - **M5 / pipe ACL:** on Windows, run the agent, then from a second user account run `tasktor status` → expect exit 3 (cannot open another user's pipe). From the same account, `Get-ChildItem \\.\pipe\ | Select-String tasktor` shows one pipe; `(Get-Acl \\.\pipe\tasktor-…).Access` lists only the current user. Confirm a remote client is rejected: from another PC on the LAN, `[System.IO.Pipes.NamedPipeClientStream]::new('<pc>','tasktor-…').Connect(2000)` must fail.
 - **M5 / client image check:** wire `PipeServer.OriginsFor` to `GetNamedPipeClientProcessId` + `QueryFullProcessImageName` so only `Tasktor.Flyout.exe` / `Tasktor.Widget.exe` / `tasktor-shell.exe` from the install dir get viewer origins (implemented in M14's composition; check by connecting with a PowerShell client named `flyout` and confirming `proc.end` is refused as CLI).
+
+- **M6 / DPAPI:** run `tasktor-core` once, then check `%LOCALAPPDATA%\Tasktor\state\install.key` is 200+ bytes (a DPAPI blob, not 32 raw bytes). Copy it to another Windows user account's store and start the agent there: the log shows the key was replaced (cannot unprotect), and learned state starts empty.
+- **M6 / Known Folders:** with OneDrive Known Folder Move on, `tasktor export data` (no `--to`) prints the "cloud-synced" warning; with it off, it does not.
 
 ## Blockers
 - **.NET install script blocked.** `dotnet-install.sh` cannot reach `builds.dotnet.microsoft.com` (the session proxy returns 403). Worked around: `apt-get install dotnet-sdk-10.0` from the Ubuntu archive (SDK 10.0.114, which satisfies `global.json` 10.0.100 / latestFeature). `scripts/cloud-setup.sh` now falls back to apt. Not blocking.
