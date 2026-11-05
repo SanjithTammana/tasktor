@@ -106,6 +106,14 @@ public sealed class ActionRouter
 
     public bool HasHandler(string actionId) => _handlers.ContainsKey(actionId);
 
+    /// <summary>
+    /// Prepare <paramref name="req"/> with another action's handler: for actions that only resolve a target and then act
+    /// as an existing action (e.g. "lower the newest agent" → <c>priority.set</c>). The router still applies the outer
+    /// action's policy and guards. Loop-only.
+    /// </summary>
+    public PreparedAction PrepareWith(string actionId, ActionRequest req) =>
+        _handlers.TryGetValue(actionId, out var h) ? h(req) : new PreparedAction { Summary = actionId, Refusal = "That action is not available" };
+
     /// <summary>Route one request. Must be called on the logic loop; the task completes on the loop.</summary>
     public Task<ActionResult> Submit(ActionRequest req)
     {
@@ -182,7 +190,12 @@ public sealed class ActionRouter
             allowed.AddRange(prep.Processes);
         }
 
-        // Step 4: two-step confirm.
+        // Step 4: two-step confirm. A handler with nothing left to do (an immediate result, no work) needs no confirm.
+        if (verdict == PolicyVerdict.NeedsConfirm && prep is { Immediate: not null, Run: null })
+        {
+            return Finish(req, prep, prep.Immediate);
+        }
+
         if (verdict == PolicyVerdict.NeedsConfirm)
         {
             if (req.Origin == Origin.Cli)

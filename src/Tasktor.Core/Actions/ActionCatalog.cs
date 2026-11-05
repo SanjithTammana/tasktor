@@ -53,7 +53,8 @@ public static class ActionCatalog
         new("disk.storage_settings", ActionClass.Read, "Open Storage settings", Surface.Flyout | Surface.Toast),
         new("disk.scan", ActionClass.Read, "Biggest folders", Surface.Flyout | Surface.Widget | Surface.Toast | Surface.Cli),
         new("battery.settings", ActionClass.Read, "Battery settings", Surface.Flyout | Surface.Toast),
-        new("url.open", ActionClass.Read, "Open", Surface.Flyout | Surface.Widget | Surface.Toast),
+        new("url.open", ActionClass.Read, "Join", Surface.Flyout | Surface.Widget | Surface.Toast),
+        new("agent.show", ActionClass.Read, "Show", Surface.Flyout | Surface.Widget | Surface.Toast),
 
         // reversible: priority / efficiency / caps (A3, B3, I4)
         new("priority.set", ActionClass.Reversible, "Lower priority", Surface.Flyout | Surface.Widget | Surface.Toast | Surface.Cli, Undo: "priority.restore", ProcessTargets: true),
@@ -62,6 +63,7 @@ public static class ActionCatalog
         new("efficiency.restore", ActionClass.Reversible, "Efficiency off", Surface.Flyout | Surface.Widget | Surface.Cli, ProcessTargets: true),
         new("cores.cap", ActionClass.Reversible, "Cap cores", Surface.Flyout | Surface.Cli, Undo: "cores.release", ProcessTargets: true),
         new("cores.release", ActionClass.Reversible, "Release cap", Surface.Flyout | Surface.Cli),
+        new("agent.lower_newest", ActionClass.Reversible, "Lower the newest", Surface.Flyout | Surface.Toast, Undo: "priority.restore", ProcessTargets: true),
         new("cores.release_all", ActionClass.Reversible, "Release all caps", Surface.Flyout | Surface.Widget | Surface.Cli),
 
         // reversible: pause / resume (B3.7, D-H6 pause targets)
@@ -129,6 +131,8 @@ public static class ActionCatalog
         new("learned.forget", ActionClass.Destructive, "Forget", Surface.Flyout | Surface.Cli),
         new("forget", ActionClass.Destructive, "Forget", Surface.Flyout | Surface.Cli),
         new("capture.forget", ActionClass.Destructive, "Forget", Surface.Flyout | Surface.Widget | Surface.Cli),
+        new("agent.hooks.install", ActionClass.Destructive, "Set up hooks…", Surface.Flyout | Surface.Cli),
+        new("agent.hooks.remove", ActionClass.Destructive, "Remove hooks…", Surface.Flyout | Surface.Cli),
         new("settings.import", ActionClass.Destructive, "Import settings", Surface.Flyout | Surface.Cli),
         new("settings.reset", ActionClass.Destructive, "Reset settings", Surface.Flyout | Surface.Cli),
         new("uninstall", ActionClass.Destructive, "Uninstall", Surface.Cli),
