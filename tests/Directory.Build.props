@@ -5,6 +5,8 @@
     <IsTestProject>true</IsTestProject>
     <!-- Test code may use reflection-friendly helpers; AOT rules apply to shipped code only. -->
     <IsAotCompatible>false</IsAotCompatible>
+    <!-- Loop-driven tests block on tasks they complete by pumping the logic loop by hand. -->
+    <NoWarn>$(NoWarn);xUnit1031</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
