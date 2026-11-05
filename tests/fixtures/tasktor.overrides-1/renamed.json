@@ -1,0 +1,18 @@
+{
+  "schema": "tasktor.overrides/1",
+  "names": {
+    "a3": "Thesis writing"
+  },
+  "merge": {
+    "a7": "a3"
+  },
+  "hide": [
+    "a9"
+  ],
+  "split_request": [
+    "a2"
+  ],
+  "hide_term": [
+    "standup"
+  ]
+}

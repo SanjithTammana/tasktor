@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tasktor:schema:tasktor.worker-job-1.json",
+  "title": "Tasktor learning worker job (stdin)",
+  "description": "Contract tasktor.worker-job/1. Generated from the C# records in Tasktor.Contracts; do not edit by hand.",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "string"
+    },
+    "extract": {
+      "type": "string"
+    },
+    "previous_model": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "overrides": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "prereg": {
+      "type": "string"
+    },
+    "output": {
+      "type": "string"
+    },
+    "resume_from": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "extract",
+    "prereg",
+    "output"
+  ]
+}

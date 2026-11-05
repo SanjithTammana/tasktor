@@ -13,6 +13,12 @@ public static class ContractIds
     public const string Export = "tasktor.export/1";
     public const string Presets = "tasktor.presets/1";
     public const string Config = "tasktor.config/1";
+    public const string Prereg = "tasktor.prereg/1";
+    public const string Extract = "tasktor.extract/1";
+    public const string WorkerJob = "tasktor.worker-job/1";
+    public const string Model = "tasktor.model/1";
+    public const string Eval = "tasktor.eval/1";
+    public const string Overrides = "tasktor.overrides/1";
 
     /// <summary>
     /// Base of each schema's <c>$id</c>. A URN, so the repo names no domain it does not own; files that want

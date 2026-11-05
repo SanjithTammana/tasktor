@@ -1,0 +1,65 @@
+{
+  "schema": "tasktor.prereg/1",
+  "schema_version": 1,
+  "episodes": {
+    "segment_min_ms": 2000,
+    "glance_max_ms": 30000,
+    "idle_split_ms": 300000,
+    "activity_cap_ms": 3600000,
+    "window_active_ms": 900000,
+    "window_min_active_ms": 180000,
+    "idle_after_ms": 180000
+  },
+  "features": {
+    "version": 1,
+    "buckets": 262144,
+    "max_tokens": 256,
+    "min_df": 3,
+    "lsa_dims": 64,
+    "pca_dims": 16,
+    "min_app_activities": 3,
+    "context_apps": 20,
+    "text_weight": 1.0,
+    "app_weight": 1.0,
+    "time_weight": 0.3,
+    "context_weight": 0.3,
+    "shape_weight": 0.2,
+    "term_min_activities": 5,
+    "term_min_days": 3
+  },
+  "clustering": {
+    "min_cluster_size": 8,
+    "min_cluster_size_frac": 0.01,
+    "min_samples": 5,
+    "k_min": 5,
+    "k_max": 40,
+    "sample": 3000,
+    "fit_cap": 10000,
+    "fit_days": 90,
+    "seed": 7
+  },
+  "gates": {
+    "g0_activities": 300,
+    "g0_days": 7,
+    "g0_hours": 20,
+    "g0_windows": 200,
+    "g0_window_days": 10,
+    "g1_coverage": 0.6,
+    "g2_dbcv": 0.2,
+    "g3_show": 0.6,
+    "g3_stable": 0.75,
+    "g3_resamples": 20,
+    "g3_fraction": 0.8,
+    "g4_ari": 0.5,
+    "g5_persistence": 0.8,
+    "g6_clusters": 3,
+    "g6b_gain": 0.05,
+    "match_jaccard": 0.5
+  },
+  "assignment": {
+    "floor": 0.5,
+    "hysteresis": 2,
+    "radius_percentile": 95,
+    "exemplars_per_cluster": 20
+  }
+}

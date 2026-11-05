@@ -1,0 +1,578 @@
+{
+ "base_utc_ms": 1793000000000,
+ "streams": [
+  {
+   "name": "single app 10 min",
+   "end": 600000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "parser.py - tasktor - Visual Studio Code",
+     "win": 1
+    }
+   ]
+  },
+  {
+   "name": "alt-tab glance 10 s",
+   "end": 600000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "main.rs - engine",
+     "win": 1
+    },
+    {
+     "t": 300000,
+     "k": "fg",
+     "app": "chrome.exe",
+     "title": "Docs - Google Chrome",
+     "win": 2
+    },
+    {
+     "t": 310000,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "main.rs - engine",
+     "win": 1
+    }
+   ]
+  },
+  {
+   "name": "switch 45 s opens an activity",
+   "end": 600000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "main.rs",
+     "win": 1
+    },
+    {
+     "t": 300000,
+     "k": "fg",
+     "app": "chrome.exe",
+     "title": "Issue tracker",
+     "win": 2
+    },
+    {
+     "t": 345000,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "main.rs",
+     "win": 1
+    }
+   ]
+  },
+  {
+   "name": "flicker 1 s is not a glance",
+   "end": 400000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    },
+    {
+     "t": 100000,
+     "k": "fg",
+     "app": "windowsterminal.exe",
+     "title": "pwsh",
+     "win": 3
+    },
+    {
+     "t": 101000,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    }
+   ]
+  },
+  {
+   "name": "idle 3 min stays inside",
+   "end": 600000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    },
+    {
+     "t": 200000,
+     "k": "idle_start",
+     "idle": "input"
+    },
+    {
+     "t": 380000,
+     "k": "idle_end"
+    }
+   ]
+  },
+  {
+   "name": "idle 6 min splits",
+   "end": 900000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    },
+    {
+     "t": 200000,
+     "k": "idle_start",
+     "idle": "input"
+    },
+    {
+     "t": 560000,
+     "k": "idle_end"
+    },
+    {
+     "t": 570000,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    }
+   ]
+  },
+  {
+   "name": "lock mid-run",
+   "end": 1200000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    },
+    {
+     "t": 300000,
+     "k": "lock"
+    },
+    {
+     "t": 900000,
+     "k": "unlock"
+    },
+    {
+     "t": 901000,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    }
+   ]
+  },
+  {
+   "name": "sleep and resume",
+   "end": 5400000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "chrome.exe",
+     "title": "Mail - inbox",
+     "win": 2
+    },
+    {
+     "t": 400000,
+     "k": "suspend"
+    },
+    {
+     "t": 5000000,
+     "k": "resume"
+    },
+    {
+     "t": 5002000,
+     "k": "fg",
+     "app": "chrome.exe",
+     "title": "Mail - inbox",
+     "win": 2
+    }
+   ]
+  },
+  {
+   "name": "pause and unpause",
+   "end": 800000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    },
+    {
+     "t": 120000,
+     "k": "pause"
+    },
+    {
+     "t": 600000,
+     "k": "unpause"
+    },
+    {
+     "t": 601000,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    }
+   ]
+  },
+  {
+   "name": "excluded app in the middle",
+   "end": 500000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    },
+    {
+     "t": 200000,
+     "k": "excluded_start"
+    },
+    {
+     "t": 260000,
+     "k": "excluded_end"
+    },
+    {
+     "t": 260000,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    }
+   ]
+  },
+  {
+   "name": "agent crash gap",
+   "end": 1600000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    },
+    {
+     "t": 300000,
+     "k": "agent_stop"
+    },
+    {
+     "t": 1300000,
+     "k": "agent_start"
+    },
+    {
+     "t": 1301000,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    }
+   ]
+  },
+  {
+   "name": "marathon chunks at 60 min",
+   "end": 9000000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "renderer.cpp - engine",
+     "win": 1
+    }
+   ]
+  },
+  {
+   "name": "title changes weight tokens",
+   "end": 600000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "chrome.exe",
+     "title": "Pull request 12 review - Google Chrome",
+     "win": 2,
+     "domain": "github.com"
+    },
+    {
+     "t": 120000,
+     "k": "title",
+     "app": "chrome.exe",
+     "title": "Build logs failing test - Google Chrome",
+     "win": 2,
+     "domain": "github.com"
+    },
+    {
+     "t": 400000,
+     "k": "title",
+     "app": "chrome.exe",
+     "title": "Pull request 12 review - Google Chrome",
+     "win": 2,
+     "domain": "github.com"
+    }
+   ]
+  },
+  {
+   "name": "media idle is not away",
+   "end": 1600000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "chrome.exe",
+     "title": "Lecture video",
+     "win": 2
+    },
+    {
+     "t": 100000,
+     "k": "idle_start",
+     "idle": "media"
+    },
+    {
+     "t": 1500000,
+     "k": "idle_end"
+    }
+   ]
+  },
+  {
+   "name": "job running share",
+   "end": 600000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "windowsterminal.exe",
+     "title": "cargo build",
+     "win": 3
+    },
+    {
+     "t": 100000,
+     "k": "job_on"
+    },
+    {
+     "t": 400000,
+     "k": "job_off"
+    }
+   ]
+  },
+  {
+   "name": "three-app hop",
+   "end": 400000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    },
+    {
+     "t": 100000,
+     "k": "fg",
+     "app": "chrome.exe",
+     "title": "Search",
+     "win": 2
+    },
+    {
+     "t": 110000,
+     "k": "fg",
+     "app": "slack.exe",
+     "win": 4
+    },
+    {
+     "t": 160000,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    }
+   ]
+  },
+  {
+   "name": "workflow windows of 15 active minutes",
+   "end": 2700000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    },
+    {
+     "t": 1000000,
+     "k": "fg",
+     "app": "chrome.exe",
+     "title": "Docs",
+     "win": 2
+    },
+    {
+     "t": 1600000,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "b.py",
+     "win": 1
+    }
+   ]
+  },
+  {
+   "name": "short window dropped",
+   "end": 200000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    },
+    {
+     "t": 100000,
+     "k": "lock"
+    }
+   ]
+  },
+  {
+   "name": "clock jump keeps order",
+   "end": 600000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    },
+    {
+     "t": 300000,
+     "k": "title",
+     "app": "code.exe",
+     "title": "b.py",
+     "win": 1,
+     "utc_jump": -3600000
+    }
+   ]
+  },
+  {
+   "name": "dst change mid-run",
+   "end": 600000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    },
+    {
+     "t": 300000,
+     "k": "title",
+     "app": "code.exe",
+     "title": "b.py",
+     "win": 1,
+     "tz": 60
+    }
+   ]
+  },
+  {
+   "name": "two sessions split by long idle",
+   "end": 1500000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    },
+    {
+     "t": 300000,
+     "k": "idle_start",
+     "idle": "input"
+    },
+    {
+     "t": 900000,
+     "k": "idle_end"
+    },
+    {
+     "t": 901000,
+     "k": "fg",
+     "app": "chrome.exe",
+     "title": "Docs",
+     "win": 2
+    }
+   ]
+  },
+  {
+   "name": "redaction and suffix tokens",
+   "end": 500000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "chrome.exe",
+     "title": "Invoice \u2039num\u203a for \u2039email\u203a - Google Chrome",
+     "win": 2,
+     "domain": "billing.example.com"
+    },
+    {
+     "t": 200000,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "notes \u2039path\u203a - Visual Studio Code",
+     "win": 1
+    }
+   ]
+  },
+  {
+   "name": "glance then switch before return",
+   "end": 300000,
+   "events": [
+    {
+     "t": 0,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    },
+    {
+     "t": 100000,
+     "k": "fg",
+     "app": "chrome.exe",
+     "title": "x",
+     "win": 2
+    },
+    {
+     "t": 115000,
+     "k": "fg",
+     "app": "slack.exe",
+     "win": 4
+    },
+    {
+     "t": 200000,
+     "k": "fg",
+     "app": "code.exe",
+     "title": "a.py",
+     "win": 1
+    }
+   ]
+  }
+ ]
+}
