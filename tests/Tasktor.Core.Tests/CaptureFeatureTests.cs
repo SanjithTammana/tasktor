@@ -141,4 +141,18 @@ public sealed class CaptureFeatureTests : IDisposable
         Assert.False(_rig.State.Current.Capture!.On);
         Assert.Contains(_capture.Cards()[0].Blocks, b => b is Contracts.Cards.BadgeBlock bb && bb.Text.ToString().Contains("not running", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void Without_consent_the_supervisor_starts_nothing_and_the_card_says_so()
+    {
+        using var rig = new FeatureRig();
+        var sup = new CaptureSupervisor(rig.Context, CaptureSupervisor.DefaultSpec(AppContext.BaseDirectory, null), () => false);
+        var capture = rig.Add(new CaptureFeature(rig.Context, null) { Supervisor = sup });
+        rig.Pump();
+        Assert.False(sup.Running);
+        Assert.Equal("no_consent", sup.Failure);
+        Assert.Contains(capture.Cards()[0].Blocks, b => b is Contracts.Cards.BadgeBlock bb && bb.Text.ToString().Contains("consent", StringComparison.Ordinal));
+        capture.Disable();
+        Assert.Null(sup.Failure);
+    }
 }
