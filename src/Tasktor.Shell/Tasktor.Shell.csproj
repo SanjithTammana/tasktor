@@ -6,6 +6,7 @@
     <AssemblyName>tasktor-shell</AssemblyName>
     <IsAotCompatible>true</IsAotCompatible>
     <PublishAot>true</PublishAot>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Tasktor.Hosts.Common/Tasktor.Hosts.Common.csproj" />
