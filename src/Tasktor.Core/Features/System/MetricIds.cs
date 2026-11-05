@@ -1,4 +1,4 @@
-namespace Tasktor.Core.Features.System;
+namespace Tasktor.Core.Features.SystemMonitor;
 
 /// <summary>Metric ids the system sources fill (A1 data sources). Instances: adapter LUID, disk, adapter, volume.</summary>
 public static class MetricIds

@@ -30,6 +30,21 @@
       "when": { "metric": "disk.active_pct", "above": 95 }, "for": "2m", "cooldown": "30m",
       "then": [ { "toast": "Disk {instance} is {value}% busy", "buttons": ["open:core.system", "snooze:1h"] } ] },
 
+    // B2.2 silent job: quiet longer than this kind's learned normal (fallback 10 min, clamped 2–60 min). No End in a toast.
+    { "id": "job-silent", "builtin": true, "description": "B2: a job went silent",
+      "when": { "learned": { "stat": "silence", "key": "job.kind", "fallback": "10m", "clamp": ["2m", "60m"] } }, "cooldown": "30m",
+      "then": [ { "toast": "{job} has been silent for {value}: {basis}", "severity": "warn",
+                  "buttons": ["open:core.jobs", "job.log", "rule.its_fine"] } ] },
+    // B2.3 stuck-busy: busy CPU but the progress file missed 2 × its heartbeat (else 10 min).
+    { "id": "job-stuck", "builtin": true, "description": "B2: busy but no progress",
+      "when": { "learned": { "stat": "heartbeat", "key": "job.kind", "fallback": "10m" } }, "cooldown": "30m",
+      "then": [ { "toast": "{job} is busy but has not reported progress for {value}", "severity": "warn",
+                  "buttons": ["open:core.jobs", "job.log", "rule.its_fine"] } ] },
+    // B3.4 auto-restrain (off): lower a hogging job while the PC is contended; undo restores it.
+    { "id": "auto-restrain", "enabled": false, "description": "B3.4: restrain hogging jobs",
+      "when": { "learned": { "stat": "hogging", "key": "job.kind", "fallback": "1s" } },
+      "then": [ { "set_priority": "below_normal" } ], "undo": true },
+
     // A8.2: unplugged under load (laptops only; warns, never acts).
     { "id": "unplugged-load", "description": "A8.2: unplugged while busy",
       "when": { "all": [ { "event": "power.unplugged" },

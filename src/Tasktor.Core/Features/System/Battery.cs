@@ -6,7 +6,7 @@ using Tasktor.Contracts.Snapshot;
 using Tasktor.Core.Actions;
 using Tasktor.Core.Rules;
 
-namespace Tasktor.Core.Features.System;
+namespace Tasktor.Core.Features.SystemMonitor;
 
 /// <summary>
 /// A8 battery (laptops only): percent, charging, time left and battery saver, event-driven (no polling between power

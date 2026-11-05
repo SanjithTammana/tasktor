@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using Tasktor.Contracts.Platform;
 
-namespace Tasktor.Core.Features.System;
+namespace Tasktor.Core.Features.SystemMonitor;
 
 /// <summary>
 /// A process table through <see cref="Process"/> for non-Windows development runs (no parent PIDs). Windows uses

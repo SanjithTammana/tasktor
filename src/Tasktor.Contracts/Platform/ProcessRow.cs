@@ -47,3 +47,7 @@ public sealed record ProcessRow
     /// <summary>Read once per (PID, creation time) for watch-list matches only (B D-B8).</summary>
     public Sensitive<string>? CommandLine { get; init; }
 }
+
+/// <summary>A process exit, pushed by <c>IEventSource&lt;ProcessExit&gt;</c> (B D-B4): exit code read after the wait fired (null when unknown).</summary>
+public sealed record ProcessExit(ProcKey Key, int? ExitCode, DateTimeOffset AtUtc);
+

@@ -10,7 +10,7 @@ using Tasktor.Core.Apps;
 using Tasktor.Core.Loop;
 using Tasktor.Core.Shapes;
 
-namespace Tasktor.Core.Features.System;
+namespace Tasktor.Core.Features.SystemMonitor;
 
 /// <summary>
 /// A2 processes grouped by app + A3 per-process actions and guards. Per-process data is read only while someone holds a

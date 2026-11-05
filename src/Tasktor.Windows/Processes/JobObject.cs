@@ -19,7 +19,7 @@ public sealed partial class JobObject : IDisposable
 
     private nint _handle;
 
-    public JobObject(long memoryLimitBytes)
+    public JobObject(long memoryLimitBytes, bool killOnClose = true)
     {
         _handle = CreateJobObjectW(0, null);
         if (_handle == 0)
@@ -29,7 +29,7 @@ public sealed partial class JobObject : IDisposable
 
         var info = new ExtendedLimitInformation
         {
-            Basic = new BasicLimitInformation { LimitFlags = LimitKillOnJobClose | (memoryLimitBytes > 0 ? LimitProcessMemory : 0) },
+            Basic = new BasicLimitInformation { LimitFlags = (killOnClose ? LimitKillOnJobClose : 0) | (memoryLimitBytes > 0 ? LimitProcessMemory : 0) },
             ProcessMemoryLimit = (nuint)Math.Max(0, memoryLimitBytes),
         };
         if (!SetInformationJobObject(_handle, JobObjectExtendedLimitInformation, ref info, Marshal.SizeOf<ExtendedLimitInformation>()))
@@ -47,6 +47,13 @@ public sealed partial class JobObject : IDisposable
     }
 
     /// <summary>B3.5 / I4 core cap: a hard CPU rate = cores / logical CPUs of the whole machine.</summary>
+    /// <summary>Turn the CPU cap off (caps' jobs are not kill-on-close, so closing them leaves the processes running).</summary>
+    public bool ReleaseCap()
+    {
+        var info = new CpuRateControl { ControlFlags = 0, CpuRate = 0 };
+        return SetCpuRate(_handle, JobObjectCpuRateControlInformation, ref info, Marshal.SizeOf<CpuRateControl>());
+    }
+
     public bool CapCores(int maxCores)
     {
         var rate = (uint)Math.Clamp(maxCores * 10000 / Math.Max(1, Environment.ProcessorCount), 1, 10000);

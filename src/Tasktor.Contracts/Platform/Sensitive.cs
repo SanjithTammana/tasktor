@@ -1,16 +1,11 @@
 namespace Tasktor.Contracts.Platform;
 
-/// <summary>Marker for values that must never be logged (G-redact).</summary>
-public interface ISensitive
-{
-}
-
 /// <summary>
 /// Personal data: window titles, command lines, paths under the profile, URLs, plugin output, typed text (U1 H6).
 /// <see cref="ToString"/> prints <c>&lt;redacted&gt;</c>; the value is reachable only through <see cref="Reveal"/>,
 /// so it cannot reach a log line or a string concatenation by accident.
 /// </summary>
-public readonly struct Sensitive<T> : ISensitive, IEquatable<Sensitive<T>>
+public readonly struct Sensitive<T> : IEquatable<Sensitive<T>>
 {
     public const string Redacted = "<redacted>";
 

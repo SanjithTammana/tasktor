@@ -5,7 +5,7 @@ using Tasktor.Core.Loop;
 using Tasktor.Core.Rules;
 using Tasktor.Core.Shapes;
 
-namespace Tasktor.Core.Features.System;
+namespace Tasktor.Core.Features.SystemMonitor;
 
 /// <summary>
 /// A6 pressure alerts, tiered to stay inside D-A3: (1) watch cheaply (Windows' low-memory event, totals on the tick);

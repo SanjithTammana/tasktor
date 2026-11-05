@@ -13,7 +13,7 @@ public enum LogLevel
 }
 
 /// <summary>
-/// One structured field. Only primitives and <see cref="ISensitive"/> values are accepted; sensitive values always
+/// One structured field. Only primitives and <see cref="Sensitive{T}"/> values are accepted; sensitive values always
 /// print <c>&lt;redacted&gt;</c> (G-redact). Plain strings are for exe names, ids, actions and results, never titles,
 /// command lines, profile paths, URLs or typed text.
 /// </summary>

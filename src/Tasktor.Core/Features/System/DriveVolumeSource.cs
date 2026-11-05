@@ -1,6 +1,6 @@
 using Tasktor.Contracts.Platform;
 
-namespace Tasktor.Core.Features.System;
+namespace Tasktor.Core.Features.SystemMonitor;
 
 /// <summary>
 /// A5.1 free space per fixed volume through <see cref="DriveInfo"/> (on Windows: <c>GetDiskFreeSpaceEx</c> on fixed drives with

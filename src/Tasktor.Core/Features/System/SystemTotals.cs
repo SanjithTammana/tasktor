@@ -7,7 +7,7 @@ using Tasktor.Core.Loop;
 using Tasktor.Core.Rules;
 using Tasktor.Core.Shapes;
 
-namespace Tasktor.Core.Features.System;
+namespace Tasktor.Core.Features.SystemMonitor;
 
 /// <summary>
 /// A1: CPU, RAM, commit, GPU per adapter, disk, network (D-A1: totals every 60 s always, the last hour in a 60-slot ring

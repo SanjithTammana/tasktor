@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Tasktor.Core.Features.System;
+namespace Tasktor.Core.Features.SystemMonitor;
 
 /// <summary>One folder in a scan result: its total, its kept children (top 20), and how many entries could not be read.</summary>
 public sealed class FolderNode
