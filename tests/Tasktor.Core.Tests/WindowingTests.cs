@@ -1,8 +1,8 @@
 using Tasktor.Contracts.Platform;
 using Tasktor.Contracts.Presets;
-using Tasktor.Shell.Windowing;
+using Tasktor.Core.Windows;
 
-namespace Tasktor.Shell.Tests;
+namespace Tasktor.Core.Tests;
 
 /// <summary>U3 logic on Linux: monitors and DIPs (D-W8), fullscreen (D-W9), the window list (D-W4), presets (D-W5, D-W6).</summary>
 public sealed class WindowingTests

@@ -2,7 +2,9 @@ using System.Runtime.InteropServices;
 using Tasktor.Contracts.Platform;
 using Tasktor.Contracts.Presets;
 
-namespace Tasktor.Shell.Windowing;
+using Tasktor.Core.Windows;
+
+namespace Tasktor.Windows.Shell;
 
 /// <summary>
 /// Win32 side of the shell's window logic: enumerate top-level windows with the DWM attributes D-W4 needs (cloak,

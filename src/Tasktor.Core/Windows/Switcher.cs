@@ -1,4 +1,4 @@
-namespace Tasktor.Shell.Windowing;
+namespace Tasktor.Core.Windows;
 
 /// <summary>
 /// D-W4's window list: the Alt+Tab-equivalent filter (visible, top-level, not cloaked by its app, not a tool window,
