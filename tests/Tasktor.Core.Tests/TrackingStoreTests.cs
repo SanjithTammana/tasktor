@@ -39,9 +39,21 @@ public sealed class TrackingStoreTests : IDisposable
         _pipe.On(new CaptureEvent { Kind = CaptureKind.Foreground, MonoMs = _t, TsUtcMs = Base + _t, App = app, Win = win, Title = title, Domain = domain });
     }
 
-    private byte[] DbBytes() => [.. File.ReadAllBytes(_store.Layout.EventsDb), .. File.ReadAllBytes(_store.Layout.EpisodesDb),
-        .. File.Exists(_store.Layout.EventsDb + "-wal") ? File.ReadAllBytes(_store.Layout.EventsDb + "-wal") : [],
-        .. File.Exists(_store.Layout.EpisodesDb + "-wal") ? File.ReadAllBytes(_store.Layout.EpisodesDb + "-wal") : []];
+    // SQLite holds the files open: on Windows only a share-read-write open may read them alongside.
+    private static byte[] Read(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return [];
+        }
+
+        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var ms = new MemoryStream();
+        fs.CopyTo(ms);
+        return ms.ToArray();
+    }
+
+    private byte[] DbBytes() => [.. Read(_store.Layout.EventsDb), .. Read(_store.Layout.EpisodesDb), .. Read(_store.Layout.EventsDb + "-wal"), .. Read(_store.Layout.EpisodesDb + "-wal")];
 
     private bool Contains(string text) => Encoding.UTF8.GetString(DbBytes()).Contains(text, StringComparison.Ordinal);
 
