@@ -52,6 +52,8 @@ public static class ActionCatalog
         new("disk.open", ActionClass.Read, "Open in Explorer", Surface.Flyout | Surface.Widget | Surface.Toast),
         new("disk.storage_settings", ActionClass.Read, "Open Storage settings", Surface.Flyout | Surface.Toast),
         new("disk.scan", ActionClass.Read, "Biggest folders", Surface.Flyout | Surface.Widget | Surface.Toast | Surface.Cli),
+        new("space.report", ActionClass.Read, "Space report", Surface.Flyout | Surface.Cli),
+        new("space.copy_cleanup", ActionClass.Read, "Copy cleanup command", Surface.Flyout),
         new("battery.settings", ActionClass.Read, "Battery settings", Surface.Flyout | Surface.Toast),
         new("url.open", ActionClass.Read, "Join", Surface.Flyout | Surface.Widget | Surface.Toast),
         new("net.signin", ActionClass.Read, "Open browser", Surface.Flyout | Surface.Toast),
