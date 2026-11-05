@@ -7,5 +7,10 @@
     { "id": "overlap", "enabled": false, "when": { "group": "agents", "busy_count_above": 2 }, "for": "1m", "then": [ { "toast": "{count} agents are busy at once", "buttons": [ "open:module.agents" ] }, { "badge": "overlap" } ] },
     { "id": "busy-python", "when": { "process": "python*.exe", "cpu_above": 4, "age_above": "10m" }, "for": "2m", "then": [ { "efficiency": true, "target": "process:python.exe" } ], "undo": true },
     { "id": "silence-guard", "builtin": true, "when": { "any": [ { "metric": "policy.false_alarm_pct", "above": 30 }, { "event": "job.done" } ] }, "then": [ { "use_fallback": "silent" } ] }
+  ],
+  "grouping": [
+    { "match": { "exe": "code*.exe" }, "group_as": "Code editor" },
+    { "match": { "exe": "node.exe" }, "attach": "never" },
+    { "match": { "path": "*\\Tools\\*.exe" }, "attach": "parent" }
   ]
 }
