@@ -14,6 +14,31 @@ public sealed record RulesFile
     public IReadOnlyDictionary<string, IReadOnlyList<string>>? Groups { get; init; }
 
     public IReadOnlyList<Rule>? Rules { get; init; }
+
+    /// <summary>A2.2 grouping rules, ordered; user entries go before the shipped defaults.</summary>
+    public IReadOnlyList<GroupingRule>? Grouping { get; init; }
+}
+
+/// <summary>A2.2: <c>match exe/path/package → group as / attach to parent / never group</c>.</summary>
+public sealed record GroupingRule
+{
+    public required GroupingMatch Match { get; init; }
+
+    /// <summary>Show matching processes as their own group with this name.</summary>
+    public string? GroupAs { get; init; }
+
+    /// <summary><c>parent</c> (fold into the launching app) or <c>never</c> (always its own group).</summary>
+    public string? Attach { get; init; }
+}
+
+/// <summary>Case-insensitive globs (<c>*</c>, <c>?</c>) on the exe name, full path or package family.</summary>
+public sealed record GroupingMatch
+{
+    public string? Exe { get; init; }
+
+    public string? Path { get; init; }
+
+    public string? Package { get; init; }
 }
 
 /// <summary>One rule: when → for → then, with cooldown and undo.</summary>

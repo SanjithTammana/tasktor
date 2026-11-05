@@ -676,6 +676,55 @@
           "then"
         ]
       }
+    },
+    "grouping": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "match": {
+            "type": "object",
+            "properties": {
+              "exe": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "path": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "package": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "group_as": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "attach": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "match"
+        ]
+      }
     }
   }
 }
