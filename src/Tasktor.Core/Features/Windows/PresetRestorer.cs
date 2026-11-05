@@ -4,6 +4,7 @@ using Tasktor.Contracts.Actions;
 using Tasktor.Contracts.Cards;
 using Tasktor.Contracts.Platform;
 using Tasktor.Contracts.Presets;
+using Tasktor.Contracts.Workflow;
 using Tasktor.Core.Actions;
 using Tasktor.Core.Windows;
 
@@ -11,13 +12,20 @@ namespace Tasktor.Core.Features.Windows;
 
 public sealed record WindowMove(long Hwnd, RectPx Rect, ShowState Show, bool Focus);
 
-/// <summary>Restores user presets; rules may arrange existing windows but never start an app.</summary>
+/// <summary>
+/// U3 D-W5: restores user presets; rules may arrange existing windows but never start an app. Launched apps' windows
+/// are matched on <see cref="WindowEventKind.Shown"/> events within 20 s (one catch-up pass covers a window shown before
+/// the lifecycle hook was in); a window the user moves, sizes or closes meanwhile is dropped. The lifecycle lease is held
+/// only while a restore waits.
+/// </summary>
 public sealed class PresetRestorer(FeatureContext context) : Feature(context)
 {
     private readonly Dictionary<string, UndoSnapshot> _undos = new(StringComparer.Ordinal);
     private string? _latestUndo;
     private long _generation;
-    private IDisposable? _pendingTimer;
+    private readonly WindowInterventions _interventions = new();
+    private Func<long, long, bool>? _userChanged;
+    private LaunchWait? _wait;
     private IDisposable? _undoTimer;
     private PresetStore _store = new(context);
 
@@ -39,7 +47,46 @@ public sealed class PresetRestorer(FeatureContext context) : Feature(context)
 
     public Func<FancyZonesLayout, string?>? ApplyLayout { get; set; }
 
-    public Func<long, long, bool> UserChangedSince { get; set; } = (_, _) => true;
+    /// <summary>Window events from the shared <c>WinEventSource</c> (lifecycle kinds arrive only under <see cref="LeaseLifecycle"/>).</summary>
+    public IEventSource<WindowEvent>? Events { get; init; }
+
+    /// <summary>Takes <c>WinEventSource</c>'s show / destroy / move-size lease; null where there is no source.</summary>
+    public Func<IDisposable>? LeaseLifecycle { get; init; }
+
+    /// <summary>Did the user move / size / close the window since a monotonic time? Defaults to the event-fed tracker.</summary>
+    public Func<long, long, bool> UserChangedSince
+    {
+        get => _userChanged ?? _interventions.ChangedSince;
+        set => _userChanged = value;
+    }
+
+    /// <summary>The wait for launched windows to show (one at a time; a new restore or undo replaces it).</summary>
+    private sealed class LaunchWait(Preset preset, List<int> pending, HashSet<long> existing, DateTimeOffset deadline, long generation, long started, string undoKey, IDisposable? lease)
+    {
+        public Preset Preset { get; } = preset;
+
+        public List<int> Pending { get; } = pending;
+
+        public HashSet<long> Existing { get; } = existing;
+
+        public DateTimeOffset Deadline { get; } = deadline;
+
+        public long Generation { get; } = generation;
+
+        public long Started { get; } = started;
+
+        public string UndoKey { get; } = undoKey;
+
+        public IDisposable? Lease { get; } = lease;
+
+        public IDisposable? DeadlineTimer { get; set; }
+
+        public IDisposable? PassTimer { get; set; }
+
+        public bool Running { get; set; }
+
+        public bool Dirty { get; set; }
+    }
 
     public Func<long> Timestamp { get; set; } = () => Environment.TickCount64;
 
@@ -50,6 +97,14 @@ public sealed class PresetRestorer(FeatureContext context) : Feature(context)
         Context.Router.Register("preset.arrange", Arrange);
         Context.Router.Register("preset.apply", Apply);
         Context.Router.Register("preset.undo", Undo);
+        Events?.Start(e =>
+        {
+            _interventions.On(e); // on the source thread: a drag is visible to an in-flight restore at once
+            if (e.Kind == WindowEventKind.Shown)
+            {
+                Context.Loop.Post(OnShown);
+            }
+        });
         Context.OffLoop(() =>
         {
             var loaded = new PresetStore(Context);
@@ -61,8 +116,8 @@ public sealed class PresetRestorer(FeatureContext context) : Feature(context)
     protected override void OnDisable()
     {
         Interlocked.Increment(ref _generation);
-        _pendingTimer?.Dispose();
-        _pendingTimer = null;
+        Events?.Stop();
+        EndWait();
         _undoTimer?.Dispose();
         _undoTimer = null;
         _undos.Clear();
@@ -80,13 +135,13 @@ public sealed class PresetRestorer(FeatureContext context) : Feature(context)
         var name = req.Target?.GetValueOrDefault("preset") ?? req.Args?.GetValueOrDefault("preset");
         var preset = _store.Current.Presets.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
         if (preset is null) return new PreparedAction { Summary = "Arrange preset", Refusal = "Preset not found" };
-        _pendingTimer?.Dispose();
-        _pendingTimer = null;
+        EndWait();
         var generation = Interlocked.Increment(ref _generation);
         var undoKey = Key(req, preset.Name);
         var started = Timestamp();
         var deadline = Context.Clock.UtcNow.AddSeconds(20);
         UndoSnapshot? before = null;
+        IDisposable? lease = null;
         List<int> pending = [];
         HashSet<long> existing = [];
         return new PreparedAction
@@ -114,6 +169,7 @@ public sealed class PresetRestorer(FeatureContext context) : Feature(context)
                     }
                     else if (plan.Outcome == SlotOutcome.Launch && preset.Slots[plan.Slot].Launch is { } app)
                     {
+                        lease ??= LeaseLifecycle?.Invoke(); // before the launch, so its window's show event is seen
                         ok = app.Args is { Count: > 0 } ? LaunchWithArgs?.Invoke(app) == true : Launch(app.Exe);
                         if (ok) pending.Add(plan.Slot); else reason = "launch failed";
                     }
@@ -133,7 +189,12 @@ public sealed class PresetRestorer(FeatureContext context) : Feature(context)
             },
             Done = result =>
             {
-                if (Interlocked.Read(ref _generation) != generation) return;
+                if (Interlocked.Read(ref _generation) != generation)
+                {
+                    lease?.Dispose();
+                    return;
+                }
+
                 if (before is { Before.Count: > 0 })
                 {
                     _undos[undoKey] = before;
@@ -141,54 +202,108 @@ public sealed class PresetRestorer(FeatureContext context) : Feature(context)
                     ScheduleUndoExpiry();
                     OfferUndo(undoKey);
                 }
-                _pendingTimer?.Dispose();
-                if (pending.Count > 0) WaitForLaunched(preset, pending, existing, deadline, generation, started, undoKey);
+                if (pending.Count > 0) StartWait(new LaunchWait(preset, pending, existing, deadline, generation, started, undoKey, lease));
+                else lease?.Dispose();
             },
         };
     }
 
-    private void WaitForLaunched(Preset preset, List<int> pending, HashSet<long> existing, DateTimeOffset deadline, long generation, long started, string undoKey)
+    private void StartWait(LaunchWait wait)
     {
-        if (!Enabled || Interlocked.Read(ref _generation) != generation || pending.Count == 0 || Context.Clock.UtcNow >= deadline) { _pendingTimer?.Dispose(); _pendingTimer = null; return; }
-        _pendingTimer = Context.Loop.At(Context.Clock.UtcNow.AddMilliseconds(500), () =>
+        EndWait();
+        _wait = wait;
+        wait.DeadlineTimer = Context.Loop.At(wait.Deadline, EndWait);
+        SchedulePass(wait, TimeSpan.FromMilliseconds(500)); // catch-up: a window shown before the lifecycle hook was in
+    }
+
+    /// <summary>A top-level window was shown (loop): match the waiting slots shortly after (bursts coalesce).</summary>
+    public void OnShown()
+    {
+        if (_wait is not { } wait)
         {
-            Context.OffLoop(() =>
+            return;
+        }
+
+        if (wait.Running)
+        {
+            wait.Dirty = true;
+        }
+        else if (wait.PassTimer is null)
+        {
+            SchedulePass(wait, TimeSpan.FromMilliseconds(300)); // let the new window settle its first placement
+        }
+    }
+
+    private void SchedulePass(LaunchWait wait, TimeSpan delay) =>
+        wait.PassTimer = Context.Loop.At(Context.Clock.UtcNow + delay, () => Pass(wait));
+
+    private void EndWait()
+    {
+        if (_wait is not { } wait)
+        {
+            return;
+        }
+
+        _wait = null;
+        wait.DeadlineTimer?.Dispose();
+        wait.PassTimer?.Dispose();
+        wait.Lease?.Dispose();
+    }
+
+    private void Pass(LaunchWait wait)
+    {
+        wait.PassTimer = null;
+        if (!Enabled || _wait != wait || Interlocked.Read(ref _generation) != wait.Generation || Context.Clock.UtcNow >= wait.Deadline)
+        {
+            return;
+        }
+
+        wait.Running = true;
+        var deadline = wait.Deadline;
+        var generation = wait.Generation;
+        int[] pending = [.. wait.Pending];
+        var existing = wait.Existing.ToHashSet();
+        Context.OffLoop(() =>
+        {
+            var monitors = Monitors();
+            var windows = Windows().Where(w => !existing.Contains(w.Hwnd)).Select(w => w with { Frozen = w.Frozen || IsFrozen(w.Pid) }).ToList();
+            var found = new List<(int Slot, SlotPlan Plan)>();
+            var dropped = new List<(int Slot, long Hwnd)>();
+            if (monitors.Count > 0)
             {
-                var monitors = Monitors();
-                var windows = Windows().Where(w => !existing.Contains(w.Hwnd)).Select(w => w with { Frozen = w.Frozen || IsFrozen(w.Pid) }).ToList();
-                var found = new List<(int Slot, SlotPlan Plan)>();
-                var dropped = new List<(int Slot, long Hwnd)>();
-                if (monitors.Count > 0)
+                var subset = wait.Preset with { Slots = pending.Select(i => wait.Preset.Slots[i] with { Launch = null }).ToList() };
+                foreach (var plan in PresetPlanner.Plan(subset, windows, new MonitorMap(monitors), false))
                 {
-                    var subset = preset with { Slots = pending.Select(i => preset.Slots[i] with { Launch = null }).ToList() };
-                    foreach (var plan in PresetPlanner.Plan(subset, windows, new MonitorMap(monitors), false))
-                    {
-                        if (plan.Window is not { } w || Interlocked.Read(ref _generation) != generation || Context.Clock.UtcNow >= deadline) continue;
-                        var slot = pending[plan.Slot];
-                        if (plan.Outcome == SlotOutcome.Move && plan.TargetPx is { } rect && !UserChangedSince(w.Hwnd, started) && !IsFrozen(w.Pid) && Move(new WindowMove(w.Hwnd, rect, plan.Show, plan.Focus))) found.Add((slot, plan));
-                        else dropped.Add((slot, w.Hwnd));
-                    }
+                    if (plan.Window is not { } w || Interlocked.Read(ref _generation) != generation || Context.Clock.UtcNow >= deadline) continue;
+                    var slot = pending[plan.Slot];
+                    if (plan.Outcome == SlotOutcome.Move && plan.TargetPx is { } rect && !UserChangedSince(w.Hwnd, wait.Started) && !IsFrozen(w.Pid) && Move(new WindowMove(w.Hwnd, rect, plan.Show, plan.Focus))) found.Add((slot, plan));
+                    else dropped.Add((slot, w.Hwnd));
                 }
-                Context.Loop.Post(() =>
+            }
+
+            Context.Loop.Post(() =>
+            {
+                wait.Running = false;
+                if (!Enabled || _wait != wait || Interlocked.Read(ref _generation) != generation) return;
+                foreach (var (slot, hwnd) in dropped)
                 {
-                    if (!Enabled || Interlocked.Read(ref _generation) != generation) return;
-                    foreach (var (slot, hwnd) in dropped)
-                    {
-                        pending.Remove(slot);
-                        existing.Add(hwnd);
-                    }
-                    foreach (var (slot, plan) in found)
-                    {
-                        pending.Remove(slot);
-                        existing.Add(plan.Window!.Hwnd);
-                        var entry = (plan.Window.Hwnd, plan.Window.WindowPx, plan.Window.Show);
-                        var previous = _undos.GetValueOrDefault(undoKey);
-                        _undos[undoKey] = new UndoSnapshot(Context.Clock.UtcNow, [.. (previous?.Before ?? []), entry]);
-                        _latestUndo = undoKey;
-                    }
-                    if (found.Count > 0) { ScheduleUndoExpiry(); OfferUndo(undoKey); }
-                    WaitForLaunched(preset, pending, existing, deadline, generation, started, undoKey);
-                });
+                    wait.Pending.Remove(slot);
+                    wait.Existing.Add(hwnd);
+                }
+
+                foreach (var (slot, plan) in found)
+                {
+                    wait.Pending.Remove(slot);
+                    wait.Existing.Add(plan.Window!.Hwnd);
+                    var entry = (plan.Window.Hwnd, plan.Window.WindowPx, plan.Window.Show);
+                    var previous = _undos.GetValueOrDefault(wait.UndoKey);
+                    _undos[wait.UndoKey] = new UndoSnapshot(Context.Clock.UtcNow, [.. (previous?.Before ?? []), entry]);
+                    _latestUndo = wait.UndoKey;
+                }
+
+                if (found.Count > 0) { ScheduleUndoExpiry(); OfferUndo(wait.UndoKey); }
+                if (wait.Pending.Count == 0) EndWait();
+                else if (wait.Dirty) { wait.Dirty = false; SchedulePass(wait, TimeSpan.FromMilliseconds(300)); }
             });
         });
     }
@@ -201,8 +316,7 @@ public sealed class PresetRestorer(FeatureContext context) : Feature(context)
         if (snapshot is null || snapshot.Expired(Context.Clock.UtcNow)) return new PreparedAction { Summary = "Undo preset", Refusal = "Nothing to undo" };
         var generation = Interlocked.Increment(ref _generation);
         var started = Timestamp();
-        _pendingTimer?.Dispose();
-        _pendingTimer = null;
+        EndWait();
         return new PreparedAction
         {
             Summary = "Undo preset",
@@ -223,8 +337,7 @@ public sealed class PresetRestorer(FeatureContext context) : Feature(context)
                 _undos.Remove(undoKey!);
                 if (_latestUndo == undoKey) _latestUndo = _undos.Count == 0 ? null : _undos.MaxBy(pair => pair.Value.At).Key;
                 ScheduleUndoExpiry();
-                _pendingTimer?.Dispose();
-                _pendingTimer = null;
+                EndWait();
             },
         };
     }

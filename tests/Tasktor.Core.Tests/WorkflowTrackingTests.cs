@@ -91,6 +91,32 @@ public sealed class WorkflowTrackingTests : IDisposable
         Assert.DoesNotContain("FixtureTitleWhilePaused", titles);
         Assert.Null(_rig.State.Current.Workflow);
     }
+
+    [Fact]
+    public void Lifecycle_events_for_presets_are_never_recorded()
+    {
+        Focus("code.exe", "a.rs", 10);
+        foreach (var kind in new[] { WindowEventKind.Shown, WindowEventKind.Destroyed, WindowEventKind.MoveSizeStart, WindowEventKind.MoveSizeEnd })
+        {
+            _win.Post!(new WindowEvent(kind, 30, new ProcKey(30, 30), 0, _rig.Clock.UtcNow) { Exe = "notes.exe", Title = Sensitive.Of("LifecycleTitle") });
+        }
+
+        _rig.Loop.RunPending();
+        _rig.Advance(TimeSpan.FromSeconds(61));
+        _tracking.Disable();
+        using var events = new EventStore(_rig.Store.Layout.EventsDb);
+        var titles = new List<string?>();
+        using (var s = events.Db.Prepare("SELECT title FROM event"))
+        {
+            while (s.Step())
+            {
+                titles.Add(s.Text(0));
+            }
+        }
+
+        Assert.Contains("a.rs", titles);
+        Assert.DoesNotContain("LifecycleTitle", titles);
+    }
 }
 
 /// <summary>C7 rename / merge and the C9 summary, on the fixture model.</summary>

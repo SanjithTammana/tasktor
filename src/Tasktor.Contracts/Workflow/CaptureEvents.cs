@@ -75,6 +75,13 @@ public enum WindowEventKind : byte
     TitleChanged,
     MinimizeStart,
     MinimizeEnd,
+
+    // Lifecycle kinds (U3 D-W5, H-W1): only while a feature holds WinEventSource's lifecycle lease. Never recorded by
+    // tracking (C1.4: open / close only while F runs); no title is read for them.
+    Shown,
+    Destroyed,
+    MoveSizeStart,
+    MoveSizeEnd,
 }
 
 public sealed record WindowEvent(WindowEventKind Kind, nint Hwnd, ProcKey Proc, long AtMono, DateTimeOffset AtUtc)
