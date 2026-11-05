@@ -324,6 +324,7 @@ public sealed class ActionRouter
         "rules_cannot_lift_blocks" => "Only you can lift a capture block",
         "not_offered_by_toast" => "That toast did not offer this action",
         "cli_destructive_off" => "Destructive CLI actions need --yes and the setting cli.allow_destructive",
+        "not_on_surface" => "Not available from here (open Tasktor)",
         _ => "Refused",
     };
 }

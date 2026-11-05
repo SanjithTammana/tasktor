@@ -3,6 +3,7 @@ using Tasktor.Contracts.Platform;
 using Tasktor.Contracts.Snapshot;
 using Tasktor.Core.Actions;
 using Tasktor.Core.Logging;
+using Tasktor.Core.Plugins;
 using Tasktor.Core.Loop;
 using Tasktor.Core.State;
 using Tasktor.Core.Storage;
@@ -25,6 +26,9 @@ public sealed record AgentOptions
     public Func<ProcKey, ProcessRow?> ReadProcess { get; init; } = _ => null;
 
     public IProcessControl? ProcessControl { get; init; }
+
+    /// <summary>The install dir (bundled Python, <c>plugins-builtin\</c>, worker exes). Defaults to the agent's folder.</summary>
+    public string InstallDir { get; init; } = AppContext.BaseDirectory;
 
     public INotifier? Notifier { get; init; }
 
@@ -96,8 +100,19 @@ public sealed class AgentHost : IAsyncDisposable
             }
         };
         _owned.Add(Loop.Every(TimeSpan.FromMinutes(1), SelfUse.Flush));
+        Processes = options.ProcessControl ?? new PortableProcessControl(new ChildProcessRunner(options.InstallDir));
+        var bundledPython = Path.Combine(options.InstallDir, "worker", "python", OperatingSystem.IsWindows() ? "python.exe" : "bin/python3");
+        Plugins = new PluginHost(Store, Consents, Processes, Loop.Post, Log)
+        {
+            BuiltinDir = Path.Combine(options.InstallDir, "plugins-builtin"),
+            PythonPath = File.Exists(bundledPython) ? bundledPython : null,
+            SecretProtection = options.KeyProtection,
+        };
+        Plugins.Changed += OnPluginsChanged;
+        Cards.Add(Plugins);
         RegisterCoreHandlers();
         RegisterStorageHandlers();
+        RegisterPluginHandlers();
         RegisterExportTables();
     }
 
@@ -137,6 +152,10 @@ public sealed class AgentHost : IAsyncDisposable
 
     public SettingsArchive Archive { get; }
 
+    public IProcessControl Processes { get; }
+
+    public PluginHost Plugins { get; }
+
     /// <summary>Raised on the loop when the user asks to quit (tray, flyout).</summary>
     public event Action? QuitRequested;
 
@@ -171,6 +190,7 @@ public sealed class AgentHost : IAsyncDisposable
     public void Start()
     {
         Loop.Start();
+        Loop.Post(() => Plugins.Discover(Loop.Clock.UtcNow));
         Loop.Post(() => Publisher.Publish(force: true));
         Pipe.Start();
     }
@@ -444,5 +464,72 @@ public sealed class AgentHost : IAsyncDisposable
         Exporter.Register(new ExportTableSource("alerts_log", ["at", "rule", "severity"], since =>
             LogScanner.Read(Store.LogDir, since).Where(e => e.Event == "rule.fired")
                 .Select(e => new object?[] { e.At, e.Fields.GetValueOrDefault("rule"), e.Fields.GetValueOrDefault("severity") })));
+    }
+
+    private IDisposable? _pluginTimer;
+
+    private void OnPluginsChanged()
+    {
+        UpdateState(s => s with { Plugins = Plugins.Statuses() });
+        _pluginTimer?.Dispose();
+        _pluginTimer = null;
+        if (Plugins.NextDue is { } due)
+        {
+            _pluginTimer = Loop.At(due, () =>
+            {
+                _pluginTimer = null;
+                Plugins.Tick(Loop.Clock.UtcNow);
+                OnPluginsChanged();
+            });
+        }
+    }
+
+    private void RegisterPluginHandlers()
+    {
+        PreparedAction Plugin(ActionRequest req, Func<string, PreparedAction> make)
+        {
+            var id = req.Target?.GetValueOrDefault("plugin");
+            return id is null || Plugins.Find(id) is null
+                ? new PreparedAction { Summary = "plugin", Refusal = "No such plugin" }
+                : make(id);
+        }
+
+        PreparedAction Now(string summary, Func<bool> act) => new()
+        {
+            Summary = summary,
+            Immediate = new ActionResult { Action = "plugin", Status = ActionStatus.Ok, Message = summary },
+            Done = _ => act(),
+        };
+
+        Router.Register("plugin.enable", req => Plugin(req, id => Now("Turned on " + id, () => Plugins.Enable(id, Loop.Clock.UtcNow))));
+        Router.Register("plugin.disable", req => Plugin(req, id => Now("Turned off " + id, () =>
+        {
+            Plugins.Disable(id);
+            return true;
+        })));
+        Router.Register("plugin.pause", req => Plugin(req, id => Now("Paused " + id, () => Plugins.Pause(id, true, Loop.Clock.UtcNow))));
+        Router.Register("plugin.resume", req => Plugin(req, id => Now("Resumed " + id, () => Plugins.Pause(id, false, Loop.Clock.UtcNow))));
+        Router.Register("plugin.action", req => Plugin(req, id =>
+        {
+            var action = req.Args?.GetValueOrDefault("action") ?? string.Empty;
+            var decl = Plugins.Find(id)!.Manifest?.Actions?.FirstOrDefault(a => a.Id == action);
+            if (decl is null)
+            {
+                return new PreparedAction { Summary = id, Refusal = "Not one of the plugin's declared actions" };
+            }
+
+            // The run itself is off-loop (a child process); the router waits for its result.
+            var run = Plugins.Act(id, action, req.Args, Loop.Clock.UtcNow);
+            return new PreparedAction
+            {
+                Summary = decl.Label + " (" + id + ")",
+                TargetName = id,
+                Run = _ =>
+                {
+                    var r = run.GetAwaiter().GetResult();
+                    return new ActionResult { Action = "plugin.action", Status = r.Ok ? ActionStatus.Ok : ActionStatus.Failed, Message = r.Ok ? decl.Label + ": done" : r.Error };
+                },
+            };
+        }));
     }
 }

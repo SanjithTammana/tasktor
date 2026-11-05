@@ -211,4 +211,36 @@ public sealed class CliEndToEndTests : IAsyncLifetime
         await _agent.Host.OnLoop(() => _agent.Host.CliAllowDestructive = true);
         Assert.Equal(ExitCode.Ok, (await _agent.Cli("settings", "import", zip, "--yes")).Code);
     }
+
+    [Fact]
+    public async Task A_plugin_enabled_from_the_flyout_shows_its_card_with_a_source_badge()
+    {
+        var dst = _agent.Store.Layout.PluginDir("todo-count");
+        Directory.CreateDirectory(dst);
+        foreach (var f in Directory.GetFiles(Path.Combine(Tasktor.Tests.Shared.RepoPaths.Root, "examples", "plugins", "todo-count")))
+        {
+            File.Copy(f, Path.Combine(dst, Path.GetFileName(f)));
+        }
+
+        await _agent.Host.OnLoop(() => _agent.Host.Plugins.Discover(DateTimeOffset.UtcNow));
+        AgentFixture.WaitFor(() => _agent.Host.Publisher.Latest?.State.Plugins?.Any(p => p.Id == "todo-count" && p.State == Contracts.Snapshot.PluginState.Found) == true);
+        var cli = await _agent.Cli("status", "--json");
+        Assert.Contains("\"found\"", cli.Out, StringComparison.Ordinal);
+
+        // The CLI may not enable a plugin (the consent dialog lives in the flyout).
+        await using (var c0 = await Hosts.Common.Pipe.PipeClient.ConnectAsync("cli", _agent.PipeName))
+        {
+            var refused = await c0.ActAsync(new Contracts.Actions.ActionRequest { Action = "plugin.enable", Origin = Contracts.Actions.Origin.Cli, Target = new Dictionary<string, string> { ["plugin"] = "todo-count" } });
+            Assert.Equal(Contracts.Actions.ActionStatus.Refused, refused.Status);
+            Assert.Equal("origin_policy:not_on_surface", refused.Reason);
+        }
+
+        await using var flyout = await Hosts.Common.Pipe.PipeClient.ConnectAsync("flyout", _agent.PipeName);
+        var ok = await flyout.ActAsync(new Contracts.Actions.ActionRequest { Action = "plugin.enable", Origin = Contracts.Actions.Origin.Flyout, Target = new Dictionary<string, string> { ["plugin"] = "todo-count" } });
+        Assert.Equal(Contracts.Actions.ActionStatus.Ok, ok.Status);
+        AgentFixture.WaitFor(() => _agent.Host.Publisher.Latest?.Cards?.Any(c => c.Id == "plugin.todo-count.main") == true, 20000);
+        var text = await _agent.Cli("status");
+        Assert.Contains("(plugin: TODO count)", text.Out, StringComparison.Ordinal);
+        Assert.Contains("Choose a file in Settings", text.Out, StringComparison.Ordinal);
+    }
 }

@@ -3,7 +3,7 @@
 Update this file after every milestone step. The next session starts here.
 
 ## Current milestone
-M7 Plugin host. M0–M6 are done.
+M8 System monitor (A). M0–M7 are done.
 
 ## Done
 - Design signed (`docs/design/`).
@@ -22,8 +22,10 @@ M7 Plugin host. M0–M6 are done.
 
 - **M6 Storage, privacy, export.** `tasktor.config/1` (`ConfigFile`, schema + fixture), `SettingsStore` (comments, forward migration with `.bak`, broken file left untouched + error, newer version refused), `ConsentStore` (modules, plugins pinned to manifest + command SHA-256, arrange rules), `InstallKey` (32 bytes; `KeyProtection` = DPAPI current user on Windows via P/Invoke in `Tasktor.Windows.Security.Dpapi`, none in tests; HKDF hash keys `tasktor/hash/…` vs encryption keys `tasktor/enc/…`; unreadable key replaced), `Forgetter` (learned / tracking / capture / all, stops owners first, keeps settings, rules, key, consents, notes, presets, plugins, frozen recovery; capture time-range hook), `SelfUseCounter`, `DataExporter` (CSV + JSONL per table via `Utf8JsonWriter`, manifest, raw / capture gates, cloud-folder detection), `SettingsArchive` (export / validated import / reset / log bundle), `LogScanner` (actions_log, alerts_log from H6 lines). Agent handlers: `forget`, `capture.forget`, `export.data`, `settings.export|import|reset`, `log.bundle`, `uninstall`; pause persists in `state\pause.json`. Python `worker/tasktor_data.load(folder)` with tests against `tests/fixtures/export-sample` (which C# reproduces byte for byte).
 
+- **M7 Plugin host.** `ChildProcessRunner` (D-H9 children: closed `WorkerKind`, install-dir check for non-plugin kinds, stdin then close, 64 KB stdout cap, 4 KB stderr tail, whole-tree kill at the timeout, `AfterStart` hook), `PortableProcessControl` (workers + end / close / priority via `System.Diagnostics`; freeze / EcoQoS / caps refused off Windows), `PluginValidation` (manifest: id = folder, interval ≥ 30 s or manual, timeout ≤ 60 s, no destructive actions, `min_tasktor`; output: ≤ 64 KB, contract 1, ≤ 3 cards, ≤ 3 actions, block subset without Tree / Alert, literal values only, Sparkline ≤ 60 points, Table ≤ 12 rows, only declared actions; cards rewritten to `plugin.<id>.<card>` with a source badge and `plugin.action` buttons), `PluginHost` (discovery of `plugins\` and `plugins-builtin\`, "Found, off", consent pinned to SHA-256 of `plugin.json` + the command's target file, re-ask on change, scheduling, one run at a time, 3 failures → off + error card, plugin settings with secrets protected at rest, `{python}`, cleared `PYTHONPATH` / `NODE_PATH`; packs with one consent and `rules.pack.json` entries off until ticked → `RuleOrigin.Pack`). `Tasktor.Windows.Processes.JobObject` (kill-on-close, memory cap, CPU-rate cap, BelowNormal, EcoQoS). `examples/plugins/todo-count`. Agent: `plugin.enable|disable|pause|resume|action` handlers, `state.plugins`, plugin cards, run timer. The router now enforces `surface` tags per origin. 33 host tests with real Python child processes + an end-to-end plugin test.
+
 ## Next
-- M7: `PluginHost` (discovery, stdin/stdout protocol, 64 KB cap, schema + subset check, ≤ 3 cards / ≤ 3 actions, timeout kill, off after 3 failures, consent pinned to hashes), packs, Job Object adapter [W], `examples/plugins/todo-count`.
+- M8: system monitor feature classes over fake sources (A1 totals + hour ring + thresholds, A2 apps + verdict, A3 actions, A5 disk guard + fill-rate learning, A6 pressure, A7 ports, A8 battery), the Windows sources (PDH, process table, GPU, disk, ports, battery, low memory) [W], cards `core.system`, `core.apps`, `core.disk`, `core.battery`, `module.ports`.
 
 ## Interpretations
 - **Linux build set.** CI's Linux job builds `Tasktor.Linux.slnf`, a solution filter without `Tasktor.Flyout` and `Tasktor.Widget` (WinUI / Windows App SDK do not build on Linux). The Windows job builds `Tasktor.sln`.
@@ -53,6 +55,9 @@ M7 Plugin host. M0–M6 are done.
 - **`forget all` keeps** settings, rules, consents, the install key, notes, presets, plugins and plugin data, `pause.json` and `frozen.json` (frozen-job recovery must survive a forget). `forget tracking` also removes `state\projects.json` (I6's map is keyed by workflow ids that tracking produced).
 - **`actions_log` / `alerts_log` exports come from the log files** (U2: "from H6; names only"), parsed back by `LogScanner`.
 - **Golden files** (`tests/fixtures/export-sample`) are regenerated with `TASKTOR_REGEN_FIXTURES=1 dotnet test`; normal runs only compare.
+- **Surface tags are enforced, not only displayed.** An action from the CLI, widget, tray or a toast must list that surface in its catalog row; the flyout and the shell reach every row. This keeps `plugin.enable` (whose consent dialog is in the flyout) and other flyout-only actions away from scripts.
+- **A plugin's `id` must equal its folder name**, so a folder cannot impersonate another plugin's consent.
+- **Plugin settings** live in `plugin-data\<id>\settings.json`; `secret` settings (e.g. an ICS URL, D-S5) are stored protected with the install key's `KeyProtection` (DPAPI on Windows) and passed to the plugin only on stdin.
 - **Package pins.** xUnit 2.9.3, Test SDK 17.14.1, BannedApiAnalyzers 4.14.0, Windows App SDK 2.5.1 (the version the U4 sources cite).
 
 ## Needs Windows verification
@@ -63,6 +68,8 @@ M7 Plugin host. M0–M6 are done.
 
 - **M6 / DPAPI:** run `tasktor-core` once, then check `%LOCALAPPDATA%\Tasktor\state\install.key` is 200+ bytes (a DPAPI blob, not 32 raw bytes). Copy it to another Windows user account's store and start the agent there: the log shows the key was replaced (cannot unprotect), and learned state starts empty.
 - **M6 / Known Folders:** with OneDrive Known Folder Move on, `tasktor export data` (no `--to`) prints the "cloud-synced" warning; with it off, it does not.
+
+- **M7 / Job Object:** enable `examples/plugins/todo-count` (copy to `%LOCALAPPDATA%\Tasktor\plugins\todo-count`, enable it in the flyout). While it runs, Process Explorer shows the `python.exe` child in a job with "Kill on job close" and a 256 MB process memory limit, at BelowNormal priority. Kill `tasktor-core.exe` with Task Manager during a run of a plugin that sleeps 30 s: the plugin process disappears at once. A plugin that allocates 400 MB fails (out of memory) and Tasktor shows the failure.
 
 ## Blockers
 - **.NET install script blocked.** `dotnet-install.sh` cannot reach `builds.dotnet.microsoft.com` (the session proxy returns 403). Worked around: `apt-get install dotnet-sdk-10.0` from the Ubuntu archive (SDK 10.0.114, which satisfies `global.json` 10.0.100 / latestFeature). `scripts/cloud-setup.sh` now falls back to apt. Not blocking.

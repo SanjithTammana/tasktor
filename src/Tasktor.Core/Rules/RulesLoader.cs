@@ -22,15 +22,17 @@ public static class RulesLoader
     /// <param name="defaultsText">The shipped <c>rules.default.json</c> (read-only in the install dir).</param>
     /// <param name="userText">The user's <c>rules.json</c>, or null.</param>
     /// <param name="hasArrangeConsent">Whether the user gave the one-time consent for a rule that calls <c>arrange</c> (U3 OQ-W2).</param>
-    public static RuleSet Load(string? defaultsText, string? userText, Func<string, bool>? hasArrangeConsent = null)
+    /// <param name="packTexts">Ticked pack rules (between the defaults and the user's file, so the user still overrides them).</param>
+    public static RuleSet Load(string? defaultsText, string? userText, Func<string, bool>? hasArrangeConsent = null, IReadOnlyList<string>? packTexts = null)
     {
         hasArrangeConsent ??= _ => false;
         var errors = new List<RuleError>();
         var defaults = Parse(defaultsText, RuleOrigin.Default, errors);
+        var packs = (packTexts ?? []).Select(t => Parse(t, RuleOrigin.Pack, errors)).ToList();
         var user = Parse(userText, RuleOrigin.User, errors);
 
         var groups = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
-        foreach (var src in new[] { defaults, user })
+        foreach (var src in packs.Prepend(defaults).Append(user))
         {
             if (src.File?.Groups is { } g)
             {
@@ -48,7 +50,7 @@ public static class RulesLoader
         // Overlay: a user rule with the same id replaces the default; "enabled": false turns one off.
         var byId = new Dictionary<string, (Rule Rule, RuleOrigin Origin, int Line)>(StringComparer.Ordinal);
         var order = new List<string>();
-        foreach (var (rule, origin, line) in defaults.Rules.Concat(user.Rules))
+        foreach (var (rule, origin, line) in defaults.Rules.Concat(packs.SelectMany(p => p.Rules)).Concat(user.Rules))
         {
             if (!byId.ContainsKey(rule.Id))
             {
@@ -226,7 +228,7 @@ public static class RulesLoader
             return "id is required";
         }
 
-        if (rule.Builtin == true && origin == RuleOrigin.User)
+        if (rule.Builtin == true && origin != RuleOrigin.Default)
         {
             return "\"builtin\" is reserved for shipped rules";
         }
