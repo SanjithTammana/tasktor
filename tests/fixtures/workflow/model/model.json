@@ -1,0 +1,308 @@
+{
+ "schema": "tasktor.model/1",
+ "version": "v1",
+ "prereg_hash": "b6f217bc697b4174a554f93ee046303ab8e99ab8391c1e349811b0066985ec19",
+ "feature_spec": 1,
+ "extract_hash": "e22e9fd462c94d534498f102819e468094462e8f869b98c91bea1f42336be846",
+ "created_at": "2026-11-05T06:46:39Z",
+ "apps": [
+  "acrobat.exe",
+  "chrome.exe",
+  "code.exe",
+  "windowsterminal.exe",
+  "winword.exe",
+  "zotero.exe"
+ ],
+ "context_apps": [
+  "acrobat.exe",
+  "chrome.exe",
+  "code.exe",
+  "windowsterminal.exe",
+  "winword.exe",
+  "zotero.exe"
+ ],
+ "weights": {
+  "text": 1.0,
+  "app": 1.0,
+  "time": 0.3,
+  "context": 0.3,
+  "shape": 0.2
+ },
+ "dims": 93,
+ "pca_dims": 16,
+ "clusters": [
+  {
+   "id": "a1",
+   "name": "Chrome \u00b7 lecture notes",
+   "status": "shown",
+   "stability": 1.0,
+   "radius": 0.326560851121507,
+   "exemplar_start": 0,
+   "exemplar_count": 20,
+   "size": 58
+  },
+  {
+   "id": "a10",
+   "name": "Chrome \u00b7 inbox mail",
+   "status": "unstable",
+   "stability": 0.3293,
+   "radius": 0.27688472049242135,
+   "exemplar_start": 20,
+   "exemplar_count": 9,
+   "size": 9
+  },
+  {
+   "id": "a11",
+   "name": "Acrobat \u00b7 problem set",
+   "status": "unstable",
+   "stability": 0.1833,
+   "radius": 0.0940427745340123,
+   "exemplar_start": 29,
+   "exemplar_count": 8,
+   "size": 8
+  },
+  {
+   "id": "a2",
+   "name": "Code \u00b7 rs engine",
+   "status": "shown",
+   "stability": 1.0,
+   "radius": 0.6184707888968978,
+   "exemplar_start": 37,
+   "exemplar_count": 20,
+   "size": 35
+  },
+  {
+   "id": "a3",
+   "name": "Winword \u00b7 chapter draft",
+   "status": "shown",
+   "stability": 1.0,
+   "radius": 0.18037263187674996,
+   "exemplar_start": 57,
+   "exemplar_count": 20,
+   "size": 32
+  },
+  {
+   "id": "a4",
+   "name": "Zotero \u00b7 citations library",
+   "status": "shown",
+   "stability": 1.0,
+   "radius": 0.22941536446724511,
+   "exemplar_start": 77,
+   "exemplar_count": 20,
+   "size": 30
+  },
+  {
+   "id": "a5",
+   "name": "Chrome \u00b7 scholar search",
+   "status": "shown",
+   "stability": 1.0,
+   "radius": 0.4144055847671669,
+   "exemplar_start": 97,
+   "exemplar_count": 20,
+   "size": 29
+  },
+  {
+   "id": "a6",
+   "name": "Windowsterminal \u00b7 cargo test",
+   "status": "shown",
+   "stability": 1.0,
+   "radius": 0.7919481642927976,
+   "exemplar_start": 117,
+   "exemplar_count": 20,
+   "size": 28
+  },
+  {
+   "id": "a7",
+   "name": "Acrobat \u00b7 problem set",
+   "status": "unstable",
+   "stability": 0.5391,
+   "radius": 0.06035588597103444,
+   "exemplar_start": 137,
+   "exemplar_count": 20,
+   "size": 26
+  },
+  {
+   "id": "a8",
+   "name": "Chrome \u00b7 calendar planning",
+   "status": "shown",
+   "stability": 0.6714,
+   "radius": 0.22808850334601347,
+   "exemplar_start": 157,
+   "exemplar_count": 20,
+   "size": 25
+  },
+  {
+   "id": "a9",
+   "name": "Acrobat \u00b7 problem set",
+   "status": "unstable",
+   "stability": 0.4284,
+   "radius": 0.031097132146123155,
+   "exemplar_start": 177,
+   "exemplar_count": 17,
+   "size": 17
+  }
+ ],
+ "workflows": [
+  {
+   "id": "w1",
+   "name": "Chrome + Code \u00b7 calendar",
+   "status": "shown",
+   "stability": 0.0,
+   "radius": 0.20152543263816616,
+   "exemplar_start": 0,
+   "exemplar_count": 20,
+   "size": 72
+  },
+  {
+   "id": "w2",
+   "name": "Chrome + Winword \u00b7 scholar",
+   "status": "shown",
+   "stability": 0.0,
+   "radius": 0.36486709909225845,
+   "exemplar_start": 20,
+   "exemplar_count": 20,
+   "size": 57
+  },
+  {
+   "id": "w3",
+   "name": "Windowsterminal + Code \u00b7 cargo",
+   "status": "shown",
+   "stability": 0.0,
+   "radius": 0.027281530913905474,
+   "exemplar_start": 40,
+   "exemplar_count": 8,
+   "size": 8
+  },
+  {
+   "id": "w4",
+   "name": "Code + Windowsterminal \u00b7 rs",
+   "status": "shown",
+   "stability": 0.0,
+   "radius": 0.03142696805273543,
+   "exemplar_start": 48,
+   "exemplar_count": 11,
+   "size": 11
+  },
+  {
+   "id": "w5",
+   "name": "Code + Windowsterminal \u00b7 rs",
+   "status": "shown",
+   "stability": 0.0,
+   "radius": 0.13199326582148888,
+   "exemplar_start": 59,
+   "exemplar_count": 20,
+   "size": 31
+  },
+  {
+   "id": "w6",
+   "name": "Chrome \u00b7 lecture",
+   "status": "shown",
+   "stability": 0.0,
+   "radius": 1e-06,
+   "exemplar_start": 79,
+   "exemplar_count": 20,
+   "size": 67
+  },
+  {
+   "id": "w7",
+   "name": "Chrome + Code \u00b7 lecture",
+   "status": "shown",
+   "stability": 0.0,
+   "radius": 0.028284271247461915,
+   "exemplar_start": 99,
+   "exemplar_count": 20,
+   "size": 21
+  },
+  {
+   "id": "w8",
+   "name": "Chrome + Code \u00b7 lecture",
+   "status": "shown",
+   "stability": 0.0,
+   "radius": 0.02161111111111111,
+   "exemplar_start": 119,
+   "exemplar_count": 12,
+   "size": 12
+  },
+  {
+   "id": "w9",
+   "name": "Chrome + Code \u00b7 lecture",
+   "status": "shown",
+   "stability": 0.0,
+   "radius": 0.008444444444444402,
+   "exemplar_start": 131,
+   "exemplar_count": 15,
+   "size": 15
+  },
+  {
+   "id": "w10",
+   "name": "Chrome + Code \u00b7 lecture",
+   "status": "shown",
+   "stability": 0.0,
+   "radius": 0.013657447840853924,
+   "exemplar_start": 146,
+   "exemplar_count": 19,
+   "size": 19
+  }
+ ],
+ "workflow_space": [
+  "a1",
+  "a2",
+  "a3",
+  "a4",
+  "a5",
+  "a6",
+  "a8"
+ ],
+ "files": [
+  {
+   "name": "buckets.i32",
+   "dtype": "i32",
+   "shape": [
+    33
+   ],
+   "sha256": "c45b10f4e402b29a8f9c5e6aa91b1bfe65fc9a5463aa1e53d2142d1cc4f8aae6"
+  },
+  {
+   "name": "exemplars.f32",
+   "dtype": "f32",
+   "shape": [
+    3104
+   ],
+   "sha256": "94db615e2a9900eaac9dd04f28d45c7fe81b349bd93255b8b53c16c2967b8010"
+  },
+  {
+   "name": "idf.f32",
+   "dtype": "f32",
+   "shape": [
+    33
+   ],
+   "sha256": "1a700f1b2837af761b311ab72aba9a1ae70c90c1650d7d599d00c532833cfc7f"
+  },
+  {
+   "name": "pca.f32",
+   "dtype": "f32",
+   "shape": [
+    1581
+   ],
+   "sha256": "51c6ebc0bae6c81a209999677c9993768dead7aeaf559a6ccea4158a7b6b619c"
+  },
+  {
+   "name": "svd.f32",
+   "dtype": "f32",
+   "shape": [
+    2112
+   ],
+   "sha256": "126a35ddc9fb8d834dc7b1aaab210c81568a7c4378039f008b411ac8b01182c2"
+  },
+  {
+   "name": "wf_exemplars.f32",
+   "dtype": "f32",
+   "shape": [
+    1155
+   ],
+   "sha256": "0b3483ab497bbc7c82ca2705f49312235da91ddfdc84ab9a9150bea6b5b88298"
+  }
+ ],
+ "activated": true,
+ "failed_gates": []
+}
