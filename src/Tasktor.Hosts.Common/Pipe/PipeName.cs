@@ -10,6 +10,8 @@ namespace Tasktor.Hosts.Common.Pipe;
 /// </summary>
 public static class PipeName
 {
+    public static string ForCapture() => ForCurrentUser() + "-capture";
+
     public static string ForCurrentUser()
     {
         if (Environment.GetEnvironmentVariable("TASKTOR_PIPE") is { Length: > 0 } custom)

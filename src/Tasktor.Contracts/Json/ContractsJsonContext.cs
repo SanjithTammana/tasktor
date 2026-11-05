@@ -57,6 +57,7 @@ namespace Tasktor.Contracts;
 [JsonSerializable(typeof(ExportManifest))]
 [JsonSerializable(typeof(PresetsFile))]
 [JsonSerializable(typeof(PipeMessage))]
+[JsonSerializable(typeof(Tasktor.Contracts.Capture.BrowserMessage))]
 [JsonSerializable(typeof(WorkerSpec))]
 [JsonSerializable(typeof(Tasktor.Contracts.Config.ConfigFile))]
 [JsonSerializable(typeof(string))]
