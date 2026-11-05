@@ -74,7 +74,7 @@ public static unsafe partial class Win32Windows
                 Show = (style & WsMinimize) != 0 ? ShowState.Minimized : (style & WsMaximize) != 0 ? ShowState.Maximized : ShowState.Normal,
                 Hung = IsHungAppWindow(h) != 0,
                 Frozen = frozen?.Invoke(pid) == true,
-                Elevated = exe is null, // a medium-integrity process cannot open an elevated one's image name
+                Elevated = IsElevated(pid),
             });
         }
 
@@ -110,7 +110,10 @@ public static unsafe partial class Win32Windows
 
             var dpi = GetDpiForMonitor(m, 0, out var dx, out _) == 0 ? (int)dx : 96;
             var device = new string(info.Device, 0, 32).TrimEnd('\0');
-            list.Add(new MonitorInfo(device, info.Monitor.ToPx(), info.Work.ToPx(), dpi, (info.Flags & 1) != 0));
+            var display = new DisplayDevice { Cb = (uint)sizeof(DisplayDevice) };
+            var devicePath = EnumDisplayDevicesW((ushort*)info.Device, 0, ref display, 1) != 0
+                ? new string((char*)display.DeviceId, 0, 128).TrimEnd('\0') : string.Empty;
+            list.Add(new MonitorInfo(devicePath.Length == 0 ? device : devicePath, info.Monitor.ToPx(), info.Work.ToPx(), dpi, (info.Flags & 1) != 0));
         }
 
         t_found = null;
@@ -149,25 +152,25 @@ public static unsafe partial class Win32Windows
         OperatingSystem.IsWindows() && SHQueryUserNotificationState(out var s) == 0 ? (NotificationState)s : NotificationState.AcceptsNotifications;
 
     /// <summary>Apply one plan's move asynchronously, without activating or changing z-order.</summary>
-    public static bool Place(long hwnd, RectPx r, ShowState show)
+    public static bool Place(long hwnd, RectPx r, ShowState show, Func<uint, bool>? frozen = null)
     {
         if (!OperatingSystem.IsWindows())
         {
             return false;
         }
 
+        // SW_SHOWMAXIMIZED activates the window; activation belongs to the shell.
+        if (show == ShowState.Maximized) return false;
         var h = (nint)hwnd;
+        GetWindowThreadProcessId(h, out var pid);
+        if (pid == 0 || IsHungAppWindow(h) != 0 || IsElevated(pid) || frozen?.Invoke(pid) == true) return false;
         if (show == ShowState.Normal)
         {
             ShowWindowAsync(h, 4); // SW_SHOWNOACTIVATE: leave maximized / minimized first
         }
 
         var ok = SetWindowPos(h, 0, r.X, r.Y, r.W, r.H, SwpNoZOrder | SwpNoActivate | SwpAsyncWindowPos) != 0;
-        if (show == ShowState.Maximized)
-        {
-            ShowWindowAsync(h, 3);
-        }
-        else if (show == ShowState.Minimized)
+        if (show == ShowState.Minimized)
         {
             ShowWindowAsync(h, 7); // SW_SHOWMINNOACTIVE
         }
@@ -193,6 +196,23 @@ public static unsafe partial class Win32Windows
             var n = GetClassNameW(h, p, buf.Length);
             return n <= 0 ? null : new string((char*)p, 0, n);
         }
+    }
+
+    private static bool IsElevated(uint pid)
+    {
+        var process = OpenProcess(ProcessQueryLimitedInformation, 0, pid);
+        if (process == 0) return true;
+        try
+        {
+            if (OpenProcessToken(process, 0x0008, out var token) == 0) return true;
+            try
+            {
+                int elevated = 0;
+                return GetTokenInformation(token, 20, &elevated, sizeof(int), out _) == 0 || elevated != 0;
+            }
+            finally { CloseHandle(token); }
+        }
+        finally { CloseHandle(process); }
     }
 
     private static string? ExeOf(uint pid)
@@ -238,6 +258,20 @@ public static unsafe partial class Win32Windows
         public uint Flags;
         public fixed char Device[32];
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct DisplayDevice
+    {
+        public uint Cb;
+        public fixed ushort DeviceName[32];
+        public fixed ushort DeviceString[128];
+        public uint StateFlags;
+        public fixed ushort DeviceId[128];
+        public fixed ushort DeviceKey[128];
+    }
+
+    [LibraryImport("user32.dll", EntryPoint = "EnumDisplayDevicesW")]
+    private static partial int EnumDisplayDevicesW(ushort* device, uint index, ref DisplayDevice result, uint flags);
 
     [LibraryImport("user32.dll")]
     private static partial int EnumWindows(delegate* unmanaged<nint, nint, int> callback, nint lParam);
@@ -289,6 +323,12 @@ public static unsafe partial class Win32Windows
 
     [LibraryImport("kernel32.dll", EntryPoint = "QueryFullProcessImageNameW")]
     private static partial int QueryFullProcessImageNameW(nint process, uint flags, ushort* name, ref uint size);
+
+    [LibraryImport("advapi32.dll")]
+    private static partial int OpenProcessToken(nint process, uint access, out nint token);
+
+    [LibraryImport("advapi32.dll")]
+    private static partial int GetTokenInformation(nint token, int kind, void* information, int length, out int returned);
 
     [LibraryImport("kernel32.dll")]
     private static partial int CloseHandle(nint handle);

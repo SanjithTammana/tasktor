@@ -32,6 +32,7 @@ public sealed class FullscreenSource(FeatureContext context, IEventSource<Window
     protected override void OnDisable()
     {
         _revision++;
+        _value = FullscreenClassifier.None;
         events?.Stop();
     }
 

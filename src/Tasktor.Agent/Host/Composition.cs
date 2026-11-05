@@ -262,6 +262,48 @@ internal static class Composition
         {
             host.AddFeature(new DeviceBatteries(ctx, windows ? new BluetoothBatterySource() : new NoDevices()));
         }
+        AddWindowsFeatures(host, windows, windowEvents?.Subscriber());
+    }
+
+    private static void AddWindowsFeatures(AgentHost host, bool windows, IEventSource<Contracts.Workflow.WindowEvent>? events)
+    {
+        var fullscreen = new Core.Features.Windows.FullscreenSource(host.NewFeatureContext(), events)
+        {
+            Window = windows ? Windows.Shell.Win32Windows.FullscreenWindow : _ => null,
+            Monitors = windows ? Windows.Shell.Win32Windows.Monitors : () => [],
+            Notification = windows ? Windows.Shell.Win32Windows.QueryNotificationState : () => Core.Windows.NotificationState.AcceptsNotifications,
+        };
+        host.AddFeature(fullscreen);
+        if (!host.Settings.ModuleOn("presets")) return;
+        var watch = windows ? new Windows.Shell.WindowInterventionWatch() : null;
+        if (watch is not null)
+        {
+            host.Own(watch);
+            host.NewFeatureContext().OffLoop(watch.Start);
+        }
+        bool Frozen(uint pid) => Core.Features.Windows.FrozenWindowGuard.IsFrozen(host.Store.Frozen, pid);
+        bool Launch(Contracts.Presets.PresetLaunch app)
+        {
+            try
+            {
+                var info = new System.Diagnostics.ProcessStartInfo(app.Exe) { UseShellExecute = true };
+                foreach (var arg in app.Args ?? []) info.ArgumentList.Add(arg);
+                return System.Diagnostics.Process.Start(info) is not null;
+            }
+            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException) { return false; }
+        }
+        var restorer = new Core.Features.Windows.PresetRestorer(host.NewFeatureContext())
+        {
+            Windows = windows ? () => Windows.Shell.Win32Windows.Enumerate(Frozen) : () => [],
+            Monitors = windows ? Windows.Shell.Win32Windows.Monitors : () => [],
+            IsFrozen = windows ? Frozen : _ => false,
+            UserChangedSince = watch is null ? (_, _) => true : watch.ChangedSince,
+            Move = windows ? move => Windows.Shell.Win32Windows.Place(move.Hwnd, move.Rect, move.Show, Frozen) : _ => false,
+            Launch = windows ? exe => Launch(new Contracts.Presets.PresetLaunch { Exe = exe }) : _ => false,
+            LaunchWithArgs = windows ? Launch : null,
+            ApplyLayout = windows ? layout => Windows.Shell.FancyZonesBridge.Find() is { } exe ? Windows.Shell.FancyZonesBridge.Apply(exe, layout.Monitor, layout.Layout) ? null : "FancyZones failed" : "FancyZones unavailable" : null,
+        };
+        host.AddFeature(restorer);
     }
 
     /// <summary>
