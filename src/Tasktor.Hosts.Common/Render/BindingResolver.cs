@@ -47,8 +47,13 @@ public sealed class BindingResolver
         return value.Raw is null ? null : JsonNode.Parse(value.Raw);
     }
 
-    public double? Number(Value? value) =>
-        Resolve(value) is JsonValue v && v.GetValueKind() == JsonValueKind.Number ? v.GetValue<double>() : null;
+    public double? Number(Value? value) => AsDouble(Resolve(value));
+
+    /// <summary>A number node as a double, whatever CLR type backs it (parsed JSON, or an int / long from a delta).</summary>
+    public static double? AsDouble(JsonNode? node) =>
+        node is JsonValue v && v.GetValueKind() == JsonValueKind.Number
+            ? (v.TryGetValue<double>(out var d) ? d : double.Parse(v.ToJsonString(), NumberStyles.Float, CultureInfo.InvariantCulture))
+            : null;
 
     /// <summary>Text for display: numbers rounded (≥ 10 → integer, else one decimal), strings as is, missing as "—".</summary>
     public string Text(Value? value) => Format(Resolve(value));
@@ -67,7 +72,7 @@ public sealed class BindingResolver
             case null:
                 return Missing;
             case JsonValue v when v.GetValueKind() == JsonValueKind.Number:
-                var d = v.GetValue<double>();
+                var d = AsDouble(v)!.Value;
                 return Math.Abs(d) >= 10 ? Math.Round(d).ToString("0", CultureInfo.InvariantCulture) : d.ToString("0.#", CultureInfo.InvariantCulture);
             case JsonValue v when v.GetValueKind() == JsonValueKind.String:
                 return v.GetValue<string>();

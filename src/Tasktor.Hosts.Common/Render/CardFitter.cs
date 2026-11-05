@@ -86,14 +86,28 @@ public static class CardFitter
             }
         }
 
+        // S: the whole card is the one touch target, so no buttons; M / L keep the highest-priority actions.
         var actions = (card.Actions ?? []).Select((a, i) => (a, i)).OrderBy(x => x.a.Priority).ThenBy(x => x.i)
             .Take(target == FitTarget.Small ? 0 : touch).OrderBy(x => x.i).Select(x => x.a).ToList();
-        if (target != FitTarget.Flyout && touch != int.MaxValue && target == FitTarget.Small)
-        {
-            actions = []; // S: the whole card is the one touch target
-        }
-
         return new FittedCard(card, kept.OrderBy(k => k.Index).Select(k => k.Block).ToList(), actions, used);
+    }
+
+    /// <summary>
+    /// The tray tooltip / CLI one-liner (D-G1, first row): the card's top <c>Metric</c> and its severity word, e.g.
+    /// "System: CPU 34 % · warning". Falls back to the first Badge or Countdown label.
+    /// </summary>
+    public static string Glance(Card card, BindingResolver resolver)
+    {
+        ArgumentNullException.ThrowIfNull(card);
+        ArgumentNullException.ThrowIfNull(resolver);
+        var top = card.Blocks.Select((b, i) => (b, i)).OrderBy(x => x.b.Priority).ThenBy(x => x.i).Select(x => x.b).ToList();
+        var text = top.OfType<MetricBlock>().FirstOrDefault() is { } m
+            ? m.Label + " " + resolver.Text(m.Value) + (m.Unit is { } u ? " " + u : string.Empty)
+            : top.OfType<BadgeBlock>().FirstOrDefault() is { } b ? resolver.Text(b.Text)
+            : top.OfType<CountdownBlock>().FirstOrDefault()?.Label ?? string.Empty;
+        var severity = resolver.SeverityOf(card.Severity);
+        var word = severity switch { Severity.Critical => " · critical", Severity.Warn => " · warning", _ => string.Empty };
+        return card.Title + (text.Length > 0 ? ": " + text : string.Empty) + word;
     }
 
     private static int Cost(Block b, BindingResolver resolver, out int? rows)
