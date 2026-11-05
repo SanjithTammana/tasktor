@@ -1,0 +1,26 @@
+{
+  "solution": {
+    "path": "Tasktor.sln",
+    "projects": [
+      "src\\Tasktor.Agent\\Tasktor.Agent.csproj",
+      "src\\Tasktor.Capture\\Tasktor.Capture.csproj",
+      "src\\Tasktor.Cli\\Tasktor.Cli.csproj",
+      "src\\Tasktor.Contracts\\Tasktor.Contracts.csproj",
+      "src\\Tasktor.Core\\Tasktor.Core.csproj",
+      "src\\Tasktor.Hosts.Common\\Tasktor.Hosts.Common.csproj",
+      "src\\Tasktor.Nmh\\Tasktor.Nmh.csproj",
+      "src\\Tasktor.Shell\\Tasktor.Shell.csproj",
+      "src\\Tasktor.Windows\\Tasktor.Windows.csproj",
+      "tests\\Tasktor.Agent.Tests\\Tasktor.Agent.Tests.csproj",
+      "tests\\Tasktor.Capture.Tests\\Tasktor.Capture.Tests.csproj",
+      "tests\\Tasktor.Cli.Tests\\Tasktor.Cli.Tests.csproj",
+      "tests\\Tasktor.Contracts.Tests\\Tasktor.Contracts.Tests.csproj",
+      "tests\\Tasktor.Core.Tests\\Tasktor.Core.Tests.csproj",
+      "tests\\Tasktor.Hosts.Common.Tests\\Tasktor.Hosts.Common.Tests.csproj",
+      "tests\\Tasktor.Nmh.Tests\\Tasktor.Nmh.Tests.csproj",
+      "tests\\Tasktor.Shell.Tests\\Tasktor.Shell.Tests.csproj",
+      "tests\\Tasktor.Windows.Tests\\Tasktor.Windows.Tests.csproj",
+      "tools\\Tasktor.SchemaGen\\Tasktor.SchemaGen.csproj"
+    ]
+  }
+}

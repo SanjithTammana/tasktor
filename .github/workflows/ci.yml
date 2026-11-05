@@ -23,19 +23,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Build and test (.NET)
-        if: hashFiles('Tasktor.sln') != ''
-        run: |
-          dotnet build Tasktor.sln -c Release -warnaserror -p:EnableWindowsTargeting=true
-          dotnet test Tasktor.sln -c Release --no-build
+      - name: Build (.NET, everything except Flyout / Widget)
+        run: dotnet build Tasktor.Linux.slnf -c Release -warnaserror
+      - name: Test (.NET)
+        run: dotnet test Tasktor.Linux.slnf -c Release --no-build
       - name: Test (Python worker)
         if: hashFiles('worker/requirements.txt') != ''
         run: |
           pip install -r worker/requirements.txt
           pytest worker
-      - name: Nothing to build yet
-        if: hashFiles('Tasktor.sln') == ''
-        run: echo "No solution yet (M0 creates it)."
 
   windows:
     runs-on: windows-latest
@@ -44,8 +40,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-      - name: Build and test (.NET, all projects)
-        if: hashFiles('Tasktor.sln') != ''
-        run: |
-          dotnet build Tasktor.sln -c Release -warnaserror
-          dotnet test Tasktor.sln -c Release --no-build
+      - name: Build (.NET, all projects)
+        run: dotnet build Tasktor.sln -c Release -warnaserror
+      - name: Test (.NET)
+        run: dotnet test Tasktor.sln -c Release --no-build

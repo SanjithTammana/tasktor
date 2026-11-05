@@ -1,0 +1,19 @@
+<Project>
+  <!-- Shared settings for every project (M0). -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Deterministic>true</Deterministic>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <Authors>Tasktor contributors</Authors>
+    <Company>Tasktor</Company>
+    <Product>Tasktor</Product>
+    <Version>0.1.0</Version>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+</Project>

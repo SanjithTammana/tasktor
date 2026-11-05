@@ -1,0 +1,8 @@
+N:System.Net;G-net: Tasktor processes make no network connections (U1 D-H11, U2 D-S2)
+N:System.Net.Http;G-net: no HTTP in Tasktor processes
+N:System.Net.Sockets;G-net: no sockets in Tasktor processes
+N:System.Net.WebSockets;G-net: no websockets in Tasktor processes
+N:System.Net.Mail;G-net: no mail in Tasktor processes
+N:System.Net.NetworkInformation;G-net: no network probing (Ping etc.)
+N:System.Net.Security;G-net: no TLS streams in Tasktor processes
+N:System.Net.Quic;G-net: no QUIC in Tasktor processes
