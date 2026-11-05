@@ -3,7 +3,7 @@
 Update this file after every milestone step. The next session starts here.
 
 ## Current milestone
-M3 State, cards and snapshot. M0–M2 are done.
+M4 Actions and rules. M0–M3 are done.
 
 ## Done
 - Design signed (`docs/design/`).
@@ -14,8 +14,10 @@ M3 State, cards and snapshot. M0–M2 are done.
 
 - **M2 Core shapes and the logic loop.** Contracts gain the seven D-A5 interfaces (`IClock`, `IMetricSource`, `ITableSource<TKey,TRow>`, `IEventSource<T>`, `IProcessControl` with A/B/D-H9 members, `INotifier`, `ICardProvider`) and their value types (`ProcKey`, `MetricKey`, `MetricFrame`, `ColumnSet`, `ProcessRow`, `ToastRequest`, `LearnedValue`, `Sensitive<T>`). Core: `LogicLoop` (one logic thread; `Post` / `EventChannel<T>` only enqueue; `Every` / `At` timers; manual `RunPending` / `RunDue` for fake-clock tests), `Scheduler` + `DemandLease` (shortest interval, column union, release at zero leases), `Cooldown`, `HoldFor`, `RingBuffer<T>` + exact `WindowStats`, `KeyedTable<TKey,TRow>` (diff), `TopN<T>`, `RateCounter`, `TreeRollup` (SoA forest, anchor rule as a parameter), `KeyedHasher` (HKDF per domain + truncated HMAC) + `KindId`, `KindStats` (20-run rings, counters, alarm window, ~300-byte binary form), `LearnedThreshold` (ramp 5 → 20, clamp, sources), `AppIdentity` + `AppGrouper` (A2.1 steps 1–6 + user `grouping` rules, cached per distinct exe), `Glob`, `LogSink` + `FileLogWriter` (7 days, 20 MB, verbose reverts after 24 h, `Sensitive<T>` prints `<redacted>`), `DurationText`. 65 Core tests incl. A1 #3 / #6, A2 #1–#4, A6 #2, B adaptive #2 / #3.
 
+- **M3 State, cards and snapshot.** `JsonPointer` (Contracts; resolve / apply patch), `JsonDiff` (minimal replace / add / remove), `StateTracker` (state record → JSON Patch deltas under `/state`), `CardTemplates` (cards from every `ICardProvider`; change detected by structure), `SnapshotPublisher` (change-driven: `MarkChanged` schedules one publish at the earliest allowed time; ≤ 1 write/s; none while nothing changes; raises `Published` with the ops for the pipe), `AtomicFile` + `CoalescingWriter` (temp + rename; newest bytes only; off-loop), `GlanceText` (≤ 127 chars). Tests: published snapshot equals `tests/fixtures/tasktor.snapshot-1/full.json`; every binding resolves; publishes only on change and ≤ 1/s with the newest value; idle agent schedules nothing; random deltas replayed onto a mirror reproduce the state.
+
 ## Next
-- M3: `StateTracker` (state tree + JSON Patch deltas), `CardTemplates`, `SnapshotPublisher` (≤ 1/s, on change, atomic file), `GlanceText`.
+- M4: `ActionCatalog` (surface tags, classes), `OriginPolicy`, `GuardChain`, `ActionRouter` (30 s confirm tokens, off-loop handlers, log), `RulesLoader` / `RuleSet` / `RuleEngine` (grammar v1, refusals).
 
 ## Interpretations
 - **Linux build set.** CI's Linux job builds `Tasktor.Linux.slnf`, a solution filter without `Tasktor.Flyout` and `Tasktor.Widget` (WinUI / Windows App SDK do not build on Linux). The Windows job builds `Tasktor.sln`.
@@ -31,6 +33,7 @@ M3 State, cards and snapshot. M0–M2 are done.
 - **The seven interfaces live in Contracts** (D-A5 §4) with their value types, so plugins' SDK and viewers share them; `IBlockRenderer` stays in the viewer hosts.
 - **Own log sink instead of `Microsoft.Extensions.Logging`.** H6 asks for an AOT-safe logger without personal data; a 150-line `LogSink` with typed `LogField`s (primitives or `Sensitive<T>` only) keeps the agent dependency-free and makes redaction structural.
 - **`AppGrouper` system bucket:** a process with no readable path that is not the user's own, plus PIDs 0 and 4, goes to "System / services" (A2.1 step 6).
+- **Snapshot publishing is change-driven, not ticked.** D-H3 says ≤ 1/s on change; D-A3 says an idle agent wakes about once a minute. A 1 s timer would wake the agent 60 times a minute, so state updates call `MarkChanged`, which schedules a single publish at max(now, last + 1 s).
 - **Package pins.** xUnit 2.9.3, Test SDK 17.14.1, BannedApiAnalyzers 4.14.0, Windows App SDK 2.5.1 (the version the U4 sources cite).
 
 ## Needs Windows verification

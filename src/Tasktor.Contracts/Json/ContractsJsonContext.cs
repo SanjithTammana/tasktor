@@ -29,6 +29,8 @@ namespace Tasktor.Contracts;
     Converters = [typeof(UtcTimestampConverter)])]
 [JsonSerializable(typeof(SnapshotRecord))]
 [JsonSerializable(typeof(Card))]
+[JsonSerializable(typeof(IReadOnlyList<Card>))]
+[JsonSerializable(typeof(Tasktor.Contracts.Snapshot.SnapshotState))]
 [JsonSerializable(typeof(Block))]
 [JsonSerializable(typeof(ActionRequest))]
 [JsonSerializable(typeof(ActionResult))]
