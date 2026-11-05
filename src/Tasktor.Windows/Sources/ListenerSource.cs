@@ -17,6 +17,59 @@ public sealed partial class ListenerSource(Win32ProcessTable processes) : ITable
 
     public string Name => "tcp-listeners";
 
+    /// <summary>
+    /// I14: established TCP connections per app (v4 + v6, <c>TCP_TABLE_OWNER_PID_CONNECTIONS</c>, no admin), most first.
+    /// "Connections, not bytes": per-process bytes would need elevation.
+    /// </summary>
+    public unsafe IReadOnlyList<(string App, int Connections)> TopConnections()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return [];
+        }
+
+        var byPid = new Dictionary<uint, int>();
+        foreach (var family in new[] { AfInet, AfInet6 })
+        {
+            uint size = 0;
+            GetExtendedTcpTable(null, ref size, false, family, 4, 0);
+            if (size == 0)
+            {
+                continue;
+            }
+
+            var buf = new byte[size];
+            fixed (byte* p = buf)
+            {
+                if (GetExtendedTcpTable(p, ref size, false, family, 4, 0) != 0)
+                {
+                    continue;
+                }
+
+                var count = *(uint*)p;
+                var span = new ReadOnlySpan<byte>(p + 4, (int)size - 4);
+                var rowSize = family == AfInet ? 24 : 56;
+                for (var i = 0; i < count && (i + 1) * rowSize <= span.Length; i++)
+                {
+                    var row = span.Slice(i * rowSize, rowSize);
+                    var state = family == AfInet ? BinaryPrimitives.ReadUInt32LittleEndian(row[..4]) : BinaryPrimitives.ReadUInt32LittleEndian(row.Slice(48, 4));
+                    var pid = family == AfInet ? BinaryPrimitives.ReadUInt32LittleEndian(row.Slice(20, 4)) : BinaryPrimitives.ReadUInt32LittleEndian(row.Slice(52, 4));
+                    if (state == 5 && pid is not (0 or 4)) // MIB_TCP_STATE_ESTAB
+                    {
+                        byPid[pid] = byPid.GetValueOrDefault(pid) + 1;
+                    }
+                }
+            }
+        }
+
+        return byPid
+            .Select(kv => (App: processes.ReadOne(new ProcKey(kv.Key, 0))?.Exe ?? "pid " + kv.Key, kv.Value))
+            .GroupBy(x => x.App, StringComparer.OrdinalIgnoreCase)
+            .Select(g => (g.Key, g.Sum(x => x.Value)))
+            .OrderByDescending(x => x.Item2)
+            .ToList();
+    }
+
     public unsafe void Read(ICollection<KeyValuePair<string, ListenerEntry>> into, ColumnSet columns)
     {
         ArgumentNullException.ThrowIfNull(into);

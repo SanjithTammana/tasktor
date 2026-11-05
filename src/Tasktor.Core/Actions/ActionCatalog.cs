@@ -54,6 +54,7 @@ public static class ActionCatalog
         new("disk.scan", ActionClass.Read, "Biggest folders", Surface.Flyout | Surface.Widget | Surface.Toast | Surface.Cli),
         new("battery.settings", ActionClass.Read, "Battery settings", Surface.Flyout | Surface.Toast),
         new("url.open", ActionClass.Read, "Join", Surface.Flyout | Surface.Widget | Surface.Toast),
+        new("net.signin", ActionClass.Read, "Open browser", Surface.Flyout | Surface.Toast),
         new("agent.show", ActionClass.Read, "Show", Surface.Flyout | Surface.Widget | Surface.Toast),
 
         // reversible: priority / efficiency / caps (A3, B3, I4)

@@ -63,6 +63,9 @@ public sealed class FeatureContext
     /// <summary>Runs a source read off the loop (sources only enqueue; the result is posted back). Tests run it inline.</summary>
     public Action<Action> OffLoop { get; init; } = work => Task.Run(work);
 
+    /// <summary>Adds a table to <c>tasktor export data</c> (U2 D-S7).</summary>
+    public Action<ExportTableSource> RegisterExport { get; init; } = _ => { };
+
     public IClock Clock => Loop.Clock;
 }
 
