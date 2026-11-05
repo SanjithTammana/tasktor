@@ -1,0 +1,39 @@
+// Tasktor's shipped default rules (read-only in the install dir). Your own rules go in
+// %LOCALAPPDATA%\Tasktor\rules.json: a rule there with the same "id" replaces one of these,
+// and { "id": "...", "enabled": false } turns one off. Grammar: docs/rules.md.
+{
+  "$schema": "schemas/tasktor.rules-1.json",
+  "schema_version": 1,
+  "groups": {
+    "agents": ["claude.exe", "codex.exe", "cursor.exe", "aider", "gemini", "opencode.exe", "agent-desktop.exe", "AutoHotkey*.exe"],
+    "call_apps": ["ms-teams.exe", "Teams.exe", "Zoom.exe", "webexmta.exe", "CiscoCollabHost.exe", "Discord.exe", "slack.exe"],
+    "opted_in": []
+  },
+  "rules": [
+    // A5 "disk-low" and "disk-filling" are built-in watches (max(10%, 15 GB) for 5 min; again after 5 GB more or 24 h;
+    // learned fill rate). Turn one off in your rules.json with { "id": "disk-low", "enabled": false }.
+
+    // A6 pressure alerts: RAM and commit on; CPU and disk saturation off (busy is often intended).
+    { "id": "ram-pressure", "description": "A6: memory is low",
+      "when": { "any": [ { "state": "low_memory" }, { "metric": "system.ram_used_pct", "above": 90 } ] },
+      "for": "30s", "cooldown": "30m",
+      "then": [ { "toast": "Memory is low: {offender} is using {offender_size} ({growth}){faster}", "severity": "warn",
+                  "buttons": ["app.close", "open:core.apps", "snooze:1h"] } ] },
+    { "id": "commit-pressure", "description": "A6: commit charge near its limit",
+      "when": { "metric": "system.commit_pct", "above": 90 }, "for": "30s", "cooldown": "30m",
+      "then": [ { "toast": "Memory commit is at {value}% of its limit: {offender} is using {offender_size}", "severity": "warn",
+                  "buttons": ["app.close", "open:core.apps", "snooze:1h"] } ] },
+    { "id": "cpu-saturation", "enabled": false, "description": "A6: CPU saturated",
+      "when": { "metric": "system.cpu_pct", "above": 90 }, "for": "2m", "cooldown": "30m",
+      "then": [ { "toast": "CPU at {value}% for 2 minutes", "buttons": ["open:core.apps", "snooze:1h"] } ] },
+    { "id": "disk-saturation", "enabled": false, "description": "A6: disk saturated",
+      "when": { "metric": "disk.active_pct", "above": 95 }, "for": "2m", "cooldown": "30m",
+      "then": [ { "toast": "Disk {instance} is {value}% busy", "buttons": ["open:core.system", "snooze:1h"] } ] },
+
+    // A8.2: unplugged under load (laptops only; warns, never acts).
+    { "id": "unplugged-load", "description": "A8.2: unplugged while busy",
+      "when": { "all": [ { "event": "power.unplugged" },
+                         { "any": [ { "metric": "system.cpu_pct_2m", "above": 50 }, { "metric": "system.gpu_pct", "above": 50 }, { "metric": "jobs.running", "above": 0 } ] } ] },
+      "then": [ { "toast": "Unplugged while {process} is busy: ~{time_left} left at this rate", "buttons": ["efficiency.set", "battery.settings"] } ] }
+  ]
+}

@@ -311,7 +311,16 @@ public sealed class ActionRouter
         }
 
         var status = result.Status == ActionStatus.Ok ? ActionStatus.Partial : result.Status;
-        return result with { Status = status, Items = items };
+        var why = string.Join(", ", refusedItems.GroupBy(i => ShortReason(i.Reason ?? "refused")).Select(g => g.Count() + " " + g.Key));
+        return result with { Status = status, Items = items, Message = result.Message is null ? why : result.Message + ", " + why };
+    }
+
+    /// <summary>A guard reason as it reads in a count ("2 run as admin", "1 already exited").</summary>
+    public static string ShortReason(string reason)
+    {
+        ArgumentNullException.ThrowIfNull(reason);
+        var text = reason.StartsWith("guard:", StringComparison.Ordinal) && reason.IndexOf(": ", StringComparison.Ordinal) is var i and > 0 ? reason[(i + 2)..] : reason;
+        return text.StartsWith("Runs as admin", StringComparison.Ordinal) ? "run as admin" : text.ToLowerInvariant();
     }
 
     private static ActionResult Refused(ActionRequest req, string reason, string message) =>

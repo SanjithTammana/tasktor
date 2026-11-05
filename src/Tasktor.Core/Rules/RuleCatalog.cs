@@ -5,7 +5,7 @@ public static class RuleCatalog
 {
     public static readonly IReadOnlySet<string> Metrics = new HashSet<string>(StringComparer.Ordinal)
     {
-        "system.cpu_pct", "system.ram_used_pct", "system.commit_pct", "system.gpu_pct", "system.ram_available_gb",
+        "system.cpu_pct", "system.cpu_pct_2m", "system.ram_used_pct", "system.commit_pct", "system.gpu_pct", "system.ram_available_gb",
         "disk.active_pct", "disk.free_pct", "disk.free_gb", "disk.fill_gb_per_h",
         "net.rx_bps", "net.tx_bps", "battery.pct", "battery.time_left_s",
         "self.private_mb", "self.cpu_pct", "jobs.running", "jobs.silent",
@@ -23,7 +23,7 @@ public static class RuleCatalog
     {
         "file.created", "window.missing", "agent.state", "net.dropped", "job.new", "job.silent", "job.stuck", "job.done",
         "job.failed", "job.hogging", "job.longer_than_usual", "process.started", "process.exited", "power.changed",
-        "low_memory", "focus.block_end", "meeting.soon", "self.over_budget",
+        "low_memory", "power.unplugged", "power.plugged", "disk.filling", "focus.block_end", "meeting.soon", "self.over_budget",
     };
 
     /// <summary>Learned stats: <c>silence</c> (B2.2), <c>duration</c> (B2.7), <c>fill_rate</c> (A5), <c>growth</c> (A6).</summary>

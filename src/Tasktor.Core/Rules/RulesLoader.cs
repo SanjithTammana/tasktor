@@ -66,11 +66,13 @@ public static class RulesLoader
         }
 
         var compiled = new List<CompiledRule>();
+        var disabled = new HashSet<string>(StringComparer.Ordinal);
         foreach (var id in order)
         {
             var (rule, origin, line) = byId[id];
             if (rule.Enabled == false)
             {
+                disabled.Add(id);
                 continue;
             }
 
@@ -84,7 +86,7 @@ public static class RulesLoader
             compiled.Add(new CompiledRule(rule, origin, line, Dur(rule.HoldFor), Dur(rule.Cooldown)));
         }
 
-        return new RuleSet(compiled, errors, groups, grouping);
+        return new RuleSet(compiled, errors, groups, grouping) { Disabled = disabled };
     }
 
     private sealed record Parsed(RulesFile? File, List<(Rule Rule, RuleOrigin Origin, int Line)> Rules);
@@ -161,6 +163,14 @@ public static class RulesLoader
                     i++;
                     try
                     {
+                        if (el.ValueKind == JsonValueKind.Object && el.TryGetProperty("enabled", out var en) && en.ValueKind == JsonValueKind.False
+                            && el.TryGetProperty("id", out var offId) && offId.ValueKind == JsonValueKind.String && !el.TryGetProperty("when", out _))
+                        {
+                            // { "id": "x", "enabled": false } turns a rule off without restating it (D-H6).
+                            rules.Add((new Rule { Id = offId.GetString()!, Enabled = false, When = new Condition(), Then = [] }, origin, line));
+                            continue;
+                        }
+
                         var rule = el.Deserialize(ContractsJsonContext.Default.Rule);
                         if (rule is null)
                         {
