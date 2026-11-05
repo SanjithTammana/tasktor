@@ -2,9 +2,9 @@ using Tasktor.Contracts.Actions;
 using Tasktor.Contracts.Cards;
 using Tasktor.Contracts.Platform;
 using AppIdentity = Tasktor.Core.Apps.AppIdentity;
-using AppsFeature = Tasktor.Core.Features.System.Apps;
+using AppsFeature = Tasktor.Core.Features.SystemMonitor.Apps;
 using Tasktor.Core.Features;
-using Tasktor.Core.Features.System;
+using Tasktor.Core.Features.SystemMonitor;
 using Tasktor.Core.Rules;
 using Tasktor.Tests.Shared;
 

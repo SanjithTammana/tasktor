@@ -3,7 +3,7 @@
 Update this file after every milestone step. The next session starts here.
 
 ## Current milestone
-M9 Long-job watch (B). M0–M8 are done.
+M10 Sources, guards and watches (U2). M0–M9 are done.
 
 ## Done
 - Design signed (`docs/design/`).
@@ -26,8 +26,10 @@ M9 Long-job watch (B). M0–M8 are done.
 
 - **M8 System monitor (A).** `Feature` base + `FeatureContext` (loop, scheduler, router, state, settings, notifier, process control, install key, launcher, persistence, rule hooks, off-loop reads). Features: `SystemTotals` (A1: 60 s tick always + viewer leases; hour ring and live ring; 10 s colour hold; idle virtual GPU adapters hidden; series pull; `core.system`), `Apps` (A2 + A3: per-process data only under a lease, buffers freed at zero leases and late reads dropped; CPU % from CPU-time rates per (PID, creation time); top-N by the resource under pressure; A2.7 verdict; process-tree pull; `ProcessTargets` for pid / pids / app / group / process / job, leaf-first; close / end / end tree / priority with remembered originals / EcoQoS / freeze / resume / open location / Task Manager; `core.apps`), `DiskGuard` (A5: volumes, built-in low-space watch `max(10%, 15 GB)` 5 min / again after 5 GB or 24 h / snooze; learned fill rate per hashed volume with default 5 GB/h; `FolderScanner` top 20 × 4 levels, no links followed, cancellable, as an internal long task; `core.disk`), `Pressure` (A6: low-memory event + warn crossings escalate to 5 s sampling for ≤ 2 min; offender + growth; learned per-app growth only changes wording), `Ports` (A7 Module: merge v4 / v6, own-user filter, exposed badge, conflict lookup; `module.ports`), `Battery` (A8: sentinels → null, hidden without a battery, `power.unplugged` event, toast withdrawn on plug-in; `core.battery`). `RuleRunner` (inputs from features, ≤ 1 evaluation / s, toasts with offers, rule actions through the router, `state.alerts` / `state.guards`, snoozes). `KindStore` (per-key `KindStats`, LRU 256, key fingerprint). Shipped `rules.default.json` (A6 pressure rules, CPU / disk saturation off, A8.2). Windows sources: `PdhMetricSource` (CPU, cores, RAM, commit, GPU per LUID via busiest engine type + per-PID GPU, physical disks, network rates), `Win32ProcessTable` (Toolhelp names-only; usage / identity / elevation / owner / protection / I/O on demand; fresh `ReadOne` for guards), `PowerSource` + `PowerEvents` (callback, no window), `LowMemoryEvents` (blocked thread), `ListenerSource` (`GetExtendedTcpTable` v4 + v6), `DriveVolumeSource`. 40+ feature tests mapped to A's acceptance items.
 
+- **M9 Long-job watch (B).** `JobGate` (B1: a process becomes a job after 3 min of tree CPU ≥ 0.5 core or I/O ≥ 1 MB/s; stdio helpers and idle long-runners never do; the old total-CPU floor is gone), `JobWatch` (B1–B5 façade: names-only scan once a minute with no job and no viewer, handles only for watched trees; workers fold under the root and cores are their sum; Working / Quiet / Silent / Stuck / Paused / Finished states with log-only and GPU activity counting as work; exit codes via `ProcessExitEvents`; B2.5 finished toast only for long jobs not in front; hogging rule input; "It's fine" false-alarm labelling; card `core.jobs`; learned pull), `JobProgressSource` + `ProgressParser` (`tasktor.job/1`: 1 MB cap unread, invalid files become a row that says why, future timestamps count as now, heartbeat clamped, half-written files never read, pid-less files their own row), `KindLearner` (per-kind `KindStats` → ETA as the median after 3 good runs, longer-than-usual, silence thresholds with the 5→20 run trust ramp; > 30 % false alarms falls back to the default until 5 clean runs; out-of-distribution runs; no names in `job-kinds.json`; LRU 256; learning off ⇒ every fallback), pause (B3.7: polite pause through `jobs\<id>.control.json` when the job writes a progress file, else freeze; paused time is not quiet time; quitting resumes every paused job), `FrozenRegistry` (intent before the first suspend, each thread as suspended, cleared last; `Recover` at start; torn files read as empty). Windows: `Win32ProcessControl` (freeze / thaw exactly the recorded threads, end, WM_CLOSE close, priority, EcoQoS, trim, core caps via job objects), `ProcessExitEvents` (one-shot `RegisterWaitForSingleObject`, exit code), `ProcessInfo` (command line via `NtQueryInformationProcess` class 60, foreground PID). Python stdlib helper `worker/tasktor_progress.py` (B4.7: atomic writes, ≤ 1 write/s debounce, OSC 9;4 under Windows Terminal, blocks on polite pause and marks `"paused": true`). Composition wires B with the Windows adapters, or portable ones elsewhere. 31 job tests + 7 freeze-recovery tests + 6 helper tests.
+
 ## Next
-- M9: job classifier (`JobGate`), `JobTracker` state machine, `ActivityMonitor`, `ProgressJoiner` + `JobProgressSource` (progress files), `KindLearner` + guardrails, ETA / longer-than-usual, `PauseCoordinator` + `FrozenRegistry` with crash recovery, B2.5 finished toast, `Win32ProcessControl` [W], card `core.jobs`.
+- M10: U2 sources and features per row; first-party plugins `tasktor.calendar` (ICS → `calendar/1`) and `tasktor.repos`; focus timer, `FocusReview`, notes; default rules.
 
 ## Interpretations
 - **Linux build set.** CI's Linux job builds `Tasktor.Linux.slnf`, a solution filter without `Tasktor.Flyout` and `Tasktor.Widget` (WinUI / Windows App SDK do not build on Linux). The Windows job builds `Tasktor.sln`.
@@ -67,6 +69,13 @@ M9 Long-job watch (B). M0–M8 are done.
 - **Pack rule ticks** are stored as consents named `pack:<pack>:<rule>`.
 - **Package pins.** xUnit 2.9.3, Test SDK 17.14.1, BannedApiAnalyzers 4.14.0, Windows App SDK 2.5.1 (the version the U4 sources cite).
 
+- **B's job gate uses tree CPU** (root + descendants), so a launcher whose work happens in a child still becomes a job; workers fold under the root.
+- **Command lines** are read with `NtQueryInformationProcess(ProcessCommandLineInformation = 60)` (no WMI, which would need COM and is slow); they stay `Sensitive<string>` and are used only for the classifier and the hashed kind key.
+- **"Efficiency mode" is EcoQoS only** (`SetProcessInformation(ProcessPowerThrottling)`), with no priority change; Task Manager's leaf icon also lowers the priority, which we leave to the separate Lower-priority action.
+- **Polite pause is offered for any job with a live progress file**, not only "helper jobs": the helper (or any writer honouring `control.json`) is the thing that pauses, so the file is the capability.
+- **Without `ProcessExitEvents` (non-Windows runs)** a job's end is noticed by the next scan; the exit code is then unknown. No extra portable source was added.
+- **The freeze-recovery loop lives in `FrozenRegistry.Recover`** (portable, tested on Linux); `Win32ProcessControl.RecoverFrozen` passes its `Thaw`. A thaw that throws keeps the record for the next start; one that returns drops it even if a process had already exited.
+
 ## Needs Windows verification
 - **M0 / CI:** the `windows` job builds `Tasktor.sln` including the WinUI 3 Flyout and the Widget project. **Verified green on `windows-latest`** (run 41963321717). Keep watching it as UI code lands.
 
@@ -85,6 +94,12 @@ M9 Long-job watch (B). M0–M8 are done.
 - **M8 / A6:** a test program allocating until commit ≥ 90 % raises exactly one toast naming it within 45 s (A6 #1).
 - **M8 / A7:** `python -m http.server 8765` shows "8765 · python · open to network" within 5 s with the ports card open; stopping it removes the row (A7 #1).
 - **M8 / A8:** on a laptop, unplug during a CPU-heavy process: one toast within 10 s; at idle: none (A8 #2); percent and charging match the Windows battery flyout (A8 #3).
+
+- **M9 / B1:** `python -c "while True: pass"` in a terminal appears in `tasktor status` (the `core.jobs` card) within 3 min; a `node` language server idling in VS Code never does (B1 #1, #2).
+- **M9 / exit codes:** `python -c "import time,sys; [sum(range(10**7)) for _ in range(400)]; sys.exit(3)"` shows "Finished · exit 3" and, if it ran ≥ 10 min with its window not in front, one finished toast (B2.5).
+- **M9 / freeze:** freeze a running job with `tasktor job pause <id> --freeze`: Task Manager shows it Suspended and its CPU drops to 0; Resume restores it. Then freeze, kill the agent from Task Manager, start it again: the job is running within 5 s and `state\frozen.json` is empty (B3.7 crash recovery).
+- **M9 / polite pause:** a script using `tasktor_progress.Progress` pauses at its next `update()` on Pause, the row says Paused, and Windows Terminal's tab shows the same percent as the card (OSC 9;4).
+- **M9 / command line:** with `tasktor log verbose on`, neither `tasktor status --json --cards` nor `logs\agent.log` holds a command line (G-redact). The kind key in `job-kinds.json` is a hash.
 
 ## Blockers
 - **.NET install script blocked.** `dotnet-install.sh` cannot reach `builds.dotnet.microsoft.com` (the session proxy returns 403). Worked around: `apt-get install dotnet-sdk-10.0` from the Ubuntu archive (SDK 10.0.114, which satisfies `global.json` 10.0.100 / latestFeature). `scripts/cloud-setup.sh` now falls back to apt. Not blocking.

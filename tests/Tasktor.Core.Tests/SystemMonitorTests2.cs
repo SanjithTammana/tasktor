@@ -1,9 +1,9 @@
 using Tasktor.Contracts.Actions;
 using Tasktor.Contracts.Platform;
-using Tasktor.Core.Features.System;
+using Tasktor.Core.Features.SystemMonitor;
 using Tasktor.Tests.Shared;
 using AppIdentity = Tasktor.Core.Apps.AppIdentity;
-using AppsFeature = Tasktor.Core.Features.System.Apps;
+using AppsFeature = Tasktor.Core.Features.SystemMonitor.Apps;
 
 namespace Tasktor.Core.Tests;
 

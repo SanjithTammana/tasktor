@@ -11,7 +11,7 @@ using Tasktor.Core.Loop;
 using Tasktor.Core.Rules;
 using Tasktor.Core.Shapes;
 
-namespace Tasktor.Core.Features.System;
+namespace Tasktor.Core.Features.SystemMonitor;
 
 /// <summary>
 /// A5 disk guard: free space per fixed volume (from the 60 s tick), the low-space alert (<c>max(10%, 15 GB)</c> for 5 min;

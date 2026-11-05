@@ -5,7 +5,7 @@ using Tasktor.Contracts.Pipe;
 using Tasktor.Contracts.Platform;
 using Tasktor.Contracts.Snapshot;
 
-namespace Tasktor.Core.Features.System;
+namespace Tasktor.Core.Features.SystemMonitor;
 
 /// <summary>
 /// A7 dev ports (Module): listening TCP ports with their owner, sampled every 5 s only while a viewer holds a lease (never on

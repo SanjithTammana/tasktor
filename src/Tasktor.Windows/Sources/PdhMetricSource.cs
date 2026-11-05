@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 using Tasktor.Contracts.Platform;
-using Tasktor.Core.Features.System;
+using Tasktor.Core.Features.SystemMonitor;
 
 namespace Tasktor.Windows.Sources;
 

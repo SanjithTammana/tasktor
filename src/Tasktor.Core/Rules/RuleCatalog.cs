@@ -29,7 +29,7 @@ public static class RuleCatalog
     /// <summary>Learned stats: <c>silence</c> (B2.2), <c>duration</c> (B2.7), <c>fill_rate</c> (A5), <c>growth</c> (A6).</summary>
     public static readonly IReadOnlySet<string> LearnedStats = new HashSet<string>(StringComparer.Ordinal)
     {
-        "silence", "duration", "fill_rate", "growth", "heartbeat",
+        "silence", "duration", "fill_rate", "growth", "heartbeat", "hogging",
     };
 
     public static readonly IReadOnlySet<string> PauseTargets = new HashSet<string>(StringComparer.Ordinal)

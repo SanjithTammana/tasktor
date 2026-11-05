@@ -71,6 +71,17 @@ internal sealed class RecordingProcessControl : PortableProcessControl
 
     public override IReadOnlyList<ProcessOutcome> CapCores(string capId, IReadOnlyList<ProcKey> keys, int maxCores) => Record("cap:" + maxCores, keys);
 
+    /// <summary>Jobs a previous run "left frozen"; RecoverFrozen thaws and reports them.</summary>
+    public List<string> LeftFrozen { get; } = [];
+
+    public override IReadOnlyList<string> RecoverFrozen()
+    {
+        Calls.Add("recover");
+        var ids = LeftFrozen.ToList();
+        LeftFrozen.Clear();
+        return ids;
+    }
+
     private List<ProcessOutcome> Record(string what, IReadOnlyList<ProcKey> keys)
     {
         Calls.Add(what + ":" + string.Join(",", keys.Select(k => k.Pid)));

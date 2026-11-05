@@ -1,7 +1,7 @@
 using Tasktor.Contracts.Platform;
 using Tasktor.Core.Apps;
 
-namespace Tasktor.Core.Features.System;
+namespace Tasktor.Core.Features.SystemMonitor;
 
 /// <summary>A resolved action target: the processes (leaf-first for ending), a display name and the count.</summary>
 public sealed record ResolvedTarget(IReadOnlyList<ProcKey> Keys, string Name, string? Exe);
