@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tasktor:schema:tasktor.plugin-1.json",
+  "title": "Tasktor plugin manifest (plugin.json)",
+  "description": "Contract tasktor.plugin/1. Generated from the C# records in Tasktor.Contracts; do not edit by hand.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "contract": {
+      "type": "integer"
+    },
+    "id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "author": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "command": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "interval": {
+      "type": "string"
+    },
+    "timeout": {
+      "type": "string"
+    },
+    "reads": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "network": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "settings": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "string",
+              "path",
+              "bool",
+              "number",
+              "choice",
+              "secret"
+            ]
+          },
+          "default": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "choices": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "type"
+        ]
+      }
+    },
+    "actions": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "class": {
+            "enum": [
+              "read",
+              "reversible",
+              "destructive"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "class"
+        ]
+      }
+    },
+    "min_tasktor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "version",
+    "command",
+    "interval",
+    "timeout",
+    "reads",
+    "network"
+  ]
+}

@@ -5,5 +5,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Tasktor.Contracts/Tasktor.Contracts.csproj" />
+    <ProjectReference Include="../../tools/Tasktor.SchemaGen/Tasktor.SchemaGen.csproj" />
   </ItemGroup>
 </Project>

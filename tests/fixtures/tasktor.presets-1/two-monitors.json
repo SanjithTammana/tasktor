@@ -1,0 +1,27 @@
+{
+  "schema": "tasktor.presets/1",
+  "presets": [
+    {
+      "name": "Writing",
+      "hotkey": "Ctrl+Alt+1",
+      "slots": [
+        {
+          "app": { "app_id": "editor.exe", "exe": "editor.exe" },
+          "match": { "class": "EditorWindow", "nth": 0 },
+          "place": { "monitor": "\\\\?\\DISPLAY#ABC123#1", "rect": { "x": 0, "y": 0, "w": 960, "h": 1040 }, "show": "normal" },
+          "desktop": "current",
+          "focus": true
+        },
+        {
+          "app": { "app_id": "browser.exe" },
+          "match": { "nth": 1, "title_pattern": "Docs*" },
+          "place": { "monitor": "\\\\?\\DISPLAY#ABC123#1", "rect": { "x": 960, "y": 0, "w": 960, "h": 1040 }, "show": "maximized" },
+          "launch": { "exe": "browser.exe", "args": [ "--new-window" ] },
+          "desktop": "current"
+        }
+      ],
+      "fancyzones": [ { "monitor": "\\\\?\\DISPLAY#ABC123#1", "layout": "two-columns" } ],
+      "workflow": "w7"
+    }
+  ]
+}

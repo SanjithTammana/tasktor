@@ -1,0 +1,21 @@
+{
+  "contract": 1,
+  "cards": [
+    {
+      "id": "kitchen-sink",
+      "title": "Every allowed block",
+      "blocks": [
+        { "kind": "Metric", "priority": 1, "label": "Value", "value": 3.5, "unit": "GB", "trend": "up" },
+        { "kind": "Sparkline", "priority": 2, "label": "History", "points": [ 1, 2, 3.5, 2 ] },
+        { "kind": "Bar", "priority": 2, "label": "Used", "value": 70, "max": 100, "unit": "%" },
+        { "kind": "Gauge", "priority": 3, "label": "Load", "value": 0.4, "min": 0, "max": 1 },
+        { "kind": "Table", "priority": 3, "columns": [ { "key": "repo", "label": "Repo" }, { "key": "dirty", "label": "Dirty" } ], "rows": [ { "repo": "a", "dirty": 2 }, { "repo": "b", "dirty": 0 } ], "max": 12 },
+        { "kind": "Progress", "priority": 4, "label": "Sync", "pct": 42 },
+        { "kind": "Badge", "priority": 4, "severity": "warn", "text": "2 behind" },
+        { "kind": "Countdown", "priority": 5, "label": "Report due", "until": "2026-11-20T17:00:00Z" },
+        { "kind": "Actions", "priority": 1, "actions": [ "refresh" ] }
+      ],
+      "actions": [ { "id": "refresh", "label": "Refresh", "priority": 1 } ]
+    }
+  ]
+}

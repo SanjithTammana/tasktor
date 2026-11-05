@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "rules": [
+    { "id": "power-pause-refits", "description": "I4: on battery, pause refits", "when": { "state": "on_battery" }, "then": [ { "pause": "refits" } ], "undo": true },
+    { "id": "power-cap", "enabled": false, "when": { "all": [ { "state": "on_battery" }, { "group": "opted_in", "running": true } ] }, "then": [ { "cap_cores": { "max": 2 }, "target": "group:opted_in" } ], "undo": true },
+    { "id": "no-toasts-in-games", "when": { "not": { "state": "fullscreen", "is": "none" } }, "then": [ { "capture_pause": "1h" } ] },
+    { "id": "overlap", "enabled": false, "when": { "group": "agents", "busy_count_above": 2 }, "for": "1m", "then": [ { "toast": "{count} agents are busy at once", "buttons": [ "open:module.agents" ] }, { "badge": "overlap" } ] },
+    { "id": "busy-python", "when": { "process": "python*.exe", "cpu_above": 4, "age_above": "10m" }, "for": "2m", "then": [ { "efficiency": true, "target": "process:python.exe" } ], "undo": true },
+    { "id": "silence-guard", "builtin": true, "when": { "any": [ { "metric": "policy.false_alarm_pct", "above": 30 }, { "event": "job.done" } ] }, "then": [ { "use_fallback": "silent" } ] }
+  ]
+}

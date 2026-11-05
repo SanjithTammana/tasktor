@@ -1,0 +1,32 @@
+{
+  "$schema": "../schemas/tasktor.rules-1.json",
+  "schema_version": 1,
+  "groups": { "agents": [ "claude.exe", "codex.exe" ], "builds": [ "msbuild.exe", "node.exe" ] },
+  "rules": [
+    {
+      "id": "disk-low",
+      "when": { "metric": "disk.free_pct", "instance": "C:", "below": 10 },
+      "for": "5m",
+      "cooldown": "6h",
+      "then": [ { "toast": "Drive {instance} is down to {value}% free", "buttons": [ "open:core.disk" ] } ]
+    },
+    {
+      "id": "job-silent",
+      "builtin": true,
+      "when": { "learned": { "stat": "silence", "key": "job.kind", "fallback": "10m", "clamp": [ "2m", "60m" ] } },
+      "then": [ { "toast": "{job} has been quiet for {value}", "buttons": [ "open:core.jobs", "job.log", "rule.its_fine" ] } ]
+    },
+    {
+      "id": "battery-restrain",
+      "when": { "all": [ { "state": "on_battery" }, { "group": "builds", "running": true } ] },
+      "then": [ { "set_priority": "below_normal", "target": "group:builds" }, { "pause": "refits" } ],
+      "undo": true
+    },
+    {
+      "id": "new-pdf",
+      "when": { "event": "file.created", "folder": "{Downloads}", "glob": "*.pdf" },
+      "then": [ { "toast": "New PDF: {file}", "buttons": [ "run:convert" ] } ],
+      "commands": { "convert": [ "{UserProfile}/tools/convert.exe", "{path}" ] }
+    }
+  ]
+}

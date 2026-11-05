@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tasktor:schema:tasktor.presets-1.json",
+  "title": "Tasktor window presets (presets.json)",
+  "description": "Contract tasktor.presets/1. Generated from the C# records in Tasktor.Contracts; do not edit by hand.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "schema": {
+      "type": "string"
+    },
+    "presets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "hotkey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "slots": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "app": {
+                  "type": "object",
+                  "properties": {
+                    "app_id": {
+                      "type": "string"
+                    },
+                    "exe": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "app_id"
+                  ]
+                },
+                "match": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "class": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "nth": {
+                      "type": "integer"
+                    },
+                    "title_pattern": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                },
+                "place": {
+                  "type": "object",
+                  "properties": {
+                    "monitor": {
+                      "type": "string"
+                    },
+                    "rect": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        },
+                        "w": {
+                          "type": "number"
+                        },
+                        "h": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "show": {
+                      "enum": [
+                        "normal",
+                        "maximized",
+                        "minimized"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "monitor",
+                    "rect"
+                  ]
+                },
+                "launch": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "exe": {
+                      "type": "string"
+                    },
+                    "args": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "exe"
+                  ]
+                },
+                "desktop": {
+                  "type": "string"
+                },
+                "focus": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "app",
+                "place"
+              ]
+            }
+          },
+          "fancyzones": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object",
+              "properties": {
+                "monitor": {
+                  "type": "string"
+                },
+                "layout": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "monitor",
+                "layout"
+              ]
+            }
+          },
+          "workflow": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "slots"
+        ]
+      }
+    }
+  },
+  "required": [
+    "presets"
+  ]
+}
