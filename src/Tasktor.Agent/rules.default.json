@@ -61,6 +61,16 @@
     { "id": "deadline-24h", "enabled": false, "description": "E1: a deadline is a day away",
       "when": { "event": "deadline.soon" },
       "then": [ { "toast": "Due {when} tomorrow: {title}", "buttons": ["open:module.deadlines"] } ] },
+    // I1 Q2: a session waiting for permission for 2 min, its window not in front (the wait and the window check are the
+    // agent watch's, like B2.5); Show brings the window up.
+    { "id": "agent-needs-permission", "description": "I1: an agent is waiting for your permission",
+      "when": { "event": "agent.state" },
+      "then": [ { "toast": "{agent} needs your permission in {folder}", "buttons": ["agent.show", "snooze:15m"] } ] },
+    // I2 overlap guard (off): more than 2 agents busy at once for a minute. No automatic action.
+    { "id": "overlap", "enabled": false, "description": "I2: many agents busy at once",
+      "when": { "group": "agents", "busy_count_above": 2 }, "for": "1m", "cooldown": "1h",
+      "then": [ { "toast": "{count} agents are busy at once", "buttons": ["agent.lower_newest", "open:module.agents"] }, { "badge": "{count}" } ] },
+
     // I13 / E11: during event mode and focus blocks, refits and the content worker wait.
     { "id": "event-mode-quiet", "description": "I13: event mode pauses background learning",
       "when": { "any": [ { "state": "event_mode" }, { "state": "focus_block" } ] },
