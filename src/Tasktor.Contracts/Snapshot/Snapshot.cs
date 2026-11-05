@@ -399,6 +399,9 @@ public sealed record ListenerRow
     public uint? Pid { get; init; }
 
     public bool Exposed { get; init; }
+
+    /// <summary>Owned by one of the user's own processes (the default filter shows only these).</summary>
+    public bool Own { get; init; }
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<AgentSessionState>))]

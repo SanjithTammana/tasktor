@@ -3,7 +3,7 @@
 Update this file after every milestone step. The next session starts here.
 
 ## Current milestone
-M8 System monitor (A). M0–M7 are done.
+M9 Long-job watch (B). M0–M8 are done.
 
 ## Done
 - Design signed (`docs/design/`).
@@ -24,8 +24,10 @@ M8 System monitor (A). M0–M7 are done.
 
 - **M7 Plugin host.** `ChildProcessRunner` (D-H9 children: closed `WorkerKind`, install-dir check for non-plugin kinds, stdin then close, 64 KB stdout cap, 4 KB stderr tail, whole-tree kill at the timeout, `AfterStart` hook), `PortableProcessControl` (workers + end / close / priority via `System.Diagnostics`; freeze / EcoQoS / caps refused off Windows), `PluginValidation` (manifest: id = folder, interval ≥ 30 s or manual, timeout ≤ 60 s, no destructive actions, `min_tasktor`; output: ≤ 64 KB, contract 1, ≤ 3 cards, ≤ 3 actions, block subset without Tree / Alert, literal values only, Sparkline ≤ 60 points, Table ≤ 12 rows, only declared actions; cards rewritten to `plugin.<id>.<card>` with a source badge and `plugin.action` buttons), `PluginHost` (discovery of `plugins\` and `plugins-builtin\`, "Found, off", consent pinned to SHA-256 of `plugin.json` + the command's target file, re-ask on change, scheduling, one run at a time, 3 failures → off + error card, plugin settings with secrets protected at rest, `{python}`, cleared `PYTHONPATH` / `NODE_PATH`; packs with one consent and `rules.pack.json` entries off until ticked → `RuleOrigin.Pack`). `Tasktor.Windows.Processes.JobObject` (kill-on-close, memory cap, CPU-rate cap, BelowNormal, EcoQoS). `examples/plugins/todo-count`. Agent: `plugin.enable|disable|pause|resume|action` handlers, `state.plugins`, plugin cards, run timer. The router now enforces `surface` tags per origin. 33 host tests with real Python child processes + an end-to-end plugin test.
 
+- **M8 System monitor (A).** `Feature` base + `FeatureContext` (loop, scheduler, router, state, settings, notifier, process control, install key, launcher, persistence, rule hooks, off-loop reads). Features: `SystemTotals` (A1: 60 s tick always + viewer leases; hour ring and live ring; 10 s colour hold; idle virtual GPU adapters hidden; series pull; `core.system`), `Apps` (A2 + A3: per-process data only under a lease, buffers freed at zero leases and late reads dropped; CPU % from CPU-time rates per (PID, creation time); top-N by the resource under pressure; A2.7 verdict; process-tree pull; `ProcessTargets` for pid / pids / app / group / process / job, leaf-first; close / end / end tree / priority with remembered originals / EcoQoS / freeze / resume / open location / Task Manager; `core.apps`), `DiskGuard` (A5: volumes, built-in low-space watch `max(10%, 15 GB)` 5 min / again after 5 GB or 24 h / snooze; learned fill rate per hashed volume with default 5 GB/h; `FolderScanner` top 20 × 4 levels, no links followed, cancellable, as an internal long task; `core.disk`), `Pressure` (A6: low-memory event + warn crossings escalate to 5 s sampling for ≤ 2 min; offender + growth; learned per-app growth only changes wording), `Ports` (A7 Module: merge v4 / v6, own-user filter, exposed badge, conflict lookup; `module.ports`), `Battery` (A8: sentinels → null, hidden without a battery, `power.unplugged` event, toast withdrawn on plug-in; `core.battery`). `RuleRunner` (inputs from features, ≤ 1 evaluation / s, toasts with offers, rule actions through the router, `state.alerts` / `state.guards`, snoozes). `KindStore` (per-key `KindStats`, LRU 256, key fingerprint). Shipped `rules.default.json` (A6 pressure rules, CPU / disk saturation off, A8.2). Windows sources: `PdhMetricSource` (CPU, cores, RAM, commit, GPU per LUID via busiest engine type + per-PID GPU, physical disks, network rates), `Win32ProcessTable` (Toolhelp names-only; usage / identity / elevation / owner / protection / I/O on demand; fresh `ReadOne` for guards), `PowerSource` + `PowerEvents` (callback, no window), `LowMemoryEvents` (blocked thread), `ListenerSource` (`GetExtendedTcpTable` v4 + v6), `DriveVolumeSource`. 40+ feature tests mapped to A's acceptance items.
+
 ## Next
-- M8: system monitor feature classes over fake sources (A1 totals + hour ring + thresholds, A2 apps + verdict, A3 actions, A5 disk guard + fill-rate learning, A6 pressure, A7 ports, A8 battery), the Windows sources (PDH, process table, GPU, disk, ports, battery, low memory) [W], cards `core.system`, `core.apps`, `core.disk`, `core.battery`, `module.ports`.
+- M9: job classifier (`JobGate`), `JobTracker` state machine, `ActivityMonitor`, `ProgressJoiner` + `JobProgressSource` (progress files), `KindLearner` + guardrails, ETA / longer-than-usual, `PauseCoordinator` + `FrozenRegistry` with crash recovery, B2.5 finished toast, `Win32ProcessControl` [W], card `core.jobs`.
 
 ## Interpretations
 - **Linux build set.** CI's Linux job builds `Tasktor.Linux.slnf`, a solution filter without `Tasktor.Flyout` and `Tasktor.Widget` (WinUI / Windows App SDK do not build on Linux). The Windows job builds `Tasktor.sln`.
@@ -58,6 +60,11 @@ M8 System monitor (A). M0–M7 are done.
 - **Surface tags are enforced, not only displayed.** An action from the CLI, widget, tray or a toast must list that surface in its catalog row; the flyout and the shell reach every row. This keeps `plugin.enable` (whose consent dialog is in the flyout) and other flyout-only actions away from scripts.
 - **A plugin's `id` must equal its folder name**, so a folder cannot impersonate another plugin's consent.
 - **Plugin settings** live in `plugin-data\<id>\settings.json`; `secret` settings (e.g. an ICS URL, D-S5) are stored protected with the install key's `KeyProtection` (DPAPI on Windows) and passed to the plugin only on stdin.
+- **A5's low-space alert is a built-in watch, not a grammar rule.** "Again only after 5 GB more are lost or 24 h" cannot be said in grammar v1, so `DiskGuard` implements it; `{ "id": "disk-low", "enabled": false }` in `rules.json` turns it off (the loader accepts a bare disabled entry, as D-H6 promises).
+- **A6 re-arm hysteresis** ("falls 10 points below for 2 min") is approximated by the rules' 30 min cooldown plus the hold; the alert text and offender come from `Pressure` through rule-input fields (`{offender}`, `{growth}`, `{faster}`) and a global target (the offender app for the toast's Close button).
+- **Network rates come from PDH** (`\Network Interface(*)\Bytes Received/sec`) in the same query as CPU / RAM / GPU / disk instead of `GetIfTable2` (D-A5: one API family = one class); the cumulative-counter path stays for other sources.
+- **Card row actions** use the target value `{row}`, which the renderer replaces with the row's `row_key` value (per-row Close / Lower / End on `core.apps`, Kill on `module.ports`).
+- **Pack rule ticks** are stored as consents named `pack:<pack>:<rule>`.
 - **Package pins.** xUnit 2.9.3, Test SDK 17.14.1, BannedApiAnalyzers 4.14.0, Windows App SDK 2.5.1 (the version the U4 sources cite).
 
 ## Needs Windows verification
@@ -70,6 +77,14 @@ M8 System monitor (A). M0–M7 are done.
 - **M6 / Known Folders:** with OneDrive Known Folder Move on, `tasktor export data` (no `--to`) prints the "cloud-synced" warning; with it off, it does not.
 
 - **M7 / Job Object:** enable `examples/plugins/todo-count` (copy to `%LOCALAPPDATA%\Tasktor\plugins\todo-count`, enable it in the flyout). While it runs, Process Explorer shows the `python.exe` child in a job with "Kill on job close" and a 256 MB process memory limit, at BelowNormal priority. Kill `tasktor-core.exe` with Task Manager during a run of a plugin that sleeps 30 s: the plugin process disappears at once. A plugin that allocates 400 MB fails (out of memory) and Tasktor shows the failure.
+
+- **M8 / A1 values:** open Task Manager's Performance tab and `tasktor status` side by side under a steady load for 60 s: CPU, RAM, GPU and disk within ±5 points (A1 #1). On a VM / Basic Display Adapter the GPU row is absent (A1 #5, OQ10).
+- **M8 / A2 grouping:** with Chrome, Teams and Windows Terminal + `node` open, `tasktor status` shows Chrome ×N, Teams with its WebView2 helpers, and the terminal with node under it; Chrome's and Teams' RAM within 10% of Task Manager's Processes tab (A2 #6, OQ3).
+- **M8 / A3:** an elevated test process (run `notepad` as admin) shows "Runs as admin" and End is refused without a UAC prompt (A3 #2); Efficiency mode shows the leaf icon in Task Manager (A3 #5, OQ6).
+- **M8 / A5:** free GB matches Explorer's This PC within 0.1 GB (A5 #1); Biggest folders on a folder with OneDrive cloud-only files leaves them cloud-only (A5 #3, OQ5).
+- **M8 / A6:** a test program allocating until commit ≥ 90 % raises exactly one toast naming it within 45 s (A6 #1).
+- **M8 / A7:** `python -m http.server 8765` shows "8765 · python · open to network" within 5 s with the ports card open; stopping it removes the row (A7 #1).
+- **M8 / A8:** on a laptop, unplug during a CPU-heavy process: one toast within 10 s; at idle: none (A8 #2); percent and charging match the Windows battery flyout (A8 #3).
 
 ## Blockers
 - **.NET install script blocked.** `dotnet-install.sh` cannot reach `builds.dotnet.microsoft.com` (the session proxy returns 403). Worked around: `apt-get install dotnet-sdk-10.0` from the Ubuntu archive (SDK 10.0.114, which satisfies `global.json` 10.0.100 / latestFeature). `scripts/cloud-setup.sh` now falls back to apt. Not blocking.

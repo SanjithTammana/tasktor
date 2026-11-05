@@ -12,4 +12,7 @@
     <ProjectReference Include="../Tasktor.Windows/Tasktor.Windows.csproj" />
     <ProjectReference Include="../Tasktor.Hosts.Common/Tasktor.Hosts.Common.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="rules.default.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

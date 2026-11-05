@@ -63,7 +63,12 @@ public sealed class RuleEngine
             {
                 var key = (rule.Id, subject.Id);
                 seen.Add(key);
-                var fields = new Dictionary<string, string>(subject.Fields, StringComparer.Ordinal);
+                var fields = new Dictionary<string, string>(inputs.Fields, StringComparer.Ordinal);
+                foreach (var kv in subject.Fields)
+                {
+                    fields[kv.Key] = kv.Value;
+                }
+
                 var matched = Eval(rule.Rule.When, inputs, subject, fields);
                 if (!_states.TryGetValue(key, out var st))
                 {
@@ -231,12 +236,12 @@ public sealed class RuleEngine
             {
                 Id = k.Instance,
                 Fields = new Dictionary<string, string>(StringComparer.Ordinal) { ["instance"] = k.Instance },
-                Target = k.Instance.Length == 0 ? null : new Dictionary<string, string>(StringComparer.Ordinal) { ["instance"] = k.Instance },
+                Target = k.Instance.Length == 0 ? inputs.Target : new Dictionary<string, string>(StringComparer.Ordinal) { ["instance"] = k.Instance },
             }).ToList();
-            return subjects.Count > 0 ? subjects : [new RuleSubject { Id = string.Empty }];
+            return subjects.Count > 0 ? subjects : [new RuleSubject { Id = string.Empty, Target = inputs.Target }];
         }
 
-        return [new RuleSubject { Id = string.Empty }];
+        return [new RuleSubject { Id = string.Empty, Target = inputs.Target }];
     }
 
     private static Condition? Find(Condition c, Func<Condition, bool> pred)

@@ -3,7 +3,9 @@ using Tasktor.Contracts.Platform;
 using Tasktor.Contracts.Snapshot;
 using Tasktor.Core.Actions;
 using Tasktor.Core.Logging;
+using Tasktor.Core.Features;
 using Tasktor.Core.Plugins;
+using Tasktor.Core.Rules;
 using Tasktor.Core.Loop;
 using Tasktor.Core.State;
 using Tasktor.Core.Storage;
@@ -38,6 +40,12 @@ public sealed record AgentOptions
 
     /// <summary>How the install key is protected at rest (DPAPI on Windows).</summary>
     public KeyProtection KeyProtection { get; init; } = KeyProtection.None;
+
+    /// <summary>Opens URIs, files and folders (the shell); tests record calls.</summary>
+    public Func<string, bool> Launch { get; init; } = ShellLauncher.Launch;
+
+    /// <summary>For tests: run source reads inline instead of on the thread pool.</summary>
+    public Action<Action>? OffLoopReads { get; init; }
 
     /// <summary>For tests: run handlers inline instead of on the thread pool.</summary>
     public Func<Func<ActionResult>, Task<ActionResult>>? OffLoop { get; init; }
@@ -110,6 +118,7 @@ public sealed class AgentHost : IAsyncDisposable
         };
         Plugins.Changed += OnPluginsChanged;
         Cards.Add(Plugins);
+        Rules = new RuleRunner(Loop, new RuleEngine(KnownFolder), Router, options.Notifier ?? NullNotifier.Instance, Log, () => _features, change => UpdateState(change));
         RegisterCoreHandlers();
         RegisterStorageHandlers();
         RegisterPluginHandlers();
@@ -156,6 +165,77 @@ public sealed class AgentHost : IAsyncDisposable
 
     public PluginHost Plugins { get; }
 
+    public RuleRunner Rules { get; }
+
+    public InternalTasks InternalTasks { get; } = new();
+
+    public IReadOnlyList<Feature> Features => _features;
+
+    private readonly List<Feature> _features = [];
+
+    /// <summary>A context for a feature: the loop, scheduler, router, state and the platform services of this host.</summary>
+    public FeatureContext NewFeatureContext() => new()
+    {
+        Loop = Loop,
+        Scheduler = Scheduler,
+        Router = Router,
+        Log = Log,
+        Settings = Settings,
+        Store = Store,
+        UpdateState = UpdateState,
+        State = () => State.Current,
+        RegisterPull = Pipe.RegisterPull,
+        Notifier = Options.Notifier ?? NullNotifier.Instance,
+        Processes = Processes,
+        Key = Key,
+        Launch = Options.Launch,
+        Persist = (path, bytes) => _writer.Enqueue(path, bytes),
+        RulesDirty = Rules.MarkDirty,
+        RuleEnabled = id => Rules.Engine.Rules.IsOn(id),
+        OffLoop = Options.OffLoopReads ?? (work => Task.Run(work)),
+    };
+
+    /// <summary>Attach and enable a feature (loop-only after start).</summary>
+    public void AddFeature(Feature feature)
+    {
+        ArgumentNullException.ThrowIfNull(feature);
+        _features.Add(feature);
+        Cards.Add(feature);
+        feature.Enable();
+        Publisher.MarkChanged();
+    }
+
+    /// <summary>Load <c>rules.default.json</c> (install dir) + ticked pack rules + the user's <c>rules.json</c>; swap the set.</summary>
+    public RuleSet ReloadRules()
+    {
+        var defaultsPath = Path.Combine(Options.InstallDir, "rules.default.json");
+        var defaults = File.Exists(defaultsPath) ? File.ReadAllText(defaultsPath) : null;
+        var user = File.Exists(Store.Rules) ? File.ReadAllText(Store.Rules) : null;
+        var pack = Plugins.TickedPackRules((packId, ruleId) => Consents.Current.Modules.ContainsKey("pack:" + packId + ":" + ruleId));
+        var set = RulesLoader.Load(defaults, user, Consents.HasArrangeConsent, pack is null ? null : [pack]);
+        Rules.SetRules(set);
+        RulesReloaded?.Invoke(set);
+        Rules.MarkDirty();
+        return set;
+    }
+
+    /// <summary>Raised on the loop after the rule set changed (features re-read groups, the error card updates).</summary>
+    public event Action<RuleSet>? RulesReloaded;
+
+    private string? KnownFolder(string name) => name switch
+    {
+        "Downloads" => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads"),
+        "Documents" => Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+        "Desktop" => Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
+        "UserProfile" => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        "LocalAppData" => Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Temp" => Path.GetTempPath(),
+        "Pictures" => Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
+        "Music" => Environment.GetFolderPath(Environment.SpecialFolder.MyMusic),
+        "Videos" => Environment.GetFolderPath(Environment.SpecialFolder.MyVideos),
+        _ => null,
+    };
+
     /// <summary>Raised on the loop when the user asks to quit (tray, flyout).</summary>
     public event Action? QuitRequested;
 
@@ -191,6 +271,7 @@ public sealed class AgentHost : IAsyncDisposable
     {
         Loop.Start();
         Loop.Post(() => Plugins.Discover(Loop.Clock.UtcNow));
+        Loop.Post(() => ReloadRules());
         Loop.Post(() => Publisher.Publish(force: true));
         Pipe.Start();
     }

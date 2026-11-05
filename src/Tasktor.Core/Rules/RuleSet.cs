@@ -52,4 +52,9 @@ public sealed class RuleSet
     public IReadOnlyList<GroupingRule> Grouping { get; }
 
     public CompiledRule? Find(string id) => Rules.FirstOrDefault(r => r.Id == id);
+
+    /// <summary>Ids switched off with <c>"enabled": false</c> (built-in watches such as A5's disk-low honour these).</summary>
+    public IReadOnlySet<string> Disabled { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+
+    public bool IsOn(string id) => !Disabled.Contains(id);
 }

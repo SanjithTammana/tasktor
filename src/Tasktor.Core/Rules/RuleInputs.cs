@@ -56,6 +56,12 @@ public sealed class RuleInputs
 
     public List<RuleEvent> Events { get; } = [];
 
+    /// <summary>Placeholders every subject sees (e.g. A6's <c>{offender}</c>, <c>{growth}</c>).</summary>
+    public Dictionary<string, string> Fields { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>The action target for rules without a subject of their own (e.g. A6's offender app).</summary>
+    public Dictionary<string, string>? Target { get; set; }
+
     public RuleInputs Metric(string id, double value, string instance = "")
     {
         Metrics[new MetricKey(id, instance)] = value;
