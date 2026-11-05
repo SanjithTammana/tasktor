@@ -6,4 +6,5 @@ dotnet format Tasktor.Linux.slnf --verify-no-changes
 dotnet build Tasktor.Linux.slnf -warnaserror -nologo -v q
 dotnet test Tasktor.Linux.slnf --no-build -nologo -v q
 python3 -m pytest -q worker
+command -v node >/dev/null && scripts/test-extension.sh
 echo "check: all green"

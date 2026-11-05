@@ -1,0 +1,8 @@
+{
+  "type": "block_request",
+  "at": "2026-01-01T00:00:00Z",
+  "request_id": "1",
+  "op": "add",
+  "kind": "site",
+  "host": "example.com"
+}

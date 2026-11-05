@@ -20,6 +20,7 @@ public static class SchemaCatalog
         var c = ContractsJsonContext.Default;
         return
         [
+            new("tasktor.browser-1.json", ContractIds.Browser, "Tasktor browser messages", c.BrowserMessage),
             new("tasktor.snapshot-1.json", ContractIds.Snapshot, "Tasktor snapshot (state + cards)", c.Snapshot),
             new("tasktor.action-request-1.json", ContractIds.Action, "Tasktor action request", c.ActionRequest),
             new("tasktor.action-result-1.json", ContractIds.Action, "Tasktor action result", c.ActionResult),
@@ -75,6 +76,11 @@ public static class SchemaCatalog
 
     private static JsonNode Transform(JsonSchemaExporterContext context, JsonNode schema)
     {
+        if (context.PropertyInfo?.Name == "host" && context.TypeInfo.Type == typeof(string) && schema is JsonObject hostSchema)
+        {
+            hostSchema["pattern"] = "^[a-z0-9.-]{1,253}$";
+        }
+
         if (context.TypeInfo.Type == typeof(Value))
         {
             // A literal (scalar or array) or a binding {"bind": "<JSON Pointer>"} (U1 D-H2).

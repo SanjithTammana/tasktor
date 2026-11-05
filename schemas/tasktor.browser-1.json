@@ -1,0 +1,306 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tasktor:schema:tasktor.browser-1.json",
+  "title": "Tasktor browser messages",
+  "description": "Contract tasktor.browser/1. Generated from the C# records in Tasktor.Contracts; do not edit by hand.",
+  "type": "object",
+  "required": [
+    "type"
+  ],
+  "anyOf": [
+    {
+      "properties": {
+        "type": {
+          "const": "hello"
+        },
+        "contract": {
+          "type": "integer"
+        },
+        "client": {
+          "type": "string"
+        },
+        "browser": {
+          "type": "string"
+        },
+        "extension_version": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "contract",
+        "client",
+        "browser",
+        "extension_version",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "tab"
+        },
+        "tab": {
+          "type": "integer"
+        },
+        "window": {
+          "type": "integer"
+        },
+        "host": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-z0-9.-]{1,253}$"
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "audible": {
+          "type": "boolean"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "tab",
+        "window",
+        "active",
+        "audible",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "focus"
+        },
+        "tab": {
+          "type": "integer"
+        },
+        "field": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "tab",
+        "field",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "visibility"
+        },
+        "tab": {
+          "type": "integer"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "tab",
+        "visible",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "tab_closed"
+        },
+        "tab": {
+          "type": "integer"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "tab",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "block_request"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "op": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "host": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-z0-9.-]{1,253}$"
+        },
+        "tab": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "minutes": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "request_id",
+        "op",
+        "kind",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "welcome"
+        },
+        "contract": {
+          "type": "integer"
+        },
+        "blocks": {
+          "type": "object",
+          "properties": {
+            "paused": {
+              "type": "boolean"
+            },
+            "paused_until": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            },
+            "excluded_hosts": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "paused_tabs": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
+          },
+          "required": [
+            "paused",
+            "excluded_hosts",
+            "paused_tabs"
+          ]
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "contract",
+        "blocks",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "blocks"
+        },
+        "state": {
+          "type": "object",
+          "properties": {
+            "paused": {
+              "type": "boolean"
+            },
+            "paused_until": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            },
+            "excluded_hosts": {
+              "$ref": "#/anyOf/6/properties/blocks/properties/excluded_hosts"
+            },
+            "paused_tabs": {
+              "$ref": "#/anyOf/6/properties/blocks/properties/paused_tabs"
+            }
+          },
+          "required": [
+            "paused",
+            "excluded_hosts",
+            "paused_tabs"
+          ]
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "state",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "ack"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "request_id",
+        "ok",
+        "at"
+      ]
+    }
+  ]
+}

@@ -3,6 +3,7 @@ namespace Tasktor.Contracts;
 /// <summary>Public contract ids (U1 D-H1). The major lives in the id.</summary>
 public static class ContractIds
 {
+    public const string Browser = "tasktor.browser/1";
     public const string Snapshot = "tasktor.snapshot/1";
     public const string Action = "tasktor.action/1";
     public const string Rules = "tasktor.rules/1";
