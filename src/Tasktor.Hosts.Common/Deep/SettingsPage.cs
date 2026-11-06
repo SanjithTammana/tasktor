@@ -54,6 +54,9 @@ public static class SettingsPage
         ];
     }
 
+    /// <summary>Opens the user's rules.json in an editor (created with a short guide if missing); a save reloads the rules.</summary>
+    public static CardAction EditRules { get; } = new() { Id = "edit-rules", Label = "Edit rules.json", Action = "rules.edit" };
+
     /// <summary>A rule's switch: written into rules.json by the agent as a toggle (the user's text is kept).</summary>
     public static CardAction SwitchRule(RuleRow row, bool on)
     {

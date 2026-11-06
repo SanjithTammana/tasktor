@@ -15,6 +15,11 @@ public static class RulesToggle
     private static readonly JsonReaderOptions Reader = new() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
     private static readonly JsonDocumentOptions Doc = new() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
 
+    /// <summary>A new user rules.json: a comment pointing at the shipped rules and the grammar, and an empty list.</summary>
+    public const string Starter = "// Your Tasktor rules. The shipped ones are in rules.default.json in the install folder; a rule here with the\n"
+        + "// same id replaces one of them, and { \"id\": \"…\", \"enabled\": false } turns one off. Settings' switches add those lines.\n"
+        + "{\n  \"rules\": [\n  ],\n}\n";
+
     public static string Apply(string? text, string id, bool enabled)
     {
         ArgumentNullException.ThrowIfNull(id);

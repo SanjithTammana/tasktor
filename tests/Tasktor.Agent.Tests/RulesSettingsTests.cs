@@ -41,4 +41,60 @@ public sealed class RulesSettingsTests
         Assert.Equal(ActionStatus.Failed, refused.Status); // never overwrite a file we cannot read
         Assert.Equal("{ broken", File.ReadAllText(store.Layout.Rules));
     }
+
+    [Fact]
+    public async Task Edit_opens_rules_json_creating_a_starter_once_and_never_touching_an_existing_one()
+    {
+        using var store = new TempStore();
+        var launched = new List<string>();
+        await using var host = new AgentHost(new AgentOptions
+        {
+            Store = store.Layout,
+            PipeName = "tasktor-test-" + Guid.NewGuid().ToString("N")[..12],
+            Launch = t =>
+            {
+                lock (launched)
+                {
+                    launched.Add(t);
+                }
+
+                return true;
+            },
+        });
+        host.Start();
+        async Task<ActionResult> Edit() =>
+            await (await host.Loop.InvokeAsync(() => host.Router.Submit(new ActionRequest { Action = "rules.edit", Origin = Origin.Flyout }))).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(ActionStatus.Ok, (await Edit()).Status);
+        var starter = File.ReadAllText(store.Layout.Rules);
+        Assert.Contains("rules.default.json", starter, StringComparison.Ordinal); // says where the shipped rules are
+        Assert.Empty(Core.Rules.RulesLoader.Load(null, starter).Errors); // and loads clean
+
+        File.WriteAllText(store.Layout.Rules, "// mine\n{ \"rules\": [] }");
+        Assert.Equal(ActionStatus.Ok, (await Edit()).Status);
+        Assert.Equal("// mine\n{ \"rules\": [] }", File.ReadAllText(store.Layout.Rules));
+        lock (launched)
+        {
+            Assert.Equal(["edit:" + store.Layout.Rules, "edit:" + store.Layout.Rules], launched);
+        }
+    }
+
+    [Fact]
+    public async Task Saving_rules_json_reloads_the_rules_while_the_agent_runs()
+    {
+        using var store = new TempStore();
+        await using var host = new AgentHost(new AgentOptions { Store = store.Layout, PipeName = "tasktor-test-" + Guid.NewGuid().ToString("N")[..12] });
+        host.Start();
+        await host.Loop.InvokeAsync(() => true); // started, first load done
+        File.WriteAllText(store.Layout.Rules, """{ "rules": [ { "id": "late", "when": { "metric": "system.cpu_pct", "above": 95 }, "then": [ { "pause": "refits" } ] } ] }""");
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        var seen = false;
+        while (!seen && DateTime.UtcNow < deadline)
+        {
+            seen = await host.Loop.InvokeAsync(() => host.RulesReport().Rules.Any(r => r.Id == "late"));
+            await Task.Delay(100);
+        }
+
+        Assert.True(seen, "rules.json was saved but the rules did not reload (U1: hot reload)");
+    }
 }
