@@ -163,7 +163,7 @@ public sealed partial class ShelfWindow : Window
         }
 
         var critical = severity == Severity.Critical;
-        SeverityMark.Fill = Brush(critical ? "TasktorCriticalBrush" : "TasktorCautionBrush");
+        SeverityMark.Fill = ThemeBrush(critical ? "TasktorCriticalBrush" : "TasktorCautionBrush");
         SeverityMark.Data = critical
             ? new EllipseGeometry { Center = new Point(5, 5), RadiusX = 5, RadiusY = 5 }
             : Triangle();
