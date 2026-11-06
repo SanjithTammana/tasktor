@@ -31,6 +31,26 @@ public sealed class AllModulesTests
     }
 
     [Fact]
+    public async Task The_composed_agent_samples_by_itself()
+    {
+        // Regression: nothing ticked the scheduler, so the real agent never sampled (empty System card on Windows).
+        using var store = new TempStore();
+        await using var host = Composition.Create(store.Layout);
+        host.Start();
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(15);
+        long runs = 0;
+        while (DateTime.UtcNow < deadline && runs == 0)
+        {
+            runs = await host.Loop.InvokeAsync(() => host.Scheduler.Runs(Core.Features.SystemMonitor.SystemTotals.SamplerName));
+            await Task.Delay(100);
+        }
+
+        Assert.True(runs > 0, "the system sampler never ran");
+        var (leased, apps) = await host.Loop.InvokeAsync(() => (host.Scheduler.LeaseCount(Core.Features.SystemMonitor.Apps.SamplerName), host.Scheduler.Runs(Core.Features.SystemMonitor.Apps.SamplerName)));
+        Assert.True(leased == 0 || apps > 0, "the process sampler is leased but never ran");
+    }
+
+    [Fact]
     public async Task The_composed_agent_starts_with_every_module_on_and_adds_each_feature()
     {
         using var store = new TempStore();

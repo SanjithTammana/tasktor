@@ -14,6 +14,9 @@ public sealed class Scheduler
 
     public Scheduler(IClock clock) => _clock = clock;
 
+    /// <summary>A lease was taken or released, so <see cref="NextDue"/> may have moved (the driver re-arms its timer).</summary>
+    public event Action? Changed;
+
     /// <summary>Register a sampler. <paramref name="run"/> gets the column union; <paramref name="release"/> runs when the last lease goes.</summary>
     public void Register(string name, Action<ColumnSet> run, Action? release = null)
     {
@@ -48,6 +51,7 @@ public sealed class Scheduler
             s.NextDue = _clock.UtcNow;
         }
 
+        Changed?.Invoke();
         return lease;
     }
 
@@ -111,6 +115,8 @@ public sealed class Scheduler
             s.NextDue = null;
             s.ReleaseBuffers?.Invoke();
         }
+
+        Changed?.Invoke();
     }
 
     internal sealed class Sampler(string name, Action<ColumnSet> run, Action? release)
