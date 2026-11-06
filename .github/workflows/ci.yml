@@ -52,3 +52,10 @@ jobs:
       - name: G-net runtime (the agent never connects, with every Module on)
         shell: pwsh
         run: ./scripts/gnet-runtime.ps1
+      - name: Windows integration (DPAPI, winsqlite3 WAL, pipe ACL, Job Object, capture supervision)
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        run: ./scripts/windows-integration.ps1
+      - name: G-aot (Native AOT publish of the agent, no trim / AOT warnings)
+        if: ${{ !cancelled() }}
+        run: dotnet publish src/Tasktor.Agent/Tasktor.Agent.csproj -c Release -r win-x64 -p:PublishAot=true -warnaserror -o out/agent-aot
