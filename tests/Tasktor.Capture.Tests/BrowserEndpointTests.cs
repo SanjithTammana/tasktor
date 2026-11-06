@@ -33,6 +33,76 @@ public sealed class BrowserEndpointTests : IDisposable
 
     private static BrowserTab Tab(int id, string? host, bool active = true) => new() { At = T0, Tab = id, Window = 1, Host = host, Active = active, Audible = false };
 
+    private static BrowserTab Page(int id, string host, string url, string? title = null) => new() { At = T0, Tab = id, Window = 1, Host = host, Active = true, Audible = false, Url = url, Title = title };
+
+    private static BrowserText Text(int tab, params string[] lines) => new() { At = T0, Tab = tab, Lines = lines };
+
+    [Fact]
+    public void Page_text_becomes_a_walk_with_stable_refs_in_the_pages_view()
+    {
+        var (_, ep, _) = World();
+        var seen = new List<(string App, int Tab, UiaWalk Walk)>();
+        ep.TextSeen += (app, tab, walk, _) => seen.Add((app, tab, walk));
+        ep.Handle("s1", Hello());
+        ep.Handle("s1", Page(5, "docs.example.com", "https://docs.example.com/guide?x=1", "Guide"));
+        ep.Handle("s1", Text(5, "Guide", "Step one", "Step one", "  "));
+        ep.Handle("s1", Text(5, "Guide", "Step one", "Step one", "Step two"));
+
+        Assert.Equal(2, seen.Count);
+        var (app, tab, first) = seen[0];
+        Assert.Equal(("chrome.exe", 5), (app, tab));
+        Assert.Equal(["Guide", "Step one", "Step one"], first.Strings); // blank lines dropped
+        Assert.NotEqual(first.Lines[1].Ref, first.Lines[2].Ref); // equal lines stay distinct
+        Assert.Equal(first.Lines.Select(l => l.Ref), seen[1].Walk.Lines.Take(3).Select(l => l.Ref)); // and stable across walks
+        Assert.Equal(first.View, seen[1].Walk.View);
+    }
+
+    [Fact]
+    public void A_new_path_is_a_new_view_but_a_new_query_is_not()
+    {
+        Assert.Equal(BrowserEndpoint.PageRef("a.example", "https://a.example/p?x=1#f"), BrowserEndpoint.PageRef("a.example", "https://a.example/p?y=2"));
+        Assert.NotEqual(BrowserEndpoint.PageRef("a.example", "https://a.example/p"), BrowserEndpoint.PageRef("a.example", "https://a.example/q"));
+        Assert.NotEqual(BrowserEndpoint.ToWalk("chrome", 1, 7, ["x"]).View, BrowserEndpoint.ToWalk("edge", 1, 7, ["x"]).View);
+    }
+
+    [Fact]
+    public void Text_and_media_for_unknown_paused_or_excluded_tabs_are_dropped()
+    {
+        var (_, ep, ctl) = World();
+        var texts = 0;
+        var media = 0;
+        ep.TextSeen += (_, _, _, _) => texts++;
+        ep.MediaSeen += (_, _, _, _) => media++;
+        ep.Handle("s1", Hello());
+        ep.Handle("s1", Text(9, "unknown tab"));
+        ep.Handle("s1", Page(1, "bank.example.com", "https://bank.example.com/"));
+        ep.Handle("s1", new BrowserBlockRequest { At = T0, RequestId = "r1", Op = "add", Kind = "site", Host = "bank.example.com" });
+        ep.Handle("s1", Text(1, "Balance 1,234"));
+        ep.Handle("s1", new BrowserMedia { At = T0, Tab = 1, Playing = true });
+        Assert.Equal((0, 0), (texts, media));
+
+        ep.Handle("s1", Page(2, "video.example.com", "https://video.example.com/watch"));
+        var playing = new List<(bool, double?)>();
+        ep.MediaSeen += (_, _, p, pos) => playing.Add((p, pos));
+        ep.Handle("s1", new BrowserMedia { At = T0, Tab = 2, Playing = true, PositionS = 12.5 });
+        Assert.Equal([(true, (double?)12.5)], playing);
+        Assert.True(ep.Rejected >= 3);
+    }
+
+    [Fact]
+    public void A_tabs_address_and_title_are_kept_as_personal_data()
+    {
+        var (_, ep, _) = World();
+        TabContext? ctx = null;
+        ep.ContextChanged += (_, _, c) => ctx = c;
+        ep.Handle("s1", Hello());
+        ep.Handle("s1", Page(3, "mail.example.com", "https://mail.example.com/inbox/123", "Inbox (3)"));
+        Assert.Equal("https://mail.example.com/inbox/123", ctx!.Url!.Value.Reveal());
+        Assert.Equal("Inbox (3)", ctx.Title!.Value.Reveal());
+        Assert.DoesNotContain("inbox", ctx.ToString(), StringComparison.OrdinalIgnoreCase); // never in a log line
+    }
+
+
     [Fact]
     public void Hello_checks_the_contract_and_nothing_counts_before_it()
     {

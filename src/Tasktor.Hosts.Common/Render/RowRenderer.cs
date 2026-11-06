@@ -15,6 +15,9 @@ public enum RowKind
     TableHeader,
     TableRow,
     Chart,
+
+    /// <summary>A pulled tree (<see cref="CardRow.Series"/> names the table, e.g. <c>processes</c>): apps → processes.</summary>
+    Tree,
 }
 
 /// <summary>
@@ -127,7 +130,7 @@ public sealed class RowRenderer(DateTimeOffset now) : IBlockRenderer<CardRows>
 
                 break;
             case TreeBlock tree:
-                rows.Add(new CardRow(RowKind.Value, tree.Label ?? tree.Table, "Open the table"));
+                rows.Add(new CardRow(RowKind.Tree, tree.Label ?? "Apps", Series: tree.Table));
                 break;
             default:
                 break; // ActionsBlock is drawn from the card's actions; unknown kinds are skipped

@@ -62,6 +62,18 @@
         "audible": {
           "type": "boolean"
         },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "at": {
           "type": "string",
           "format": "date-time"
@@ -134,6 +146,59 @@
       },
       "required": [
         "tab",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "text"
+        },
+        "tab": {
+          "type": "integer"
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "tab",
+        "lines",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "media"
+        },
+        "tab": {
+          "type": "integer"
+        },
+        "playing": {
+          "type": "boolean"
+        },
+        "position_s": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "tab",
+        "playing",
         "at"
       ]
     },
@@ -252,10 +317,10 @@
               "format": "date-time"
             },
             "excluded_hosts": {
-              "$ref": "#/anyOf/6/properties/blocks/properties/excluded_hosts"
+              "$ref": "#/anyOf/8/properties/blocks/properties/excluded_hosts"
             },
             "paused_tabs": {
-              "$ref": "#/anyOf/6/properties/blocks/properties/paused_tabs"
+              "$ref": "#/anyOf/8/properties/blocks/properties/paused_tabs"
             }
           },
           "required": [

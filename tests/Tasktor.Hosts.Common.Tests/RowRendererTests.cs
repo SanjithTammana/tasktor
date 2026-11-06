@@ -72,7 +72,7 @@ public sealed class RowRendererTests
         Assert.Equal((RowKind.Chart, "system.cpu_pct", "%"), (rows[3].Kind, rows[3].Series, rows[3].Value));
         Assert.Equal("in 25 min", rows[4].Value);
         Assert.Equal("at 12:30", rows[5].Value);
-        Assert.Equal(("processes", "Open the table"), (rows[6].Label, rows[6].Value));
+        Assert.Equal((RowKind.Tree, "Apps", "processes"), (rows[6].Kind, rows[6].Label, rows[6].Series));
     }
 
     [Fact]

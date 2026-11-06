@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Tasktor.Contracts;
 using Tasktor.Contracts.Actions;
 using Tasktor.Contracts.Cards;
@@ -97,6 +98,7 @@ public sealed class PresetRestorer(FeatureContext context) : Feature(context)
         Context.Router.Register("preset.arrange", Arrange);
         Context.Router.Register("preset.apply", Apply);
         Context.Router.Register("preset.undo", Undo);
+        Context.RegisterPull("presets", _ => PullPresets());
         Events?.Start(e =>
         {
             _interventions.On(e); // on the source thread: a drag is visible to an in-flight restore at once
@@ -206,6 +208,31 @@ public sealed class PresetRestorer(FeatureContext context) : Feature(context)
                 else lease?.Dispose();
             },
         };
+    }
+
+    /// <summary>
+    /// The deep window's Windows page (U4 D-G3): each preset's name, slot and launch counts, hotkey and whether an undo is
+    /// waiting for it. Never an app path, argument, window title or match pattern.
+    /// </summary>
+    private JsonNode PullPresets()
+    {
+        var now = Context.Clock.UtcNow;
+        var list = new JsonArray();
+        foreach (var p in _store.Current.Presets)
+        {
+            var key = "user:" + p.Name.ToUpperInvariant();
+            list.Add((JsonNode)new JsonObject
+            {
+                ["name"] = p.Name,
+                ["slots"] = p.Slots.Count,
+                ["launches"] = p.Slots.Count(s => s.Launch is not null),
+                ["layouts"] = p.Fancyzones?.Count ?? 0,
+                ["hotkey"] = p.Hotkey,
+                ["can_undo"] = _undos.TryGetValue(key, out var snapshot) && !snapshot.Expired(now),
+            });
+        }
+
+        return new JsonObject { ["presets"] = list };
     }
 
     private void StartWait(LaunchWait wait)
