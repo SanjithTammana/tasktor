@@ -79,7 +79,7 @@ public sealed partial class MainWindow : Window
         }
 
         Nav.SelectedItem = Nav.MenuItems.OfType<NavigationViewItem>().FirstOrDefault(i => (string)i.Tag == _page);
-        if (fromSnapshot && _page is "settings" or "data")
+        if (fromSnapshot && _page is "settings" or "data" or "learned")
         {
             return;
         }
@@ -122,6 +122,12 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (_page == "learned")
+        {
+            DrawLearned();
+            return;
+        }
+
         var shown = DeepPages.CardsFor(_page, cards);
         if (shown.Count == 0 && _page != "data")
         {
@@ -155,6 +161,51 @@ public sealed partial class MainWindow : Window
         foreach (var section in DataPage.Sections(_data, TimeZoneInfo.Local))
         {
             PageContent.Children.Add(Section(section));
+        }
+    }
+
+    private System.Text.Json.Nodes.JsonNode? _learned;
+    private bool _pullingLearned;
+
+    /// <summary>"What Tasktor learned": the agent's learned pull as sections; pulled again after any action here.</summary>
+    private void DrawLearned()
+    {
+        if (_learned is null && !_pullingLearned)
+        {
+            _pullingLearned = true;
+            _ = PullLearnedAsync();
+        }
+
+        if (_learned is null)
+        {
+            PageContent.Children.Add(Text(_snapshot.Connected ? "Reading what Tasktor learned…" : "Tasktor is not running.", "TasktorInk2Brush"));
+            return;
+        }
+
+        foreach (var section in LearnedPage.Sections(_learned))
+        {
+            PageContent.Children.Add(Section(section));
+        }
+    }
+
+    private async Task PullLearnedAsync()
+    {
+        try
+        {
+            _learned = await _snapshot.PullAsync("learned");
+        }
+        catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+            // stays on "Reading…" until the next visit
+        }
+        finally
+        {
+            _pullingLearned = false;
+        }
+
+        if (_page == "learned")
+        {
+            Draw(_snapshot.Mirror.Cards);
         }
     }
 
@@ -534,6 +585,12 @@ public sealed partial class MainWindow : Window
         }
 
         _dataAt = DateTimeOffset.MinValue; // a forget (or anything) may change what is kept: re-count on the next draw
+        if (_page == "learned")
+        {
+            _learned = null; // relearn / forget / learning on-off: read it again
+            Draw(_snapshot.Mirror.Cards);
+        }
+
         if (!outcome.Ok && !outcome.Declined && outcome.Result is { } r)
         {
             await OnUi(() => InformAsync(r.Message ?? "Couldn't do that (" + (r.Reason ?? "failed") + ")."));
