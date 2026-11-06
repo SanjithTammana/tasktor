@@ -44,6 +44,8 @@ public sealed unsafe partial class TrayHost : IDisposable
     private const uint WmLButtonUp = 0x0202;
     private const uint WmMouseHover = 0x02A1;
     private const uint WmDpiChanged = 0x02E0;
+    private const uint WmHotKey = 0x0312;
+    private const int CommandHotKey = 1;
     private const uint NinSelect = 0x0400;
     private const uint NinKeySelect = 0x0401;
     private const uint NinPopupOpen = 0x0406;
@@ -71,6 +73,12 @@ public sealed unsafe partial class TrayHost : IDisposable
 
     /// <summary>Hover or click on the icon or the edge. Raised on the tray thread.</summary>
     public event Action? OpenRequested;
+
+    /// <summary>Win+Alt+T (U4 amended D-G12). Raised on the tray thread.</summary>
+    public event Action? CommandRequested;
+
+    /// <summary>False when another program already holds Win+Alt+T.</summary>
+    public bool HotKeyRegistered { get; private set; }
 
     /// <summary>A menu row with an action was chosen. Raised on the tray thread.</summary>
     public event Action<TrayMenuItem>? MenuChosen;
@@ -140,6 +148,7 @@ public sealed unsafe partial class TrayHost : IDisposable
                 _taskbarCreated = RegisterWindowMessageW(name);
             }
 
+            HotKeyRegistered = RegisterHotKey(_owner, CommandHotKey, 0x1 | 0x8 | 0x4000, 0x54) != 0; // MOD_ALT | MOD_WIN | MOD_NOREPEAT, 'T'
             started(true);
             ready.Set();
             RaiseDisplay();
@@ -154,6 +163,11 @@ public sealed unsafe partial class TrayHost : IDisposable
         {
             ready.Set();
             RemoveIcon();
+            if (HotKeyRegistered)
+            {
+                UnregisterHotKey(_owner, CommandHotKey);
+            }
+
             if (_edge != 0)
             {
                 DestroyWindow(_edge);
@@ -204,6 +218,9 @@ public sealed unsafe partial class TrayHost : IDisposable
                             break; // other notifications (balloons, popup close) are not used
                     }
 
+                    return true;
+                case WmHotKey when wParam == CommandHotKey:
+                    CommandRequested?.Invoke();
                     return true;
                 case WmDisplayChange or WmSettingChange:
                     RaiseDisplay();
@@ -646,6 +663,12 @@ public sealed unsafe partial class TrayHost : IDisposable
 
     [LibraryImport("user32.dll")]
     private static partial int TrackMouseEvent(TrackMouseEventData* data);
+
+    [LibraryImport("user32.dll")]
+    private static partial int RegisterHotKey(nint hwnd, int id, uint modifiers, uint key);
+
+    [LibraryImport("user32.dll")]
+    private static partial int UnregisterHotKey(nint hwnd, int id);
 
     [LibraryImport("user32.dll")]
     private static partial nint CreatePopupMenu();

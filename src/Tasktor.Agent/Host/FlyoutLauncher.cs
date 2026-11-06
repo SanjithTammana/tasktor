@@ -29,14 +29,19 @@ internal sealed class FlyoutLauncher(string installDir)
         return null;
     }
 
-    public bool ShowShelf()
+    public bool ShowShelf() => Show(ViewerSignal.ShowShelf);
+
+    public bool ShowCommand() => Show(ViewerSignal.ShowCommand);
+
+    /// <summary>Signal <paramref name="surface"/> to the running flyout, or start one that opens it.</summary>
+    public bool Show(string surface)
     {
         if (!OperatingSystem.IsWindows())
         {
             return false;
         }
 
-        if (Signal(ViewerSignal.ShowShelf))
+        if (Signal(surface))
         {
             return true;
         }
@@ -55,7 +60,13 @@ internal sealed class FlyoutLauncher(string installDir)
         Interlocked.Exchange(ref _lastStart, now);
         try
         {
-            using var p = Process.Start(new ProcessStartInfo(exe) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exe)! });
+            var start = new ProcessStartInfo(exe) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exe)! };
+            if (ViewerSignal.ArgFor(surface) is { } arg)
+            {
+                start.ArgumentList.Add(arg);
+            }
+
+            using var p = Process.Start(start);
             return p is not null;
         }
         catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException)

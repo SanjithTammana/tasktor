@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- U4 amended D-G12: the command line. One input, the verdict, results by section, the in-place confirm. -->
+<Window
+    x:Class="Tasktor.Flyout.CommandWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Tasktor command">
+
+    <Grid x:Name="Root" Background="{ThemeResource TasktorShelfBrush}" VerticalAlignment="Top">
+        <StackPanel x:Name="Body" Padding="24,20,24,20" Spacing="12">
+            <TextBox x:Name="Input" PlaceholderText="Find or do anything" FontFamily="Segoe UI Variable Display"
+                     FontSize="34" FontWeight="SemiLight" BorderThickness="0,0,0,1" Background="Transparent"
+                     AutomationProperties.Name="Find or do anything" />
+            <TextBlock x:Name="Verdict" TextWrapping="Wrap" FontSize="15" LineHeight="22"
+                       Foreground="{ThemeResource TasktorInk2Brush}" AutomationProperties.LiveSetting="Polite" />
+            <StackPanel x:Name="Results" Spacing="2" />
+            <StackPanel x:Name="ConfirmRow" Spacing="12" Visibility="Collapsed">
+                <TextBlock x:Name="ConfirmText" TextWrapping="Wrap" Style="{StaticResource TasktorBodyTextStyle}"
+                           Foreground="{ThemeResource TasktorInkBrush}" />
+                <StackPanel Orientation="Horizontal" Spacing="16">
+                    <Button x:Name="KeepButton" Style="{StaticResource AccentButtonStyle}" MinHeight="36" Padding="18,7,18,7"
+                            Content="Keep it" Click="OnKeep" />
+                    <Button x:Name="ConfirmButton" MinHeight="36" Padding="18,7,18,7" Background="Transparent" BorderThickness="0"
+                            Foreground="{ThemeResource TasktorInk2Brush}" Content="Yes, do it" Click="OnConfirm" />
+                </StackPanel>
+            </StackPanel>
+            <TextBlock x:Name="NoticeText" Visibility="Collapsed" Style="{StaticResource TasktorBodyTextStyle}"
+                       Foreground="{ThemeResource TasktorInk2Brush}" AutomationProperties.LiveSetting="Polite" />
+            <TextBlock Text="Enter runs it, Esc closes. Type an app, a job or a page." Style="{StaticResource TasktorCaptionTextStyle}"
+                       Foreground="{ThemeResource TasktorInk3Brush}" />
+        </StackPanel>
+    </Grid>
+</Window>

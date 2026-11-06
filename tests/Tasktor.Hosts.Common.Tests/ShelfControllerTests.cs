@@ -170,6 +170,11 @@ public sealed class ShelfControllerTests
     {
         Assert.Equal(ViewerSignal.ShowShelf, ViewerSignal.ForArgs(["Tasktor.Flyout.exe"]));
         Assert.Equal(ViewerSignal.OpenDeep, ViewerSignal.ForArgs(["Tasktor.Flyout.exe", "--open"]));
+        Assert.Equal(ViewerSignal.ShowCommand, ViewerSignal.ForArgs(["Tasktor.Flyout.exe", "--command"]));
+        foreach (var s in new[] { ViewerSignal.ShowShelf, ViewerSignal.ShowCommand, ViewerSignal.OpenDeep })
+        {
+            Assert.Equal(s, ViewerSignal.ForArgs(ViewerSignal.ArgFor(s) is { } a ? ["x", a] : ["x"]));
+        }
         Assert.StartsWith(@"Local\", ViewerSignal.Instance, StringComparison.Ordinal);
     }
 
