@@ -1,7 +1,8 @@
 name: release
 
 # A tag v* builds the unsigned portable release (U1 D-H12) from source, on a clean runner, with the gates that only
-# Windows can run: G-aot (Native AOT publish, warnings as errors) and the full test suite. Publishes the zip and
+# Windows can run: G-aot (Native AOT publish, warnings as errors) and the full test suite. The worker's embeddable
+# Python is downloaded, Sigstore-verified and bundled under worker\python. Publishes the zip and
 # SHA256SUMS.txt as build artifacts and on a draft GitHub release. No secrets are used.
 on:
   push:
@@ -25,7 +26,7 @@ jobs:
           global-json-file: global.json
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.13.5" # the same version as the bundled embeddable Python (scripts/bundle-python.ps1)
 
       - name: Build and test (all projects)
         run: |
@@ -61,6 +62,7 @@ jobs:
           Copy-Item schemas "$root/schemas" -Recurse
           Copy-Item README.md, LICENSE $root
           Get-ChildItem $root -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
+          ./scripts/bundle-python.ps1 -Root $root -Version 3.13.5
           Compress-Archive -Path "$root/*" -DestinationPath "dist/tasktor-$version-win-x64.zip"
           Remove-Item $root -Recurse -Force
           Get-ChildItem dist -File | ForEach-Object {
