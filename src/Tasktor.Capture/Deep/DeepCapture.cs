@@ -68,7 +68,7 @@ public sealed class DeepCapture
         {
             for (var i = 0; i < n; i++)
             {
-                _runs.Key(_buffer[i]);
+                if (_buffer[i].Kind == RawInputKind.Keyboard) _runs.Key(_buffer[i].ExtendTick(_nowMs()));
             }
 
             total += n;
@@ -220,3 +220,5 @@ public sealed class DeepCapture
 
     private string? Clean(string? text) => text is null ? null : _redactor.Scrub(text).Text;
 }
+
+
