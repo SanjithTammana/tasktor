@@ -32,8 +32,11 @@ public sealed record CardRow(
     IReadOnlyList<double>? Points = null,
     string? Series = null);
 
-/// <summary>A card as rows, with its title, severity word, plugin source, "as of" time when stale, and its actions.</summary>
-public sealed record CardRows(string Id, string Title, Severity Severity, string? Source, string? AsOf, IReadOnlyList<CardRow> Rows, IReadOnlyList<CardAction> Actions);
+/// <summary>
+/// A card as rows, with its title, severity word, plugin source, "as of" time when stale, its card-level actions, and the
+/// actions that belong to one table row (their target holds <c>{row}</c>, filled from <see cref="CardRow.RowKey"/>).
+/// </summary>
+public sealed record CardRows(string Id, string Title, Severity Severity, string? Source, string? AsOf, IReadOnlyList<CardRow> Rows, IReadOnlyList<CardAction> Actions, IReadOnlyList<CardAction> RowActions);
 
 /// <summary>
 /// U4 D-G1 / amended D-G13: the deep window's <see cref="IBlockRenderer{TOutput}"/>. Cards become Settings-style rows
@@ -58,7 +61,8 @@ public sealed class RowRenderer(DateTimeOffset now) : IBlockRenderer<CardRows>
             ? "as of " + at.ToOffset(now.Offset).ToString("H:mm", CultureInfo.InvariantCulture)
             : null;
         var actions = card.Actions.Select(a => a.Destructive == true && !a.Label.EndsWith('…') ? a with { Label = a.Label + "…" } : a).ToList();
-        return new CardRows(c.Id, c.Title, resolver.SeverityOf(c.Severity), source, asOf, rows, actions);
+        var perRow = actions.Where(NeedsRow).ToList();
+        return new CardRows(c.Id, c.Title, resolver.SeverityOf(c.Severity), source, asOf, rows, [.. actions.Except(perRow)], perRow);
     }
 
     private void Add(List<CardRow> rows, FittedBlock fb, BindingResolver r)
@@ -142,6 +146,10 @@ public sealed class RowRenderer(DateTimeOffset now) : IBlockRenderer<CardRows>
             : left < TimeSpan.FromHours(1) ? "in " + Math.Ceiling(left.TotalMinutes).ToString(CultureInfo.InvariantCulture) + " min"
             : "at " + at.ToOffset(now.Offset).ToString("H:mm", CultureInfo.InvariantCulture);
     }
+
+    /// <summary>A row action: a catalog action whose target names <c>{row}</c>.</summary>
+    public static bool NeedsRow(CardAction action) =>
+        action is { Action.Length: > 0, Target: { } t } && t.Values.Any(v => v.Contains("{row}", StringComparison.Ordinal));
 
     private static double? Fraction(double? value, double max) => value is { } v && max > 0 ? Math.Clamp(v / max, 0, 1) : null;
 

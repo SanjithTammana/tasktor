@@ -148,7 +148,22 @@ public sealed partial class MainWindow : Window
         section.Children.Add(header);
         foreach (var row in card.Rows)
         {
-            section.Children.Add(Row(row));
+            var element = Row(row);
+            if (row is { Kind: RowKind.TableRow, RowKey: { } key } && card.RowActions.Count > 0 && element is FrameworkElement fe)
+            {
+                // Right-click (or Shift+F10) on a row offers the card's row actions for that row.
+                var menu = new MenuFlyout();
+                foreach (var action in card.RowActions)
+                {
+                    var item = new MenuFlyoutItem { Text = action.Label };
+                    item.Click += async (_, _) => await RunAsync(action, key);
+                    menu.Items.Add(item);
+                }
+
+                fe.ContextFlyout = menu;
+            }
+
+            section.Children.Add(element);
         }
 
         var actions = card.Actions.Where(ShelfComposer.ShelfRunnable).ToList();
@@ -294,12 +309,12 @@ public sealed partial class MainWindow : Window
         return line;
     }
 
-    private async Task RunAsync(CardAction action)
+    private async Task RunAsync(CardAction action, string? rowKey = null)
     {
         ActionOutcome outcome;
         try
         {
-            outcome = await _invoker.InvokeAsync(action, null, summary => OnUi(() => ConfirmAsync(summary)));
+            outcome = await _invoker.InvokeAsync(action, rowKey, summary => OnUi(() => ConfirmAsync(summary)));
         }
         catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException)
         {

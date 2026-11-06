@@ -61,10 +61,12 @@ M11 is done; M12–M15 have their Linux-testable logic, gates and release workfl
 
 - **M14 deep window charts.** `Sparks` (`Hosts.Common/Render`): inline `points` win, else the `series` pull's hour; percentages on a fixed 0–100 scale, other units to their own peak; latest value and peak as text. `MainWindow` draws chart rows as a line beside the latest value, pulling each series at most every 30 s (one request in flight per series).
 
+- **M14 deep window row actions.** `CardRows.RowActions`: a card's catalog actions whose target names `{row}` belong to one table row; the deep window offers them on each keyed row's context menu (right-click / Shift+F10) and fills `{row}` from the row key; the card's own actions stay under it.
+
 ## Next
 - **M12, remaining:** wiring `DeepCapture` into `tasktor-capture`'s `Program` once its sources exist, and the Windows adapters: `LowLevelInputHook` (`WH_KEYBOARD_LL` / `WH_MOUSE_LL` into the ring, watchdog), `UiaReader` / `UiaWalkSource`, `MediaSessionSource` (SMTC + WASAPI meters), `VisibleWindows`, the secure-desktop check, the tray indicator + edge-line window (created before any hook; no indicator → exit).
 - **M14, shelf, remaining:** user actions on the timeline strip ("you lowered Chrome": needs an action history the snapshot does not carry), the command line's dimmed desktop and a configurable hotkey.
-- **M14, deep window, remaining:** the apps `Tree`, row actions on table rows, Home's pinned list from settings and its 30-minute Undo, the Learned / Focus / Windows / Your data / Settings page bodies, the six other dialogs.
+- **M14, deep window, remaining:** the apps `Tree`, Home's pinned list from settings and its 30-minute Undo, the Learned / Focus / Windows / Your data / Settings page bodies, the six other dialogs.
 - **M14, Windows UI (re-scoped by U4's 2026-11-06 amendment, D-G10–D-G16):** the deep window's remaining pages (the nine pages, seven dialogs), instead of the 400 × 640 flyout; the Widgets provider over `AdaptiveCardRenderer`, `ToastNotifier` and the tray menu from `ActionCatalog`, the switcher window + thumbnails + hotkey / hook, `PresetRestorer` with the `preset.*` handlers, `FancyZonesBridge`, `VirtualDesktopInfo`, card `module.presets`, MSIX packaging.
 - Every catalog action now has a handler (QualityGateTests' Pending list is empty).
 
