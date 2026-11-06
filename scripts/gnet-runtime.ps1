@@ -7,7 +7,7 @@ Two independent checks on a Windows runner (admin):
      however short-lived, leaves a 5157 event in the Security log.
   2. The agent's TCP connections and UDP endpoints, polled every second.
 A positive control first proves the audit sees a blocked connection (curl.exe); a gate that cannot detect one fails.
-The Module list is read from the source (every ModuleOn("…")), so a new Module is covered without editing this file.
+The Module list is read from the source (every ModuleOn("…") and RegisterModule("…")), so a new Module is covered without editing this file.
 #>
 param(
     [string]$Exe = 'src/Tasktor.Agent/bin/Release/net10.0-windows/tasktor-core.exe',
@@ -28,7 +28,7 @@ $data = Join-Path ([IO.Path]::GetTempPath()) ('tasktor-gnet-' + [guid]::NewGuid(
 New-Item -ItemType Directory -Path (Join-Path $data 'state') -Force | Out-Null
 $ids = @(Get-ChildItem -Path src -Recurse -Filter *.cs |
     Where-Object { $_.FullName -notmatch '[\\/]obj[\\/]' } |
-    Select-String -Pattern 'ModuleOn\("([a-z_]+)"\)' -AllMatches |
+    Select-String -Pattern '(?:ModuleOn|RegisterModule)\("([a-z_]+)"' -AllMatches |
     ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
 if ($ids.Count -lt 10) { throw "G-net: found only $($ids.Count) Module ids in src" }
 $modules = [ordered]@{}

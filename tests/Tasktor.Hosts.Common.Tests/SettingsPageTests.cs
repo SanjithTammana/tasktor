@@ -49,11 +49,11 @@ public sealed class SettingsPageTests
     public void Catalog_ids_are_unique_and_cover_every_Module_the_agent_composes()
     {
         Assert.Equal(ModuleCatalog.All.Count, ModuleCatalog.All.Select(m => m.Id).Distinct().Count());
-        // Every id the source reads with ModuleOn("…") (as the G-net runtime gate finds them): a new Module fails here until
-        // it has its consent text.
+        // Every id the source reads with ModuleOn("…") or registers with RegisterModule("…") (as the G-net runtime gate finds
+        // them): a new Module fails here until it has its consent text.
         var composed = Directory.EnumerateFiles(Path.Combine(RepoPaths.Root, "src"), "*.cs", SearchOption.AllDirectories)
             .Where(f => !f.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar, StringComparison.Ordinal))
-            .SelectMany(f => System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(f), "ModuleOn\\(\"([a-z_]+)\"\\)").Select(m => m.Groups[1].Value))
+            .SelectMany(f => System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(f), "(?:ModuleOn|RegisterModule)\\(\"([a-z_]+)\"").Select(m => m.Groups[1].Value))
             .ToHashSet(StringComparer.Ordinal);
         Assert.NotEmpty(composed);
         Assert.Equal(composed.Order(), ModuleCatalog.All.Select(m => m.Id).Order());
