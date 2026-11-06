@@ -58,8 +58,29 @@ public sealed class OpenAndPinTests
         Assert.Equal(ActionStatus.Ok, (await Act("card.pin", ids[0])).Status);
         Assert.Equal(ActionStatus.Refused, (await Act("card.pin", "no.such")).Status);
         await host.FlushWritesAsync(); // config is written by the coalescing writer, off the loop
-        Assert.Equal([ids[1], ids[0]], new SettingsStore(store.Layout).Load().Flyout!.PinnedCards);
+        // The first pin adds to Home's defaults (U4 OQ-G2: System, Jobs, Workflow); it does not replace them.
+        string[] expected = [.. Hosts.Common.Deep.DeepPages.DefaultPinned.Where(d => d != ids[0] && d != ids[1]), ids[1], ids[0]];
+        Assert.Equal(expected, new SettingsStore(store.Layout).Load().Flyout!.PinnedCards);
+        Assert.Equal(expected, await host.Loop.InvokeAsync(() => host.State.Current.Pinned)); // the viewer reads it from the snapshot
         Assert.Equal(ActionStatus.Ok, (await Act("card.unpin", ids[1])).Status);
-        Assert.Equal([ids[0]], host.Settings.Current.Flyout!.PinnedCards);
+        Assert.Equal([.. expected.Where(x => x != ids[1])], host.Settings.Current.Flyout!.PinnedCards);
+    }
+
+    [Fact]
+    public async Task Unpinning_a_default_keeps_the_other_defaults_and_an_empty_home_stays_empty()
+    {
+        using var store = new TempStore();
+        await using var host = new AgentHost(new AgentOptions { Store = store.Layout, PipeName = "tasktor-test-" + Guid.NewGuid().ToString("N")[..12], Launch = _ => true });
+        host.Start();
+        async Task<ActionResult> Act(string action, string card) =>
+            await (await host.Loop.InvokeAsync(() => host.Router.Submit(new ActionRequest { Action = action, Origin = Origin.Flyout, Target = new Dictionary<string, string> { ["card"] = card } }))).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Null(await host.Loop.InvokeAsync(() => host.State.Current.Pinned)); // nothing chosen yet: the defaults
+        Assert.Equal(ActionStatus.Ok, (await Act("card.unpin", "core.jobs")).Status);
+        Assert.Equal(["core.system", "core.workflow"], host.Settings.Current.Flyout!.PinnedCards);
+        await Act("card.unpin", "core.system");
+        await Act("card.unpin", "core.workflow");
+        Assert.Equal([], host.Settings.Current.Flyout!.PinnedCards!); // not null: an empty Home is a choice, not "the defaults"
+        Assert.Equal([], (await host.Loop.InvokeAsync(() => host.State.Current.Pinned))!);
     }
 }

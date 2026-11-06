@@ -841,6 +841,15 @@
             ]
           }
         },
+        "pinned": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
         "focus": {
           "type": [
             "object",

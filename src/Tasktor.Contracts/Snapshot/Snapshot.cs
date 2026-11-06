@@ -79,6 +79,9 @@ public sealed record SnapshotState
     /// <summary>Undoable actions of the last 30 minutes, newest first (U4 D-G3 Home "Undo"; the shelf's timeline).</summary>
     public IReadOnlyList<RecentAction>? RecentActions { get; init; }
 
+    /// <summary>Cards pinned to Home, in order (U4 D-G3). Null = never chosen: the defaults (System, Jobs, Workflow); empty = none.</summary>
+    public IReadOnlyList<string>? Pinned { get; init; }
+
     public FocusState? Focus { get; init; }
 
     public ConnectivityState? Connectivity { get; init; }

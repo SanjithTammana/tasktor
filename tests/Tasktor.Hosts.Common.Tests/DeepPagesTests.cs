@@ -28,6 +28,18 @@ public sealed class DeepPagesTests
         Assert.Equal(["core.system", "module.ports"], DeepPages.CardsFor("system", cards).Select(c => c.Id));
         Assert.Empty(DeepPages.CardsFor("settings", cards));
         Assert.Empty(DeepPages.CardsFor("nope", cards));
+        Assert.Empty(DeepPages.CardsFor("home", cards, [])); // an empty list is "nothing pinned"; only null means the defaults
+    }
+
+    [Fact]
+    public void Each_card_offers_pin_or_unpin_from_the_current_pins()
+    {
+        var pin = DeepPages.PinAction("module.ports", pinned: null);
+        Assert.Equal(("Pin to Home", "card.pin", "module.ports"), (pin.Label, pin.Action, pin.Target!["card"]));
+        Assert.Equal(("Unpin from Home", "card.unpin"), (DeepPages.PinAction("core.jobs", null).Label, DeepPages.PinAction("core.jobs", null).Action)); // a default
+        Assert.Equal("card.pin", DeepPages.PinAction("core.jobs", []).Action);
+        Assert.Equal(["a", "b"], DeepPages.Pinned(System.Text.Json.Nodes.JsonNode.Parse("""{"state":{"pinned":["a","b",3]}}""")));
+        Assert.Null(DeepPages.Pinned(System.Text.Json.Nodes.JsonNode.Parse("""{"state":{}}""")));
     }
 
     [Fact]

@@ -42,10 +42,29 @@ public static class DeepPages
         ArgumentNullException.ThrowIfNull(cards);
         if (pageId == Home)
         {
-            return [.. (pinned is { Count: > 0 } ? pinned : DefaultPinned).Select(id => cards.FirstOrDefault(c => c.Id == id)).OfType<Card>()];
+            return [.. (pinned ?? DefaultPinned).Select(id => cards.FirstOrDefault(c => c.Id == id)).OfType<Card>()];
         }
 
         return All.FirstOrDefault(p => p.Id == pageId) is { } page ? [.. cards.Where(c => Owns(page, c.Id))] : [];
+    }
+
+    /// <summary>Home's pins from the snapshot (<c>state.pinned</c>): null when never chosen (the defaults apply).</summary>
+    public static IReadOnlyList<string>? Pinned(System.Text.Json.Nodes.JsonNode? root) =>
+        root?["state"]?["pinned"] is System.Text.Json.Nodes.JsonArray a
+            ? [.. a.OfType<System.Text.Json.Nodes.JsonValue>().Select(v => v.TryGetValue<string>(out var s) ? s : null).OfType<string>()]
+            : null;
+
+    /// <summary>A card's own "Pin to Home" / "Unpin from Home" (<c>card.pin</c> / <c>card.unpin</c>, reversible).</summary>
+    public static CardAction PinAction(string cardId, IReadOnlyList<string>? pinned)
+    {
+        var on = (pinned ?? DefaultPinned).Contains(cardId);
+        return new CardAction
+        {
+            Id = on ? "unpin" : "pin",
+            Label = on ? "Unpin from Home" : "Pin to Home",
+            Action = on ? "card.unpin" : "card.pin",
+            Target = new Dictionary<string, string>(StringComparer.Ordinal) { ["card"] = cardId },
+        };
     }
 
     /// <summary>The page a launch asks for: the word after <c>--open</c> when it names a page, else Home.</summary>
