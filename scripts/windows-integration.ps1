@@ -104,6 +104,28 @@ try {
         if ($mods -contains 'e_sqlite3.dll' -or $mods -contains 'sqlite3.dll') { throw 'the agent loaded a bundled SQLite engine' }
     }
 
+    Test-Step 'system-sample' {
+        # The System card's live values: CPU and RAM from PDH and a non-empty apps table, within two 60 s ticks.
+        $snap = Join-Path $data 'snapshot.json'
+        try {
+            Wait-Until {
+                if (-not (Test-Path $snap)) { return $false }
+                try { $s = Get-Content $snap -Raw | ConvertFrom-Json } catch { return $false }
+                $sys = $s.state.system
+                ($null -ne $sys.cpu_pct) -and ($null -ne $sys.ram_used_pct) -and (@($s.state.apps).Count -gt 0)
+            } 130 'CPU, RAM and the apps table in the snapshot' | Out-Null
+        }
+        catch {
+            if (Test-Path $snap) {
+                $s = Get-Content $snap -Raw | ConvertFrom-Json
+                Write-Host "snapshot system: $($s.state.system | ConvertTo-Json -Compress -Depth 3)"
+                Write-Host "snapshot apps: $(@($s.state.apps).Count) rows; cards: $(@($s.cards | ForEach-Object { $_.id }) -join ',')"
+            }
+            Get-ChildItem (Join-Path $data 'log') -Filter *.log -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName -Tail 40 }
+            throw
+        }
+    }
+
     Test-Step 'pipe-owner' {
         $c = [IO.Pipes.NamedPipeClientStream]::new('.', $pipe, [IO.Pipes.PipeDirection]::InOut)
         try { $c.Connect(3000) } finally { $c.Dispose() }
