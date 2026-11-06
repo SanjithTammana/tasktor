@@ -22,6 +22,7 @@ public sealed class DeepCapture
     private readonly Func<DateTimeOffset> _now;
     private readonly Func<long> _nowMs;
     private readonly RawInput[] _buffer = new RawInput[DrainChunk];
+    private readonly Dictionary<ViewKey, (string App, string? Host)> _viewOwners = [];
     private FocusTarget? _focus;
 
     /// <param name="nowMs">The key clock: the same milliseconds the hook stamps on <see cref="RawInput.TimeMs"/>.</param>
@@ -105,6 +106,13 @@ public sealed class DeepCapture
     {
         ArgumentNullException.ThrowIfNull(walk);
         var now = _now();
+        _viewOwners[walk.View] = (app, host); // a view's later records (its volatile close-out) keep its own app's blocks
+        if (_viewOwners.Count > SnapshotDiffer.MaxViews * 2)
+        {
+            _viewOwners.Clear(); // the differ evicted most of these already; owners return with the next walk
+            _viewOwners[walk.View] = (app, host);
+        }
+
         if (_differ.Diff(walk, now, source) is not { } diff)
         {
             return null;
@@ -145,10 +153,16 @@ public sealed class DeepCapture
         _runs.Flush(_nowMs());
         foreach (var d in _differ.CloseActivity(now))
         {
-            var clean = Scrub(d);
-            if (_recorder.View(clean, _focus?.App ?? string.Empty, _focus?.Host))
+            // Recorded under the view's own app and site, never the focused one: an excluded app's view stays excluded.
+            if (!_viewOwners.TryGetValue(d.View, out var owner))
             {
-                Documents.Add(1, clean);
+                continue;
+            }
+
+            var clean = Scrub(d);
+            if (_recorder.View(clean, owner.App, owner.Host))
+            {
+                Documents.Add(TrackOf(owner.App), clean);
             }
         }
 

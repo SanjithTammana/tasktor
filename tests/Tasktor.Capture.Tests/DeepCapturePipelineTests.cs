@@ -124,4 +124,21 @@ public sealed class DeepCapturePipelineTests : IDisposable
         Assert.Contains("Next lecture", doc.Body, StringComparison.Ordinal);
         Assert.Equal(3, Records().Count(r => r.Kind == RecordKind.Media));
     }
+
+    [Fact]
+    public void An_excluded_apps_volatile_values_are_not_recorded_under_the_focused_app_at_activity_close()
+    {
+        _blocks.Add(new CaptureBlock { Id = "", Kind = BlockKind.App, Value = "bank*.exe", AddedBy = "user" });
+        _deep.Focus(new FocusTarget("w1", "e1", "notepad.exe"));
+        // A ticking balance in a 10-line view of the excluded app: small diffs (not re-baselines), so it turns volatile.
+        string[] Screen(int s) => [.. Enumerable.Range(1, 9).Select(i => "Accounts row " + i), "balance 10" + s.ToString("00", System.Globalization.CultureInfo.InvariantCulture)];
+        for (var s = 0; s <= 12; s++)
+        {
+            _deep.Walk(Walk(9, Screen(s)), "bankclient.exe", null);
+            _ms += 1000;
+        }
+
+        _deep.CloseActivity();
+        Assert.DoesNotContain(Records(), r => r.Body.Contains("balance", StringComparison.Ordinal) || r.Body.Contains("Accounts", StringComparison.Ordinal));
+    }
 }
