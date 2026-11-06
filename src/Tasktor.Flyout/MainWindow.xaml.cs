@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Shapes;
 using Tasktor.Contracts.Actions;
 using Tasktor.Contracts.Cards;
 using Tasktor.Hosts.Common.Deep;
@@ -23,6 +24,9 @@ public sealed partial class MainWindow : Window
     private readonly ActionInvoker _invoker;
     private string _page = DeepPages.Home;
     private string _pagesShown = string.Empty;
+    private readonly Dictionary<string, (System.Text.Json.Nodes.JsonNode? Node, DateTimeOffset At)> _series = [];
+    private readonly HashSet<string> _pulling = [];
+    private static readonly TimeSpan SeriesFresh = TimeSpan.FromSeconds(30);
 
     public MainWindow(SnapshotClient snapshot, string page)
     {
@@ -175,6 +179,8 @@ public sealed partial class MainWindow : Window
                 return Cells(row.Cells ?? [], header: row.Kind == RowKind.TableHeader);
             case RowKind.Text or RowKind.Alert:
                 return Line(row.Kind == RowKind.Alert ? mark.TrimEnd(' ', '·') : null, row.Label, "TasktorInkBrush");
+            case RowKind.Chart:
+                return Chart(row);
             case RowKind.Meter:
                 var meter = Line(row.Label, mark + row.Value, "TasktorInkBrush");
                 if (row.Fraction is { } f)
@@ -186,6 +192,60 @@ public sealed partial class MainWindow : Window
             default:
                 return Line(row.Label, mark + (row.Value ?? string.Empty), "TasktorInkBrush");
         }
+    }
+
+    /// <summary>A sparkline row: label, the line, and the latest value; a series is pulled from the agent and cached.</summary>
+    private StackPanel Chart(CardRow row)
+    {
+        System.Text.Json.Nodes.JsonNode? pulled = null;
+        if (row.Points is not { Count: > 0 } && row.Series is { } id)
+        {
+            if (_series.TryGetValue(id, out var cached))
+            {
+                pulled = cached.Node;
+            }
+
+            if ((!_series.ContainsKey(id) || DateTimeOffset.Now - cached.At > SeriesFresh) && _pulling.Add(id))
+            {
+                _ = PullSeriesAsync(id);
+            }
+        }
+
+        var spark = Sparks.From(row.Points, pulled, row.Value);
+        var line = Line(row.Label, spark?.Last ?? BindingResolver.Missing, "TasktorInkBrush");
+        if (spark is { Values.Count: > 1 } s)
+        {
+            const double w = 240, h = 28;
+            var poly = new Polyline { Stroke = ThemeBrush("TasktorInkBrush"), StrokeThickness = 1, Width = w, Height = h, Margin = new Thickness(0, 6, 0, 6) };
+            for (var i = 0; i < s.Values.Count; i++)
+            {
+                poly.Points.Add(new Windows.Foundation.Point(i * w / (s.Values.Count - 1), h - 1 - (s.Values[i] * (h - 2))));
+            }
+
+            AutomationProperties.SetName(poly, row.Label + ", " + s.Peak);
+            line.Children.Insert(line.Children.Count - 1, poly);
+        }
+
+        return line;
+    }
+
+    private async Task PullSeriesAsync(string id)
+    {
+        try
+        {
+            var node = await _snapshot.PullAsync("series", new Dictionary<string, string> { ["id"] = id });
+            _series[id] = (node, DateTimeOffset.Now);
+        }
+        catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+            _series[id] = (null, DateTimeOffset.Now); // try again after SeriesFresh
+        }
+        finally
+        {
+            _pulling.Remove(id);
+        }
+
+        Draw(_snapshot.Mirror.Cards);
     }
 
     /// <summary>A label-left, value-right row with a hairline under it.</summary>
