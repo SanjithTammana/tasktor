@@ -49,3 +49,6 @@ jobs:
         run: dotnet build Tasktor.sln -c Release -warnaserror
       - name: Test (.NET)
         run: dotnet test Tasktor.sln -c Release --no-build
+      - name: G-net runtime (the agent never connects, with every Module on)
+        shell: pwsh
+        run: ./scripts/gnet-runtime.ps1
