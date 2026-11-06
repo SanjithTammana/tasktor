@@ -2530,6 +2530,12 @@
                     "boolean",
                     "null"
                   ]
+                },
+                "noun": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
               "required": [
