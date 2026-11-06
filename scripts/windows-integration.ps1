@@ -195,7 +195,7 @@ finally {
 
 Write-Host ''
 $results.GetEnumerator() | ForEach-Object { Write-Host ('{0,-16} {1}' -f $_.Key, $_.Value) }
-$expected = 7
+$expected = 8 # dpapi-blob, sqlite-wal, system-sample, pipe-owner, second-user, capture-job, capture-restart, capture-dies
 if ($results.Count -ne $expected) { Write-Host "only $($results.Count) of $expected checks ran"; exit 1 }
 if ($results.Values | Where-Object { $_ -ne 'pass' }) { exit 1 }
 Write-Host 'Windows integration: all checks passed.'
