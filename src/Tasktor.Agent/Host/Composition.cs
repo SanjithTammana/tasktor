@@ -106,6 +106,7 @@ internal static class Composition
             Repaint();
         });
         tray.OpenRequested += () => launcher.ShowShelf();
+        tray.CommandRequested += () => launcher.ShowCommand();
         tray.MenuChosen += item => host.Loop.Post(() => _ = host.Router.Submit(item.Action! with { Origin = Contracts.Actions.Origin.Tray }));
         host.Publisher.Published += _ => Show();
         totals.Sampled += (_, isTick) =>

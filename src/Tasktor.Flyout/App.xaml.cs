@@ -5,7 +5,7 @@ using Tasktor.Hosts.Common.Pipe;
 namespace Tasktor.Flyout;
 
 /// <summary>
-/// The flyout process hosts the shelf and the deep window (U4 amended D-G11, D-G13). One process per logon session: a
+/// The flyout process hosts the shelf, the command line and the deep window (U4 amended D-G11–D-G13). One process per logon session: a
 /// second launch signals the first and exits. It exits on its own 30 s after nothing is showing (U1 D-H10: 0 MB at
 /// rest; the edge and the tray icon live in the agent).
 /// </summary>
@@ -16,6 +16,7 @@ public partial class App : Application
     private Mutex? _instance;
     private SnapshotClient? _snapshot;
     private ShelfWindow? _shelf;
+    private CommandWindow? _command;
     private MainWindow? _deep;
     private DispatcherQueueTimer? _exit;
 
@@ -42,13 +43,16 @@ public partial class App : Application
         _shelf = new ShelfWindow(_snapshot);
         _shelf.Hidden += StartExitCountdown;
         _shelf.DeepRequested += OpenDeep;
+        _command = new CommandWindow(_snapshot);
+        _command.Hidden += StartExitCountdown;
+        _command.DeepRequested += _ => OpenDeep(); // the page itself is opened once the deep window has pages
 
         _exit = ui.CreateTimer();
         _exit.Interval = ExitAfterHidden;
         _exit.IsRepeating = false;
         _exit.Tick += (_, _) =>
         {
-            if (_shelf?.IsShown != true && _deep is null)
+            if (_shelf?.IsShown != true && _command?.IsShown != true && _deep is null)
             {
                 Exit();
             }
@@ -56,13 +60,18 @@ public partial class App : Application
 
         Listen(ViewerSignal.ShowShelf, ui, () => _shelf.ShowShelf());
         Listen(ViewerSignal.OpenDeep, ui, OpenDeep);
-        if (wanted == ViewerSignal.OpenDeep)
+        Listen(ViewerSignal.ShowCommand, ui, () => _command.ShowCommand());
+        switch (wanted)
         {
-            OpenDeep();
-        }
-        else
-        {
-            _shelf.ShowShelf();
+            case ViewerSignal.OpenDeep:
+                OpenDeep();
+                break;
+            case ViewerSignal.ShowCommand:
+                _command.ShowCommand();
+                break;
+            default:
+                _shelf.ShowShelf();
+                break;
         }
     }
 
