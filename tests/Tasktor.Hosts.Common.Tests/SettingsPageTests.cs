@@ -92,4 +92,34 @@ public sealed class SettingsPageTests
         Assert.Empty(SettingsPage.Rules(null, TimeZoneInfo.Utc));
         Assert.Equal(("rules.edit", "Edit rules.json"), (SettingsPage.EditRules.Action, SettingsPage.EditRules.Label));
     }
+
+    [Fact]
+    public void Plugins_show_their_state_and_the_consent_says_everything_d_h7_lists()
+    {
+        var p = new Contracts.Plugins.PluginInfo
+        {
+            Id = "todo",
+            Name = "To-do count",
+            Author = "Example",
+            State = Contracts.Snapshot.PluginState.Found,
+            Reads = ["A file you choose"],
+            Network = ["api.example.com"],
+            Actions = ["Refresh"],
+            CommandLine = "python.exe main.py",
+        };
+        var rows = SettingsPage.Plugins(new Contracts.Plugins.PluginsReport
+        {
+            Plugins = [p, p with { Id = "x", Name = "Broken", State = Contracts.Snapshot.PluginState.Error, Error = "exit code 2" }, p with { Id = "y", Name = "Live", State = Contracts.Snapshot.PluginState.Ok }],
+        });
+        Assert.Equal([("To-do count", "Found, off", false), ("Broken", "Error: exit code 2", true), ("Live", "On", true)], rows.Select(r => (r.Title, r.Note, r.On)));
+        var consent = SettingsPage.PluginConsent(p);
+        foreach (var part in new[] { "Example", "A file you choose", "api.example.com", "Refresh", "python.exe main.py", "cannot block", "your rights" })
+        {
+            Assert.Contains(part, consent, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("declares no network use", SettingsPage.PluginConsent(p with { Network = [] }), StringComparison.Ordinal);
+        Assert.Equal(("plugin.enable", "todo"), (SettingsPage.SwitchPlugin(rows[0], on: true).Action, SettingsPage.SwitchPlugin(rows[0], true).Target!["plugin"]));
+        Assert.Equal("plugin.disable", SettingsPage.SwitchPlugin(rows[2], on: false).Action);
+    }
 }

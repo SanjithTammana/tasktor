@@ -1029,8 +1029,31 @@ public sealed class AgentHost : IAsyncDisposable
             ContractsJsonContext.Default.ModulesReport));
     }
 
+    /// <summary>U4 Settings → Plugins: every plugin folder, its state and its consent facts (U1 D-H7). Loop only.</summary>
+    public Contracts.Plugins.PluginsReport PluginsReport() => new()
+    {
+        Plugins = [.. Plugins.Statuses().Select(st =>
+        {
+            var c = Plugins.ConsentView(st.Id);
+            return new Contracts.Plugins.PluginInfo
+            {
+                Id = st.Id,
+                Name = c?.Name ?? st.Id,
+                Author = c?.Author,
+                State = st.State,
+                Error = st.Error,
+                Reads = c?.Reads ?? [],
+                Network = c?.Network ?? [],
+                Actions = c?.Actions ?? [],
+                CommandLine = c?.CommandLine,
+                Pack = c?.Pack,
+            };
+        })],
+    };
+
     private void RegisterPluginHandlers()
     {
+        Pipe.RegisterPull("plugins", _ => JsonSerializer.SerializeToNode(PluginsReport(), ContractsJsonContext.Default.PluginsReport));
         PreparedAction Plugin(ActionRequest req, Func<string, PreparedAction> make)
         {
             var id = req.Target?.GetValueOrDefault("plugin");

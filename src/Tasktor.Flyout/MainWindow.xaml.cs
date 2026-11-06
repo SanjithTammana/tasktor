@@ -422,6 +422,98 @@ public sealed partial class MainWindow : Window
         PageContent.Children.Add(list);
 
         DrawRules();
+        DrawPlugins();
+    }
+
+    private Contracts.Plugins.PluginsReport? _plugins;
+    private bool _pullingPlugins;
+
+    /// <summary>Settings → Plugins (U1 D-H7): each folder; turning one on shows its consent first (what it reads, contacts, runs).</summary>
+    private void DrawPlugins()
+    {
+        if (_plugins is null && !_pullingPlugins)
+        {
+            _pullingPlugins = true;
+            _ = PullPluginsAsync();
+        }
+
+        var rows = SettingsPage.Plugins(_plugins);
+        PageContent.Children.Add(new TextBlock { Text = "Plugins", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 16, 0, 0) });
+        if (_plugins is not null && rows.Count == 0)
+        {
+            PageContent.Children.Add(Text("No plugins. A plugin is a folder with a plugin.json in Tasktor's plugins folder.", "TasktorInk2Brush"));
+        }
+
+        var list = new StackPanel();
+        foreach (var row in rows)
+        {
+            var grid = new Grid { MinHeight = 56 };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = row.Title, Style = StyleOf("TasktorBodyTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+            text.Children.Add(new TextBlock { Text = row.Note, TextWrapping = TextWrapping.Wrap, Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush("TasktorInk3Brush") });
+            grid.Children.Add(text);
+            var toggle = new ToggleSwitch { IsOn = row.On, OnContent = "On", OffContent = "Off", VerticalAlignment = VerticalAlignment.Center };
+            AutomationProperties.SetName(toggle, row.Title);
+            toggle.Toggled += async (_, _) =>
+            {
+                if (toggle.IsOn == row.On)
+                {
+                    return;
+                }
+
+                if (toggle.IsOn)
+                {
+                    var dialog = new ContentDialog
+                    {
+                        Title = "Turn on " + row.Title + "?",
+                        Content = new ScrollViewer { Content = new TextBlock { Text = SettingsPage.PluginConsent(row.Info), TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true } },
+                        PrimaryButtonText = "Turn on",
+                        CloseButtonText = "Not now",
+                        DefaultButton = ContentDialogButton.Close,
+                        XamlRoot = Content.XamlRoot,
+                    };
+                    if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+                    {
+                        toggle.IsOn = false;
+                        return;
+                    }
+                }
+
+                await RunAsync(SettingsPage.SwitchPlugin(row, toggle.IsOn));
+                _plugins = null; // re-read the states
+                Draw(_snapshot.Mirror.Cards);
+            };
+            Grid.SetColumn(toggle, 1);
+            grid.Children.Add(toggle);
+            list.Children.Add(grid);
+            list.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
+        }
+
+        PageContent.Children.Add(list);
+    }
+
+    private async Task PullPluginsAsync()
+    {
+        try
+        {
+            var node = await _snapshot.PullAsync("plugins");
+            _plugins = node is null ? null : System.Text.Json.JsonSerializer.Deserialize(node, Contracts.ContractsJsonContext.Default.PluginsReport);
+        }
+        catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            // the list stays empty until the agent answers
+        }
+        finally
+        {
+            _pullingPlugins = false;
+        }
+
+        if (_page == "settings" && _plugins is not null)
+        {
+            Draw(_snapshot.Mirror.Cards);
+        }
     }
 
     private Contracts.Rules.RulesReport? _rules;
