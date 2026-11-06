@@ -151,6 +151,9 @@ public sealed class AgentHost : IAsyncDisposable
 
     public ConsentStore Consents { get; }
 
+    /// <summary>Wait until every queued state file (config, consents, snapshot) is on disk.</summary>
+    public Task FlushWritesAsync() => _writer.FlushAsync();
+
     public SelfUseCounter SelfUse { get; }
 
     public InstallKey Key { get; }

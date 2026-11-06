@@ -57,6 +57,7 @@ public sealed class OpenAndPinTests
         Assert.Equal(ActionStatus.Ok, (await Act("card.pin", ids[1])).Status);
         Assert.Equal(ActionStatus.Ok, (await Act("card.pin", ids[0])).Status);
         Assert.Equal(ActionStatus.Refused, (await Act("card.pin", "no.such")).Status);
+        await host.FlushWritesAsync(); // config is written by the coalescing writer, off the loop
         Assert.Equal([ids[1], ids[0]], new SettingsStore(store.Layout).Load().Flyout!.PinnedCards);
         Assert.Equal(ActionStatus.Ok, (await Act("card.unpin", ids[1])).Status);
         Assert.Equal([ids[0]], host.Settings.Current.Flyout!.PinnedCards);
