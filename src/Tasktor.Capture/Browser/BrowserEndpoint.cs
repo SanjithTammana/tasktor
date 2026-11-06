@@ -6,7 +6,8 @@ using Tasktor.Contracts.Platform;
 namespace Tasktor.Capture.Browser;
 
 /// <summary>What capture may use about one tab right now. <see cref="Secure"/> is true until an explicit focus says otherwise.</summary>
-public sealed record TabContext(Sensitive<string>? Host, bool Secure, bool Visible, bool Active);
+/// <remarks><see cref="Url"/> and <see cref="Title"/> come with T1 (C D-C22); <see cref="PageRef"/> is a hash of host + path that keys the page's view.</remarks>
+public sealed record TabContext(Sensitive<string>? Host, bool Secure, bool Visible, bool Active, Sensitive<string>? Url = null, Sensitive<string>? Title = null, ulong PageRef = 0);
 
 /// <summary>
 /// The capture host's side of <c>tasktor.browser/1</c> (D-C18): one session per connected browser. Contract check on
@@ -39,6 +40,15 @@ public sealed class BrowserEndpoint
     /// <summary>A tab's context changed (browser, tab, context): the recorder writes it unless a block applies.</summary>
     public event Action<string, int, TabContext>? ContextChanged;
 
+    /// <summary>
+    /// A tab's visible text (C18 / §5.5) as a walk for <see cref="DeepCapture.Walk"/> with
+    /// <see cref="DiffSource.Extension"/>: (app = the browser exe, tab, walk, host). Only for a known, unblocked tab.
+    /// </summary>
+    public event Action<string, int, UiaWalk, Sensitive<string>?>? TextSeen;
+
+    /// <summary>A tab's video playing / paused and where (C20.2): (app, tab, playing, position in seconds).</summary>
+    public event Action<string, int, bool, double?>? MediaSeen;
+
     public long Rejected { get; private set; }
 
     public long Accepted { get; private set; }
@@ -61,6 +71,8 @@ public sealed class BrowserEndpoint
         var replies = new List<BrowserMessage>();
         var changed = false;
         (string Browser, int Tab, TabContext Ctx)? context = null;
+        (string App, int Tab, UiaWalk Walk, Sensitive<string>? Host)? text = null;
+        (string App, int Tab, bool Playing, double? Position)? media = null;
         lock (_gate)
         {
             var now = _now();
@@ -98,7 +110,9 @@ public sealed class BrowserEndpoint
                     var host = t.Host is null ? (Sensitive<string>?)null : Sensitive.Of(t.Host);
                     var known = _tabs.TryGetValue(key, out var prev);
                     var sameHost = known && prev!.Host == host;
-                    _tabs[key] = new TabContext(host, !sameHost || prev!.Secure, known ? prev!.Visible : t.Active, t.Active);
+                    var url = t.Url is null || t.Host is null ? (Sensitive<string>?)null : Sensitive.Of(t.Url);
+                    var title = t.Title is null ? (Sensitive<string>?)null : Sensitive.Of(t.Title);
+                    _tabs[key] = new TabContext(host, !sameHost || prev!.Secure, known ? prev!.Visible : t.Active, t.Active, url, title, PageRef(t.Host, t.Url));
                     context = (browser, t.Tab, _tabs[key]);
                     break;
                 case BrowserFocus f when f.Field is "none" or "text" or "secure":
@@ -116,6 +130,24 @@ public sealed class BrowserEndpoint
                         context = (browser, v.Tab, _tabs[(browser, v.Tab)]);
                     }
 
+                    break;
+                case BrowserText x when x.Lines.Count <= BrowserText.MaxLines && x.Lines.Sum(l => l?.Length ?? 0) <= BrowserText.MaxChars:
+                    if (!_tabs.TryGetValue((browser, x.Tab), out var page) || Blocked(browser, x.Tab, page, now))
+                    {
+                        Rejected++;
+                        return replies; // an unknown or blocked tab's text is dropped before it is diffed
+                    }
+
+                    text = (BrowserExe[browser], x.Tab, ToWalk(browser, x.Tab, page.PageRef, x.Lines), page.Host);
+                    break;
+                case BrowserMedia m:
+                    if (!_tabs.TryGetValue((browser, m.Tab), out var playing) || Blocked(browser, m.Tab, playing, now))
+                    {
+                        Rejected++;
+                        return replies;
+                    }
+
+                    media = (BrowserExe[browser], m.Tab, m.Playing, m.PositionS);
                     break;
                 case BrowserTabClosed c:
                     _tabs.Remove((browser, c.Tab));
@@ -144,6 +176,16 @@ public sealed class BrowserEndpoint
         if (context is { } changedTab)
         {
             ContextChanged?.Invoke(changedTab.Browser, changedTab.Tab, changedTab.Ctx);
+        }
+
+        if (text is { } seen)
+        {
+            TextSeen?.Invoke(seen.App, seen.Tab, seen.Walk, seen.Host);
+        }
+
+        if (media is { } m2)
+        {
+            MediaSeen?.Invoke(m2.App, m2.Tab, m2.Playing, m2.Position);
         }
 
         return replies;
@@ -180,6 +222,45 @@ public sealed class BrowserEndpoint
             return hit is { } k2 ? TabKey(k2.Item1, k2.Item2) : null;
         }
     }
+
+    /// <summary>
+    /// A tab's visible text as a walk: one line per text block, its ref the line's hash (numbered when it repeats, so
+    /// equal lines stay distinct), in the view of this tab's page (tab id + a hash of host and path; a new page is a new
+    /// view, and the path itself is never kept).
+    /// </summary>
+    public static UiaWalk ToWalk(string browser, int tab, ulong pageRef, IReadOnlyList<string> lines)
+    {
+        ArgumentNullException.ThrowIfNull(lines);
+        var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+        var snap = new List<SnapLine>(lines.Count);
+        var strings = new List<string>(lines.Count);
+        foreach (var raw in lines)
+        {
+            var line = raw?.Trim() ?? string.Empty;
+            if (line.Length == 0)
+            {
+                continue;
+            }
+
+            var n = seen.GetValueOrDefault(line);
+            seen[line] = n + 1;
+            strings.Add(line);
+            snap.Add(new SnapLine(XxHash64.Hash(line, (ulong)n), Depth: 0, Role: 0, NameId: strings.Count - 1, ValueId: -1));
+        }
+
+        var window = ((long)Array.IndexOf(Browsers, browser) + 1 << 40) | (uint)tab;
+        return new UiaWalk(new ViewKey(window, pageRef), snap, strings);
+    }
+
+    /// <summary>A page's identity for its view: host + path (no query or fragment), hashed.</summary>
+    public static ulong PageRef(string? host, string? url)
+    {
+        var path = url is not null && Uri.TryCreate(url, UriKind.Absolute, out var u) ? u.AbsolutePath : "/";
+        return XxHash64.Hash((host ?? string.Empty) + path);
+    }
+
+    private bool Blocked(string browser, int tab, TabContext page, DateTimeOffset now) =>
+        _blocks.Blocking(now, BrowserExe[browser], page.Host?.Reveal(), TabKey(browser, tab)) is not null;
 
     public static string TabKey(string browser, int tab) => browser + ":" + tab.ToString(CultureInfo.InvariantCulture);
 

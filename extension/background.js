@@ -1,4 +1,4 @@
-import { hostname, allowed, validBlocks } from './logic.js';
+import { hostname, allowed, validBlocks, safeUrl, safeTitle, textLines } from './logic.js';
 
 let port;
 let blocks = null;
@@ -33,7 +33,9 @@ async function report(tab) {
   if (!allowed(tab, blocks)) { if (tab?.id !== undefined) reported.delete(tab.id); return; }
   reported.set(tab.id, hostname(tab.url));
   fields.set(tab.id, new Map([[-1, 'secure']]));
-  send({ type: 'tab', tab: tab.id, window: tab.windowId, host: hostname(tab.url), active: tab.active, audible: Boolean(tab.audible) });
+  // T1 (C D-C22): the full address (no credentials) and the title, only for tabs capture may read.
+  send({ type: 'tab', tab: tab.id, window: tab.windowId, host: hostname(tab.url), active: tab.active, audible: Boolean(tab.audible),
+    url: hostname(tab.url) ? safeUrl(tab.url) : null, title: safeTitle(tab.title) });
   send({ type: 'focus', tab: tab.id, field: 'secure' });
   chrome.tabs.sendMessage(tab.id, { type: 'refresh_focus' }).catch(() => {});
 }
@@ -52,6 +54,17 @@ chrome.tabs.onRemoved.addListener((id, info) => {
 });
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (sender.tab) {
+    if (message.type === 'may_read') { respond(sender.frameId === 0 && allowed(sender.tab, blocks)); return; }
+    if (sender.frameId === 0 && allowed(sender.tab, blocks) && message.type === 'text' && Array.isArray(message.lines)) {
+      const lines = textLines(message.lines); // the tested caps are applied here, whatever the page sent
+      if (lines.length > 0) send({ type: 'text', tab: sender.tab.id, lines });
+      return;
+    }
+    if (sender.frameId === 0 && allowed(sender.tab, blocks) && message.type === 'media' && typeof message.playing === 'boolean') {
+      const pos = Number.isFinite(message.position_s) && message.position_s >= 0 ? message.position_s : null;
+      send({ type: 'media', tab: sender.tab.id, playing: message.playing, position_s: pos });
+      return;
+    }
     if (allowed(sender.tab, blocks) && ['focus', 'visibility'].includes(message.type)) {
       if (message.type === 'focus' && ['none', 'text', 'secure'].includes(message.field)) {
         const frameFields = fields.get(sender.tab.id) || new Map();
