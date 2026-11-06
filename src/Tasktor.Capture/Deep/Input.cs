@@ -50,6 +50,7 @@ public enum KeyAction : byte
     Tab,
     Navigate,
     Chord,
+    Uncertain,
 }
 
 /// <summary>A decoded key: text, an edit, a navigation key or a chord (<c>Ctrl+S</c>), with the injected flags kept.</summary>
@@ -66,6 +67,8 @@ public enum Suppression : byte
     OwnWindow,
     Sensitive,
     Blocked,
+    UnknownField,
+    UncertainText,
 }
 
 /// <summary>How a run ended.</summary>
@@ -142,5 +145,7 @@ public sealed record KeyRun
 
     public IReadOnlyDictionary<string, int> Redactions { get; init; } = new Dictionary<string, int>();
 }
+
+
 
 
