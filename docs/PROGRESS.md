@@ -79,6 +79,8 @@ M11 is done; M12–M15 have their Linux-testable logic, gates and release workfl
 
 - **Toasts: the tray-balloon notifier (U4 D-G7 fallback).** The agent had no notifier on Windows (rules' and features' toasts went to `NullNotifier`). `BalloonNotifier` (agent) turns each `ToastRequest` into a balloon on the tray icon, which Windows 10 / 11 shows as a notification and files in the notification centre, with quiet hours / Do Not Disturb respected (`NIIF_RESPECT_QUIET_TIME`): icon from severity, title and body cut to the shell's limits, button labels as a "Click to choose" hint; a click opens the shelf where the actions live. One tag at a time: a new toast replaces the shown one, `Withdraw` clears only its own tag. A `SwitchableNotifier` is handed to the agent at construction and pointed at the balloons once the tray is up.
 
+- **Release ships the flyout.** `release.yml` did not publish `Tasktor.Flyout`, so a downloaded build had no shelf, command line or deep window for the agent to start. It now publishes it self-contained (Windows App SDK included) into `flyout\` beside the agent, where `FlyoutLauncher` looks, and fails the release if `flyout\Tasktor.Flyout.exe` is missing.
+
 ## Next
 - **M12, remaining:** wiring `DeepCapture` into `tasktor-capture`'s `Program` once its sources exist, and the Windows adapters: `LowLevelInputHook` (`WH_KEYBOARD_LL` / `WH_MOUSE_LL` into the ring, watchdog), `UiaReader` / `UiaWalkSource`, `MediaSessionSource` (SMTC + WASAPI meters), `VisibleWindows`, the secure-desktop check, the tray indicator + edge-line window (created before any hook; no indicator → exit).
 - **M14, shelf, remaining:** the command line's dimmed desktop and a configurable hotkey.

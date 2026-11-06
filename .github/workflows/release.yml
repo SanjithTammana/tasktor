@@ -46,6 +46,11 @@ jobs:
           dotnet publish src/Tasktor.Cli/Tasktor.Cli.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -warnaserror -o out/cli
           dotnet publish src/Tasktor.Capture/Tasktor.Capture.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -warnaserror -o out/capture
 
+      - name: Publish the flyout (shelf, command line, deep window)
+        # WinUI 3 with the Windows App SDK self-contained: it runs without an installed runtime. The agent starts it
+        # from flyout\Tasktor.Flyout.exe beside itself (FlyoutLauncher).
+        run: dotnet publish src/Tasktor.Flyout/Tasktor.Flyout.csproj -c Release -r win-x64 -p:Platform=x64 -warnaserror -o out/flyout
+
       - name: Assemble the portable folder
         shell: pwsh
         run: |
@@ -55,6 +60,9 @@ jobs:
           Copy-Item out/agent/* $root -Recurse
           Copy-Item out/cli/tasktor.exe $root
           Copy-Item out/capture/tasktor-capture.exe $root
+          New-Item -ItemType Directory -Force "$root/flyout" | Out-Null
+          Copy-Item out/flyout/* "$root/flyout" -Recurse
+          if (-not (Test-Path "$root/flyout/Tasktor.Flyout.exe")) { throw 'the flyout did not publish' }
           Copy-Item plugins-builtin "$root/plugins-builtin" -Recurse -Exclude "__pycache__"
           New-Item -ItemType Directory -Force "$root/worker" | Out-Null
           Copy-Item worker/tasktor_worker, worker/tasktor_reference, worker/tasktor_data "$root/worker" -Recurse -Exclude "__pycache__"
