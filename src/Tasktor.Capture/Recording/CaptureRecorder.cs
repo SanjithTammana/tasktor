@@ -10,6 +10,9 @@ public static class RecordKind
 {
     public const byte BrowserContext = 1;
     public const byte KeyRun = 2;
+    public const byte ViewDiff = 3;
+    public const byte Media = 4;
+    public const byte Document = 5;
 }
 
 /// <summary>What the vault keeps about a browser tab: host-only context, never paths, values or page text (D-C18).</summary>
@@ -18,6 +21,9 @@ public sealed record BrowserContextRecord(string Browser, int Tab, string? Host,
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(BrowserContextRecord))]
 [JsonSerializable(typeof(KeyRun))]
+[JsonSerializable(typeof(ViewDiff))]
+[JsonSerializable(typeof(MediaState))]
+[JsonSerializable(typeof(ActivityDocument))]
 internal sealed partial class RecordJsonContext : JsonSerializerContext;
 
 /// <summary>
@@ -82,6 +88,27 @@ public sealed class CaptureRecorder
     {
         ArgumentNullException.ThrowIfNull(run);
         return Write(app, host, null, RecordKind.KeyRun, JsonSerializer.SerializeToUtf8Bytes(run, RecordJsonContext.Default.KeyRun));
+    }
+
+    /// <summary>A view diff (lines already redacted), for the app (and site) it was read from.</summary>
+    public bool View(ViewDiff diff, string app, string? host)
+    {
+        ArgumentNullException.ThrowIfNull(diff);
+        return Write(app, host, null, RecordKind.ViewDiff, JsonSerializer.SerializeToUtf8Bytes(diff, RecordJsonContext.Default.ViewDiff));
+    }
+
+    /// <summary>A now-playing change; the playing app's blocks apply.</summary>
+    public bool Media(MediaState media)
+    {
+        ArgumentNullException.ThrowIfNull(media);
+        return Write(media.App, null, null, RecordKind.Media, JsonSerializer.SerializeToUtf8Bytes(media, RecordJsonContext.Default.MediaState));
+    }
+
+    /// <summary>A closed activity document. Its parts already passed their own blocks; a pause or schedule still stops it.</summary>
+    public bool Document(ActivityDocument doc)
+    {
+        ArgumentNullException.ThrowIfNull(doc);
+        return Write(null, null, null, RecordKind.Document, JsonSerializer.SerializeToUtf8Bytes(doc, RecordJsonContext.Default.ActivityDocument));
     }
 
     private bool Write(string? app, string? host, string? tab, byte kind, byte[] body)

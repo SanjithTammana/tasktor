@@ -32,6 +32,9 @@ public sealed class KeyRunBuilder
     public const int MaxChords = 16;
     public const int MaxText = 4096;
 
+    /// <summary>Recent closed runs kept for inspection; older ones live only in the vault (the host runs for weeks).</summary>
+    public const int KeepClosed = 64;
+
     private readonly KeyDecoder _decoder;
     private readonly ActorAttributor _actors;
     private readonly SecretRedactor _redactor;
@@ -196,6 +199,11 @@ public sealed class KeyRunBuilder
             LastEnter[o.Target.View] = run.EndMs;
         }
 
+        if (_closed.Count >= KeepClosed)
+        {
+            _closed.RemoveAt(0);
+        }
+
         _closed.Add(run);
         RunClosed?.Invoke(run);
         return run;
@@ -206,19 +214,7 @@ public sealed class KeyRunBuilder
     {
         ArgumentNullException.ThrowIfNull(before);
         ArgumentNullException.ThrowIfNull(after);
-        var p = 0;
-        while (p < before.Length && p < after.Length && before[p] == after[p])
-        {
-            p++;
-        }
-
-        var s = 0;
-        while (s < before.Length - p && s < after.Length - p && before[^(s + 1)] == after[^(s + 1)])
-        {
-            s++;
-        }
-
-        return after.Substring(p, after.Length - p - s);
+        return FieldTruth.Edit(before, after).Inserted;
     }
 
     private static Suppression Max(Suppression a, Suppression b) => a != Suppression.None ? a : b;
