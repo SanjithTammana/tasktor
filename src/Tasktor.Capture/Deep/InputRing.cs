@@ -35,6 +35,9 @@ public sealed class InputRing
 
     public int Capacity => _slots.Length;
 
+    /// <summary>Published writes, safe for a watchdog to read without touching the hook callback.</summary>
+    public long Written => Volatile.Read(ref _head);
+
     /// <summary>Entries lost to overwrite before the reader got to them (reader-side count).</summary>
     public long Dropped { get; private set; }
 
@@ -94,3 +97,4 @@ public sealed class InputRing
         public RawInput Value;
     }
 }
+

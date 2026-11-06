@@ -1,6 +1,7 @@
 # Capture lane report
 
 ## Done
+- Low-level hook adapter (capture: low-level hook adapter): one Windows message-loop thread installs both low-level hooks and runs the 30-second inactivity watchdog. Callbacks copy typed native events to the ring and call the next hook. Keyboard/mouse flags and 32-bit tick wrap are kept distinct. The hook and layout adapter are not yet wired into the host.
 - Merged upstream browser T1 events. Step 6 must route TextSeen to DeepCapture.Walk with DiffSource.Extension and MediaSeen to DeepCapture.Media on the logic thread; the M12 browser T1 real-PC check remains outstanding.
 - Host wiring (capture: gate host startup): consent is checked first; the indicator gate starts the capture lifetime only after indicator creation, and recording sources drain before indicator removal. Browser-pipe shutdown now waits for active sessions.
 - Indicator adapter (capture: Win32 recording indicator): capture-owned tray ring and two-pixel monitor-top windows; display and DPI messages rebuild edges, and failure is surfaced to the host. The host wiring is described above.
@@ -8,6 +9,8 @@
 - Added an indicator startup gate and synthetic tests. If stopping capture throws, the gate keeps the indicator alive and permits a retry. The gate now owns the capture host lifetime.
 
 ## Checks run
+- PASS: isolated hook probe: with the capture-owned indicator started first, keyboard and mouse hooks installed and ran for three seconds with no reported failure; the process kept event contents only in memory and printed none. No synthetic key, watchdog-removal, or secure-desktop test was performed.
+- PASS: full .NET suite (including parallel uncommitted visibility, media and desktop-guard tests): Core 466, Capture 125. Browser extension unit tests 8 passed.
 - PASS: isolated capture host smoke test: without consent, exit code 3; with consent in a temporary store, the process stayed alive for five seconds after indicator-gated startup. The process was stopped and the store deleted. No hooks are installed yet.
 - PASS: full .NET suite, including 79 Capture tests; synthetic tests cover indicator refusal, loss before start and a browser callback held open during server disposal.
 - PASS: indicator-only probe, no capture: startup succeeded on a two-monitor PC; two visible edge windows matched both monitor top bounds and were exactly two physical pixels high. Tray registration returned success. Physical monitor changes, DPI changes, and visual tray appearance remain to be verified.
@@ -25,7 +28,7 @@
 
 - PASS: four synthetic startup gate tests, including a capture-stop failure and retry; the native Windows indicator and host wiring are outstanding.
 
-- IN PROGRESS: low-level hook work is being developed separately; the existing ring requires a discriminator and mouse payload before it can safely carry both device types.
+- IN PROGRESS: secure-desktop, visible-window and media logic have synthetic tests but are not yet integrated. DeepCapture and the browser T1 events remain unwired.
 
 ## Interpretations
 - The amended D-G16 indicator is the top edge of every monitor. The first indicator must fail closed before hooks are installed.
@@ -39,9 +42,12 @@
 - StoreWriter shutdown race fixed upstream in 96c9068; no open request for that issue.
 
 ## Blockers
+- Windows layout translation is deliberately unintegrated: dead-key composition and explicit whole-run suppression for unsupported sequences are not yet implemented or verified. Do not wire this adapter as complete text decoding.
+- The specified watchdog compares aggregate input against aggregate hook events; it cannot detect one hook being silently removed while the other still receives input. This is a limitation of the specified signal, not a verified independent-hook detector.
 - No open baseline blocker; the full .NET suite passed after the upstream shutdown fix.
 
 - Windows computer-use policy disallows Win-key shortcuts, so the Win+Alt+T shortcut itself cannot be automated in this session.
+
 
 
 
