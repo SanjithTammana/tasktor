@@ -64,4 +64,19 @@ public sealed class DeepPagesTests
         Assert.Equal("home", DeepPages.Normalize(null));
         Assert.Equal("home", DeepPages.Normalize("../etc"));
     }
+
+    [Fact]
+    public void Hidden_pages_leave_the_rail_but_home_your_data_and_settings_never_do()
+    {
+        Card[] cards = [C("core.system"), C("module.focus")];
+        var shown = DeepPages.Visible(cards, ["jobs", "focus", "data", "settings", "home", "nope"]).Select(p => p.Id).ToList();
+        Assert.DoesNotContain("jobs", shown);
+        Assert.DoesNotContain("focus", shown);
+        Assert.Contains("home", shown);
+        Assert.Contains("data", shown); // forget and export stay reachable (U4)
+        Assert.Contains("settings", shown);
+        Assert.Equal(["system", "jobs", "activity", "learned", "focus", "windows"], DeepPages.Hideable.Select(p => p.Id));
+        Assert.Equal(["a", "b"], DeepPages.HiddenPages(System.Text.Json.Nodes.JsonNode.Parse("""{"state":{"hidden_pages":["a","b"]}}""")));
+        Assert.Empty(DeepPages.HiddenPages(System.Text.Json.Nodes.JsonNode.Parse("""{"state":{}}""")));
+    }
 }

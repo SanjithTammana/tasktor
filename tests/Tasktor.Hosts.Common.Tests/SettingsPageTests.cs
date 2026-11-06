@@ -90,6 +90,8 @@ public sealed class SettingsPageTests
         Assert.Equal(("rule.disable", "hot"), (SettingsPage.SwitchRule(rows[0], on: false).Action, SettingsPage.SwitchRule(rows[0], false).Target!["rule"]));
         Assert.Equal("rule.enable", SettingsPage.SwitchRule(rows[2], on: true).Action);
         Assert.Empty(SettingsPage.Rules(null, TimeZoneInfo.Utc));
+        var hide = SettingsPage.ShowPage("jobs", shown: false);
+        Assert.Equal(("settings.page", "jobs", "false"), (hide.Action, hide.Args!["page"], hide.Args["shown"]));
         Assert.Equal(("rules.edit", "Edit rules.json"), (SettingsPage.EditRules.Action, SettingsPage.EditRules.Label));
     }
 

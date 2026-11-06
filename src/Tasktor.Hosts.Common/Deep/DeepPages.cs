@@ -29,12 +29,24 @@ public static class DeepPages
         new("settings", "Settings", [], AlwaysShown: true),
     ];
 
-    /// <summary>The pages to list: every always-shown page, and a Module page only while one of its cards exists.</summary>
-    public static IReadOnlyList<DeepPage> Visible(IReadOnlyList<Card> cards)
+    /// <summary>Pages the user may hide in Settings → Appearance: all but Home, Your data and Settings (U4: forget and export stay reachable).</summary>
+    public static IReadOnlyList<DeepPage> Hideable { get; } = [.. All.Where(p => p.Id is not (Home or "data" or "settings"))];
+
+    /// <summary>
+    /// The pages to list: every always-shown page, and a Module page only while one of its cards exists, minus the ones the
+    /// user hid (never Home, Your data or Settings).
+    /// </summary>
+    public static IReadOnlyList<DeepPage> Visible(IReadOnlyList<Card> cards, IReadOnlyCollection<string>? hidden = null)
     {
         ArgumentNullException.ThrowIfNull(cards);
-        return [.. All.Where(p => p.AlwaysShown || cards.Any(c => Owns(p, c.Id)))];
+        return [.. All.Where(p => (p.AlwaysShown || cards.Any(c => Owns(p, c.Id))) && !(hidden?.Contains(p.Id) == true && Hideable.Contains(p)))];
     }
+
+    /// <summary>The hidden pages from the snapshot (<c>state.hidden_pages</c>); empty when none.</summary>
+    public static IReadOnlyList<string> HiddenPages(System.Text.Json.Nodes.JsonNode? root) =>
+        root?["state"]?["hidden_pages"] is System.Text.Json.Nodes.JsonArray a
+            ? [.. a.OfType<System.Text.Json.Nodes.JsonValue>().Select(v => v.TryGetValue<string>(out var s) ? s : null).OfType<string>()]
+            : [];
 
     /// <summary>The cards a page shows, in snapshot order. Home: the pinned ones, in pin order.</summary>
     public static IReadOnlyList<Card> CardsFor(string pageId, IReadOnlyList<Card> cards, IReadOnlyList<string>? pinned = null)

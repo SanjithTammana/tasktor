@@ -258,6 +258,15 @@
         "keep_warm": {
           "type": "boolean"
         },
+        "hidden_pages": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
         "pinned_cards": {
           "type": [
             "array",

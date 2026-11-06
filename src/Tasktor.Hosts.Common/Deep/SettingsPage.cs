@@ -106,6 +106,15 @@ public static class SettingsPage
         };
     }
 
+    /// <summary>Settings → Appearance: show or hide a deep-window page (the agent refuses Home, Your data and Settings).</summary>
+    public static CardAction ShowPage(string pageId, bool shown) => new()
+    {
+        Id = "page",
+        Label = pageId,
+        Action = "settings.page",
+        Args = new Dictionary<string, string>(StringComparer.Ordinal) { ["page"] = pageId, ["shown"] = shown ? "true" : "false" },
+    };
+
     /// <summary>A rule's switch: written into rules.json by the agent as a toggle (the user's text is kept).</summary>
     public static CardAction SwitchRule(RuleRow row, bool on)
     {
