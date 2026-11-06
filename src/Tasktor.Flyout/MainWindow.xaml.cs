@@ -140,7 +140,8 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        var shown = DeepPages.CardsFor(_page, cards);
+        var pinned = DeepPages.Pinned(_snapshot.Mirror.Root); // null = the defaults
+        var shown = DeepPages.CardsFor(_page, cards, pinned);
         if (shown.Count == 0 && _page != "data")
         {
             PageContent.Children.Add(Text(_snapshot.Connected ? "Nothing to show on this page yet." : "Tasktor is not running.", "TasktorInk2Brush"));
@@ -150,7 +151,9 @@ public sealed partial class MainWindow : Window
         var renderer = new RowRenderer(DateTimeOffset.Now);
         foreach (var card in shown)
         {
-            PageContent.Children.Add(Section(renderer.Render(CardFitter.Fit(card, FitTarget.Flyout, resolver), resolver)));
+            var rows = renderer.Render(CardFitter.Fit(card, FitTarget.Flyout, resolver), resolver);
+            // Pin / Unpin is the window's own control, added after fitting so it never displaces the card's actions.
+            PageContent.Children.Add(Section(rows with { Actions = [.. rows.Actions, DeepPages.PinAction(card.Id, pinned)] }));
         }
     }
 

@@ -105,6 +105,7 @@ public sealed class AgentHost : IAsyncDisposable
         Archive = new SettingsArchive(Store);
         LoadPause();
         History.Changed += () => UpdateState(s => s with { RecentActions = History.Items.Count == 0 ? null : [.. History.Items] });
+        UpdateState(s => s with { Pinned = Settings.Current.Flyout?.PinnedCards });
         Router.Finished += (req, result, summary) => History.Record(req, result, summary, Loop.Clock.UtcNow);
         _owned.Add(Loop.Every(TimeSpan.FromMinutes(1), () => History.Prune(Loop.Clock.UtcNow)));
         Router.Completed += (req, result) =>
@@ -420,16 +421,21 @@ public sealed class AgentHost : IAsyncDisposable
         {
             Summary = (pin ? "Pin " : "Unpin ") + card,
             Immediate = new ActionResult { Action = req.Action, Status = ActionStatus.Ok },
-            Done = _ => Settings.Update(c =>
+            Done = _ =>
             {
-                var list = (c.Flyout?.PinnedCards ?? []).Where(x => x != card).ToList();
-                if (pin)
+                Settings.Update(c =>
                 {
-                    list.Add(card);
-                }
+                    // From the defaults while none were chosen, so the first pin adds to them and unpinning one keeps the rest.
+                    var list = (c.Flyout?.PinnedCards ?? Hosts.Common.Deep.DeepPages.DefaultPinned).Where(x => x != card).ToList();
+                    if (pin)
+                    {
+                        list.Add(card);
+                    }
 
-                return c with { Flyout = (c.Flyout ?? new Contracts.Config.FlyoutSettings()) with { PinnedCards = list.Count == 0 ? null : list } };
-            }),
+                    return c with { Flyout = (c.Flyout ?? new Contracts.Config.FlyoutSettings()) with { PinnedCards = list } }; // empty = nothing pinned
+                });
+                UpdateState(s => s with { Pinned = Settings.Current.Flyout?.PinnedCards }); // the viewer's Home reads it
+            },
         };
     }
 
