@@ -172,7 +172,8 @@ public sealed class PipeProtocolTests : IAsyncLifetime
         var capture = await c.ActAsync(Module("module.enable", "capture"));
         Assert.Equal(ActionStatus.Refused, capture.Status);
         Assert.False(_agent.Host.OnLoop(() => _agent.Host.Consents.HasModule("capture")).GetAwaiter().GetResult());
-        Assert.Equal(ActionStatus.Ok, (await c.ActAsync(Module("module.enable", "capture", new() { ["screen"] = "capture" }))).Status);
+        Assert.Equal(ActionStatus.Refused, (await c.ActAsync(Module("module.enable", "capture", new() { ["screen"] = "capture" }))).Status); // not acknowledged
+        Assert.Equal(ActionStatus.Ok, (await c.ActAsync(Module("module.enable", "capture", new() { ["screen"] = "capture", ["acknowledged"] = "true" }))).Status);
     }
 
     private sealed class RawClient : IAsyncDisposable

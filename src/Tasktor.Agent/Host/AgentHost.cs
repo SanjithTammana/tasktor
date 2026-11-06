@@ -679,9 +679,9 @@ public sealed class AgentHost : IAsyncDisposable
                 return new PreparedAction { Summary = "module", Refusal = "No such Module" };
             }
 
-            // Capture asks through its own consent screen (D-C22), which sends screen=capture; the generic Module dialog
-            // cannot turn it on.
-            if (on && info.Id == "capture" && req.Args?.GetValueOrDefault("screen") != "capture")
+            // Capture asks through its own consent screen (D-C22), which sends screen=capture with the user's ticked
+            // acknowledgement; the generic Module dialog cannot turn it on.
+            if (on && info.Id == "capture" && (req.Args?.GetValueOrDefault("screen") != "capture" || req.Args?.GetValueOrDefault("acknowledged") != "true"))
             {
                 return new PreparedAction { Summary = "Turn on Capture", Refusal = "Capture is turned on from its own consent screen" };
             }

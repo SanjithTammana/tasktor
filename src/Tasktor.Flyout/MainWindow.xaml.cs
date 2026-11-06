@@ -200,8 +200,16 @@ public sealed partial class MainWindow : Window
         {
             if (!row.CanTurnOnHere)
             {
-                toggle.IsOn = false;
-                await InformAsync("Capture has its own consent screen, which is not in this build yet.");
+                // Capture: its own consent screen (D-C22), never the generic dialog.
+                if (await CaptureConsentAsync() is not { } consent)
+                {
+                    toggle.IsOn = false;
+                    return;
+                }
+
+                await RunAsync(consent);
+                _modules = null;
+                Draw(_snapshot.Mirror.Cards);
                 return;
             }
 
@@ -231,6 +239,37 @@ public sealed partial class MainWindow : Window
         await RunAsync(action);
         _modules = null; // re-read: the row now says whether a restart is needed
         Draw(_snapshot.Mirror.Cards);
+    }
+
+    /// <summary>The D-C22 screen: the four facts and an acknowledgement that must be ticked before "Turn on capture".</summary>
+    private async Task<CardAction?> CaptureConsentAsync()
+    {
+        var body = new StackPanel { Spacing = 12, MaxWidth = 520 };
+        body.Children.Add(new TextBlock { Text = CaptureConsent.Lead, TextWrapping = TextWrapping.Wrap });
+        foreach (var (heading, text) in CaptureConsent.Facts)
+        {
+            var fact = new StackPanel { Spacing = 2 };
+            fact.Children.Add(new TextBlock { Text = heading, FontWeight = FontWeights.SemiBold });
+            fact.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, Foreground = ThemeBrush("TasktorInk2Brush") });
+            body.Children.Add(fact);
+        }
+
+        var ack = new CheckBox { Content = new TextBlock { Text = CaptureConsent.Acknowledgement, TextWrapping = TextWrapping.Wrap } };
+        body.Children.Add(ack);
+        var dialog = new ContentDialog
+        {
+            Title = CaptureConsent.Title,
+            Content = body,
+            PrimaryButtonText = CaptureConsent.Confirm,
+            CloseButtonText = CaptureConsent.Cancel,
+            DefaultButton = ContentDialogButton.Close,
+            IsPrimaryButtonEnabled = false,
+            XamlRoot = Content.XamlRoot,
+        };
+        ack.Checked += (_, _) => dialog.IsPrimaryButtonEnabled = CaptureConsent.CanConfirm(true);
+        ack.Unchecked += (_, _) => dialog.IsPrimaryButtonEnabled = CaptureConsent.CanConfirm(false);
+        var yes = await dialog.ShowAsync() == ContentDialogResult.Primary;
+        return yes && ack.IsChecked == true ? CaptureConsent.Request(acknowledged: true) : null;
     }
 
     private async Task PullModulesAsync()
