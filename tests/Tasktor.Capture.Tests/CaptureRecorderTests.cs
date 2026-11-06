@@ -54,6 +54,25 @@ public sealed class CaptureRecorderTests : IDisposable
     }
 
     [Fact]
+    public void T1_context_keeps_the_address_and_title_with_secrets_scrubbed_from_the_query_only()
+    {
+        var (_, vault, rec) = World();
+        const string token = "Zq8vR2xK9mP4tW7yB3nC6hJ1sD5fG0aL";
+        var ctx = Ctx("docs.example.org") with
+        {
+            Url = Sensitive.Of("https://docs.example.org/a/" + token + "/guide?key=" + token + "#top"),
+            Title = Sensitive.Of("Guide - card 4111 1111 1111 1111"),
+            Private = true,
+        };
+        Assert.True(rec.Browser("chrome", 7, ctx));
+        var body = Encoding.UTF8.GetString(vault.Read(T0.AddDays(-1), T0.AddDays(1)).Single().Body);
+        Assert.Contains("/a/" + token + "/guide?", body, StringComparison.Ordinal); // the page's own path is kept
+        Assert.Equal(1, body.Split(token).Length - 1);                                // the query's copy is not
+        Assert.DoesNotContain("4111 1111", body, StringComparison.Ordinal);
+        Assert.Contains("\"private\":true", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Every_block_kind_stops_the_write()
     {
         var (blocks, vault, rec) = World();

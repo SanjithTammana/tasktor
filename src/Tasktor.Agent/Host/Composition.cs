@@ -336,7 +336,12 @@ internal static class Composition
             // D-H9: the agent starts tasktor-capture in a kill-on-close Job Object only while this Module is on and its consent
             // (D-C22) is on record, and restarts a crash at most 3 times an hour.
             var supervisor = new CaptureSupervisor(ctx, CaptureSupervisor.DefaultSpec(AppContext.BaseDirectory, host.Store.Root), () => host.Consents.HasModule("capture"));
-            host.AddFeature(new CaptureFeature(ctx, (cmd, ct) => Hosts.Common.Pipe.CaptureLink.SendAsync(cmd, ct)) { Supervisor = supervisor });
+            host.AddFeature(new CaptureFeature(ctx, (cmd, ct) => Hosts.Common.Pipe.CaptureLink.SendAsync(cmd, ct))
+            {
+                Supervisor = supervisor,
+                ForegroundApp = windows ? Windows.Shell.Win32Windows.ForegroundExe : () => null,
+                SetupExtension = windows ? browser => SetupExtension(browser, AppContext.BaseDirectory) : null,
+            });
         }
 
         if (settings.ModuleOn("batteries"))
@@ -344,6 +349,41 @@ internal static class Composition
             host.AddFeature(new DeviceBatteries(ctx, windows ? new BluetoothBatterySource() : new NoDevices()));
         }
         AddWindowsFeatures(host, windows, windowEvents, winEvents);
+    }
+
+    /// <summary>
+    /// C §5.5 setup: register <c>tasktor-nmh</c> for this user (HKCU + a manifest in the data folder, allowing only the
+    /// companion's fixed id), then open the shipped <c>extension</c> folder and the browser's extensions page, where the user
+    /// loads it unpacked. Launches local programs only; no network.
+    /// </summary>
+    private static bool SetupExtension(string browser, string baseDir)
+    {
+        var folder = Path.Combine(baseDir, "extension");
+        var nmh = Path.Combine(baseDir, "tasktor-nmh.exe");
+        if (!Directory.Exists(folder) || !File.Exists(nmh))
+        {
+            return false;
+        }
+
+        try
+        {
+            using (var register = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(nmh) { ArgumentList = { "--register" }, UseShellExecute = false, CreateNoWindow = true }))
+            {
+                if (register is null || !register.WaitForExit(10_000) || register.ExitCode != 0)
+                {
+                    return false;
+                }
+            }
+
+            using var explorer = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe") { ArgumentList = { folder }, UseShellExecute = false });
+            var (exe, page) = browser == "edge" ? ("msedge.exe", "edge://extensions") : ("chrome.exe", "chrome://extensions");
+            using var open = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe) { ArgumentList = { page }, UseShellExecute = true });
+            return true;
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
+        {
+            return false;
+        }
     }
 
     private static void AddWindowsFeatures(AgentHost host, bool windows, SharedSource<Contracts.Workflow.WindowEvent>? events, WinEventSource? source)

@@ -96,6 +96,7 @@ public static class ActionCatalog
         new("capture.exclude", ActionClass.Reversible, "Don't capture this app", Surface.Flyout | Surface.Tray | Surface.Widget),
         new("capture.unexclude", ActionClass.Reversible, "Capture this app again", Surface.Flyout, LiftsBlock: true),
         new("capture.tab_pause", ActionClass.Reversible, "Pause for this tab", Surface.Flyout),
+        new("capture.extension_setup", ActionClass.Read, "Set up the browser extension", Surface.Flyout, UserOnly: true), // registers the native host (HKCU)
 
         // reversible: alerts, cards, rules, focus, presets, learned
         new("alert.snooze", ActionClass.Reversible, "Snooze", Surface.Flyout | Surface.Toast | Surface.Tray),

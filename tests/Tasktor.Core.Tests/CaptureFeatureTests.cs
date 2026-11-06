@@ -35,6 +35,8 @@ public sealed class CaptureFeatureTests : IDisposable
 
         public bool Down { get; set; }
 
+        public List<string> Extensions { get; set; } = [];
+
         public Task<CaptureStatus> Handle(CaptureCommand c, CancellationToken ct)
         {
             if (Down)
@@ -71,7 +73,7 @@ public sealed class CaptureFeatureTests : IDisposable
             return Task.FromResult(Status() with { Refusal = refusal });
         }
 
-        private CaptureStatus Status() => new() { On = true, PausedUntil = Until, PausedIndefinitely = Indefinite, Blocks = [.. Blocks], RecordsToday = Records };
+        private CaptureStatus Status() => new() { On = true, PausedUntil = Until, PausedIndefinitely = Indefinite, Blocks = [.. Blocks], RecordsToday = Records, Extensions = [.. Extensions] };
     }
 
     private ActionResult Act(string action, Origin origin = Origin.Flyout, Dictionary<string, string>? args = null, Dictionary<string, string>? target = null, string? confirm = null, string? rule = null)
@@ -117,6 +119,54 @@ public sealed class CaptureFeatureTests : IDisposable
         Assert.Equal(ActionStatus.Refused, Act("capture.tab_pause", target: new() { ["tab"] = "x" }).Status);
         Assert.Equal(ActionStatus.Ok, Act("capture.tab_pause", target: new() { ["tab"] = "7" }).Status);
         Assert.Equal(7, _host.Seen.Last().Tab);
+    }
+
+    [Fact]
+    public void A_browser_in_front_for_a_minute_without_the_extension_gets_the_setup_offer()
+    {
+        var front = "notepad.exe";
+        _capture.ForegroundApp = () => front;
+        var setups = new List<string>();
+        _capture.SetupExtension = b => { setups.Add(b); return true; };
+        bool Offered() => _capture.Cards()[0].Actions!.Any(a => a.Action == "capture.extension_setup");
+
+        front = "chrome.exe";
+        _capture.Refresh();
+        _rig.Loop.RunPending();
+        Assert.False(Offered()); // just came to the front
+        _rig.Clock.Advance(TimeSpan.FromSeconds(30));
+        _capture.Refresh();
+        _rig.Loop.RunPending();
+        Assert.False(Offered());
+        _rig.Clock.Advance(TimeSpan.FromSeconds(30));
+        _capture.Refresh();
+        _rig.Loop.RunPending();
+        Assert.True(Offered());
+        var card = _capture.Cards()[0];
+        Assert.Contains(card.Blocks, b => b is Contracts.Cards.AlertBlock a && a.Text.ToString().Contains("Chrome", StringComparison.Ordinal));
+        Assert.Equal("chrome", card.Actions!.Single(a => a.Action == "capture.extension_setup").Args!["browser"]);
+
+        front = "notepad.exe"; // the offer stays until the extension connects
+        _capture.Refresh();
+        _rig.Loop.RunPending();
+        Assert.True(Offered());
+        Assert.Equal(ActionStatus.Ok, Act("capture.extension_setup", args: new() { ["browser"] = "chrome" }).Status);
+        Assert.Equal(["chrome"], setups);
+        Assert.Equal(ActionStatus.Refused, Act("capture.extension_setup", args: new() { ["browser"] = "firefox" }).Status);
+        Assert.Equal(ActionStatus.Refused, Act("capture.extension_setup", Origin.Rule, args: new() { ["browser"] = "chrome" }, rule: "r").Status); // people only
+        Assert.Single(setups);
+
+        _host.Extensions = ["chrome"];
+        _capture.Refresh();
+        _rig.Loop.RunPending();
+        Assert.False(Offered());
+
+        front = "msedge.exe"; // connected browsers never get it; a paused capture still does (the extension connects while paused)
+        _host.Extensions = ["chrome", "edge"];
+        _rig.Clock.Advance(TimeSpan.FromMinutes(2));
+        _capture.Refresh();
+        _rig.Loop.RunPending();
+        Assert.False(Offered());
     }
 
     [Fact]

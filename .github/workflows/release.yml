@@ -45,6 +45,7 @@ jobs:
         run: |
           dotnet publish src/Tasktor.Cli/Tasktor.Cli.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -warnaserror -o out/cli
           dotnet publish src/Tasktor.Capture/Tasktor.Capture.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -warnaserror -o out/capture
+          dotnet publish src/Tasktor.Nmh/Tasktor.Nmh.csproj -c Release -r win-x64 -p:PublishAot=true -warnaserror -o out/nmh
 
       - name: Publish the flyout (shelf, command line, deep window)
         # WinUI 3 with the Windows App SDK self-contained: it runs without an installed runtime. The agent starts it
@@ -60,6 +61,10 @@ jobs:
           Copy-Item out/agent/* $root -Recurse
           Copy-Item out/cli/tasktor.exe $root
           Copy-Item out/capture/tasktor-capture.exe $root
+          Copy-Item out/nmh/tasktor-nmh.exe $root
+          # The companion extension, loaded unpacked (C §5.5); its tests and package file stay out.
+          New-Item -ItemType Directory -Force "$root/extension" | Out-Null
+          Copy-Item extension/* "$root/extension" -Exclude "*.test.js", "package.json"
           New-Item -ItemType Directory -Force "$root/flyout" | Out-Null
           Copy-Item out/flyout/* "$root/flyout" -Recurse
           if (-not (Test-Path "$root/flyout/Tasktor.Flyout.exe")) { throw 'the flyout did not publish' }

@@ -19,8 +19,8 @@ public static class BrowserValidation
 
             var fields = type.GetString() switch
             {
-                "hello" => new[] { "type", "at", "contract", "client", "browser", "extension_version" },
-                "tab" => new[] { "type", "at", "tab", "window", "host", "active", "audible", "url", "title" },
+                "hello" => new[] { "type", "at", "contract", "client", "browser", "extension_version", "incognito" },
+                "tab" => new[] { "type", "at", "tab", "window", "host", "active", "audible", "url", "title", "incognito" },
                 "text" => new[] { "type", "at", "tab", "lines" },
                 "media" => new[] { "type", "at", "tab", "playing", "position_s" },
                 "focus" => new[] { "type", "at", "tab", "field" },

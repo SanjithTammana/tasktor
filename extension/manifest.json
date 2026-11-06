@@ -2,9 +2,11 @@
   "manifest_version": 3,
   "name": "Tasktor companion",
   "version": "1.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApyTTYxfuSXNJoVrCHRDjAfBShu4Evg2V2BQ5IddmoCNs88ICz2zZSYIAtVL3n6MIXzYJWhuajhhkzpt/rSUJKRwOrkhkwzhPuwAho5M6VOo66g+dwklrKVGAZaf8tbctGztRmcRGY+iWXdMJ4mImAKKltAhm1FEzoH7FfubS5qHpPC3S9wVxbFnQdxGpEX1h5yeGqB3/nhxKPK8ztnuIR2i6b2yf7Gv9gp1MdUcbKjJ0vFWLXR2dt4XStl3HHHAwhmudyNk5aT+EBcrCbVmg93lyPN2VRHzJNsJJwFg20r162lge0LTg1AP8SZnotp6mhZdimrF0TkSMkpHUm7ncXQIDAQAB",
   "permissions": [
     "nativeMessaging",
-    "tabs"
+    "tabs",
+    "storage"
   ],
   "background": {
     "service_worker": "background.js",
@@ -25,5 +27,6 @@
       "run_at": "document_idle",
       "all_frames": true
     }
-  ]
+  ],
+  "incognito": "spanning"
 }

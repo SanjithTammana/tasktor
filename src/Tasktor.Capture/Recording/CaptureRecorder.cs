@@ -15,8 +15,12 @@ public static class RecordKind
     public const byte Document = 5;
 }
 
-/// <summary>What the vault keeps about a browser tab: host-only context, never paths, values or page text (D-C18).</summary>
-public sealed record BrowserContextRecord(string Browser, int Tab, string? Host, string Field, bool Visible, bool Active, bool Queued);
+/// <summary>
+/// What the vault keeps about a browser tab: its host and field kind, and in T1 (D-C22) the full address and title, both
+/// scrubbed for secrets (the address only in its query and fragment: its own path is the page, §5.3). Never field values.
+/// Page text is a separate view diff (D-C18).
+/// </summary>
+public sealed record BrowserContextRecord(string Browser, int Tab, string? Host, string Field, bool Visible, bool Active, bool Queued, string? Url = null, string? Title = null, bool Private = false);
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(BrowserContextRecord))]
@@ -52,6 +56,9 @@ public sealed class CaptureRecorder
 
     public long Skipped { get; private set; }
 
+    /// <summary>Scrubs tab titles and address queries (the user's own patterns come from settings).</summary>
+    public SecretRedactor Redactor { get; init; } = new();
+
     public long RecordsToday
     {
         get
@@ -79,8 +86,21 @@ public sealed class CaptureRecorder
         ArgumentNullException.ThrowIfNull(ctx);
         var host = ctx.Host?.Reveal();
         var exe = browser == "edge" ? "msedge.exe" : "chrome.exe";
-        var rec = new BrowserContextRecord(browser, tab, host, ctx.Secure ? "secure" : "other", ctx.Visible, ctx.Active, queued);
+        var title = ctx.Title is { } t ? Redactor.Scrub(t.Reveal()).Text : null;
+        var rec = new BrowserContextRecord(browser, tab, host, ctx.Secure ? "secure" : "other", ctx.Visible, ctx.Active, queued, ScrubUrl(ctx.Url?.Reveal()), title, ctx.Private);
         return Write(exe, host, BrowserEndpoint.TabKey(browser, tab), RecordKind.BrowserContext, JsonSerializer.SerializeToUtf8Bytes(rec, RecordJsonContext.Default.BrowserContextRecord));
+    }
+
+    /// <summary>Secrets in the query and fragment are redacted; the scheme, host and path (the page itself) are kept.</summary>
+    private string? ScrubUrl(string? url)
+    {
+        if (url is null)
+        {
+            return null;
+        }
+
+        var cut = url.IndexOfAny(['?', '#']);
+        return cut < 0 ? url : url[..cut] + Redactor.Scrub(url[cut..]).Text;
     }
 
     /// <summary>A closed key run (already suppressed and redacted by the Deep pipeline).</summary>

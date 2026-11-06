@@ -59,6 +59,7 @@ internal sealed class CaptureLifetime : IDisposable
             {
                 ResolveTab = endpoint.ResolveTab,
                 RecordsToday = () => recorder.RecordsToday,
+                Extensions = endpoint.Connected,
                 ForgetSince = recorder.ForgetSince,
             };
             control.Changed += endpoint.NotifyBlocksChanged;
@@ -68,7 +69,7 @@ internal sealed class CaptureLifetime : IDisposable
             foreach (var m in queued)
             {
                 if (stop.IsCompleted) break;
-                if (m is Contracts.Capture.BrowserTab t)
+                if (m is Contracts.Capture.BrowserTab { Incognito: false } t) // a private tab is never recorded from the queue
                     recorder.Browser("chrome", t.Tab, new TabContext(t.Host is null ? null : Contracts.Platform.Sensitive.Of(t.Host), Secure: true, t.Active, t.Active), queued: true);
             }
 
@@ -97,5 +98,3 @@ internal sealed class CaptureLifetime : IDisposable
         _disposed = true;
     }
 }
-
-

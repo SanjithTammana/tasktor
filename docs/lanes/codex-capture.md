@@ -11,6 +11,7 @@
 - Added an indicator startup gate and synthetic tests. If stopping capture throws, the gate keeps the indicator alive and permits a retry. The gate now owns the capture host lifetime.
 
 ## Checks run
+- PASS: full `dotnet test Tasktor.sln` after upstream watcher fix df84e7b: Core 468, Capture 180 and Agent 51 passed; all other projects passed. The suite included the uncommitted in-progress adapter tests.
 - FAIL: latest full `dotnet test Tasktor.sln` aborted the Agent test host after 23 Agent tests passed: an unhandled `DirectoryNotFoundException` arose in `JobProgressSource.Rescan` (`ProgressFiles.cs:162`), called by its FileSystemWatcher error callback (line 142), while a temporary jobs directory was unavailable. Core 466 and Capture 170 tests passed before the host crash. The Release solution build passed with zero warnings and the worker suite passed 108 tests. The earlier full suite passed before the latest uncommitted work.
 - PASS: parallel synthetic checks included 26 secure-desktop tests, 17 session-policy tests, 9 visible-window tests, 7 media tests, 6 bounded UIA-walk tests and 10 conservative dead-key tests. These checks do not establish native adapter completeness.
 - PASS: 170 Capture tests, including regressions for wall-clock suppression and unknown password state, plus the uncommitted parallel adapters. Native UIA and the host clock mapper remain to be integrated.
@@ -36,6 +37,8 @@
 - IN PROGRESS: secure-desktop, visible-window and media logic have synthetic tests but are not yet integrated. DeepCapture and the browser T1 events remain unwired.
 
 ## Interpretations
+- Unsupported dead-key compositions suppress the entire key run; the Windows layout adapter remains unwired as text decoding until the real-PC check.
+- The specified aggregate watchdog signal cannot detect a single removed hook while the other continues receiving events. This is a known limitation; no additional input source is introduced.
 - The amended D-G16 indicator is the top edge of every monitor. The first indicator must fail closed before hooks are installed.
 
 ## Needs Windows verification
@@ -44,15 +47,17 @@
 - Exercise monitor add/remove and mixed DPI changes, tray appearance and Explorer restart with an isolated capture session; verify fail-closed shutdown if either indicator fails. Then verify hooks, secure desktop, UIA and media sources once implemented.
 
 ## Requests
-- Outside lane: investigate `src/Tasktor.Core/Features/Jobs/ProgressFiles.cs`. Ensure the FileSystemWatcher error callback and shutdown/temporary-directory cleanup cannot race into an unhandled filesystem exception; preserve legitimate overflow rescans. The full Agent test host crashed in this callback, so capture work is stopped under the requested code-test-failure rule.
+- Jobs watcher crash fixed upstream in df84e7b; post-merge full suite passed.
 - StoreWriter shutdown race fixed upstream in 96c9068; no open request for that issue.
 
 ## Blockers
-- Full .NET test run aborted on the out-of-lane jobs-watcher callback described above. Do not treat the latest full suite as green; no Capture source changes after the last push have been committed.
-- Windows layout translation is deliberately unintegrated: dead-key composition and explicit whole-run suppression for unsupported sequences are not yet implemented or verified. Do not wire this adapter as complete text decoding.
-- The specified watchdog compares aggregate input against aggregate hook events; it cannot detect one hook being silently removed while the other still receives input. This is a limitation of the specified signal, not a verified independent-hook detector.
+- The jobs-watcher test-host crash was fixed upstream in df84e7b; the post-merge full .NET suite passed.
+- Windows layout translation remains unwired as text decoding pending real-PC verification; unsupported compositions are handled by whole-run suppression in the in-progress logic.
+- The aggregate watchdog limitation is an interpretation, not a blocker.
 - The earlier StoreWriter baseline blocker was fixed upstream; it is separate from the current watcher crash.
 
 - Windows computer-use policy disallows Win-key shortcuts, so the Win+Alt+T shortcut itself cannot be automated in this session.
+
+
 
 
