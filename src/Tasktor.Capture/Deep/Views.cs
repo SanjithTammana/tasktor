@@ -329,6 +329,9 @@ public sealed class FieldTruth
 
     public void Release() => _held = null;
 
+    /// <summary>The value held since focus (or the last diff); null when the field exposes none.</summary>
+    public string? Held => _held;
+
     /// <summary>The value changed (run close, or TextChanged debounced): what was inserted since the held value.</summary>
     public FieldEdit? Diff(string? after)
     {
@@ -338,6 +341,16 @@ public sealed class FieldTruth
             return null;
         }
 
+        _held = after;
+        var edit = Edit(before, after);
+        return edit.Inserted.Length == 0 && edit.Deleted == 0 ? null : edit;
+    }
+
+    /// <summary>The one prefix / suffix diff (also behind <see cref="KeyRunBuilder.Inserted"/>).</summary>
+    public static FieldEdit Edit(string before, string after)
+    {
+        ArgumentNullException.ThrowIfNull(before);
+        ArgumentNullException.ThrowIfNull(after);
         var p = 0;
         var max = Math.Min(before.Length, after.Length);
         while (p < max && before[p] == after[p])
@@ -351,9 +364,6 @@ public sealed class FieldTruth
             s++;
         }
 
-        _held = after;
-        var inserted = after[p..(after.Length - s)];
-        var deleted = before.Length - p - s;
-        return inserted.Length == 0 && deleted == 0 ? null : new FieldEdit(inserted, deleted);
+        return new FieldEdit(after[p..(after.Length - s)], before.Length - p - s);
     }
 }
