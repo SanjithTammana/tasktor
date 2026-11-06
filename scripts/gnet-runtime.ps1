@@ -52,6 +52,7 @@ try { & $curl -s -m 5 -o NUL https://www.microsoft.com 2>$null | Out-Null } fina
 }
 Start-Sleep -Seconds 2
 if ((Get-Blocked $controlSince 'curl.exe').Count -eq 0) { throw 'G-net: the positive control was not audited; the gate cannot detect connections' }
+$global:LASTEXITCODE = 0 # the control's curl failed on purpose; its exit code must not become this script's
 
 # The agent, blocked and audited, with every Module on.
 $since = Get-Date
@@ -90,3 +91,4 @@ if ($blocked.Count -gt 0) {
 Remove-Item -Recurse -Force $data -ErrorAction SilentlyContinue
 if ($failed) { exit 1 }
 Write-Host "G-net runtime: $($ids.Count) Modules on ($($ids -join ', ')) for $Seconds s; no socket, no connection attempt."
+exit 0
