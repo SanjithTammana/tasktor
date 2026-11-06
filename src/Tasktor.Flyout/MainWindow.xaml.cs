@@ -496,12 +496,14 @@ public sealed partial class MainWindow : Window
                     return;
                 }
 
+                // D-H7: a plugin from a pack is turned on with its whole pack, through the pack's one dialog.
+                var pack = toggle.IsOn && row.Info.Pack is { } packId ? SettingsPage.PackConsent(_plugins, packId) : null;
                 if (toggle.IsOn)
                 {
                     var dialog = new ContentDialog
                     {
-                        Title = "Turn on " + row.Title + "?",
-                        Content = new ScrollViewer { Content = new TextBlock { Text = SettingsPage.PluginConsent(row.Info), TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true } },
+                        Title = "Turn on " + (pack?.Pack.Name ?? row.Title) + "?",
+                        Content = new ScrollViewer { Content = new TextBlock { Text = pack?.Text ?? SettingsPage.PluginConsent(row.Info), TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true } },
                         PrimaryButtonText = "Turn on",
                         CloseButtonText = "Not now",
                         DefaultButton = ContentDialogButton.Close,
@@ -514,7 +516,7 @@ public sealed partial class MainWindow : Window
                     }
                 }
 
-                await RunAsync(SettingsPage.SwitchPlugin(row, toggle.IsOn));
+                await RunAsync(pack is { } p ? SettingsPage.EnablePack(p.Pack.Id) : SettingsPage.SwitchPlugin(row, toggle.IsOn));
                 _plugins = null; // re-read the states
                 Draw(_snapshot.Mirror.Cards);
             };

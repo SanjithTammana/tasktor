@@ -124,4 +124,24 @@ public sealed class SettingsPageTests
         Assert.Equal(("plugin.enable", "todo"), (SettingsPage.SwitchPlugin(rows[0], on: true).Action, SettingsPage.SwitchPlugin(rows[0], true).Target!["plugin"]));
         Assert.Equal("plugin.disable", SettingsPage.SwitchPlugin(rows[2], on: false).Action);
     }
+
+    [Fact]
+    public void A_packs_consent_lists_every_plugin_in_it_once()
+    {
+        var a = new Contracts.Plugins.PluginInfo { Id = "a", Name = "Alpha", State = Contracts.Snapshot.PluginState.Found, Reads = ["mail counts"], CommandLine = "python.exe a.py", Pack = "p" };
+        var b = a with { Id = "b", Name = "Beta", Reads = ["calendar"], Network = ["api.example.com"], CommandLine = "python.exe b.py" };
+        var other = a with { Id = "c", Name = "Gamma", Pack = null };
+        var report = new Contracts.Plugins.PluginsReport { Plugins = [a, b, other], Packs = [new() { Id = "p", Name = "Work pack", Author = "Example" }] };
+        var (pack, text) = SettingsPage.PackConsent(report, "p")!.Value;
+        Assert.Equal("Work pack", pack.Name);
+        foreach (var part in new[] { "From: Example", "Alpha", "mail counts", "a.py", "Beta", "api.example.com", "b.py", "cannot block" })
+        {
+            Assert.Contains(part, text, StringComparison.Ordinal);
+        }
+
+        Assert.DoesNotContain("Gamma", text, StringComparison.Ordinal);
+        Assert.Equal(1, text.Split("cannot block").Length - 1); // the limits once, not per plugin
+        Assert.Null(SettingsPage.PackConsent(report, "nope"));
+        Assert.Equal(("plugin.enable_pack", "p"), (SettingsPage.EnablePack("p").Action, SettingsPage.EnablePack("p").Target!["pack"]));
+    }
 }

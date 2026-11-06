@@ -9,6 +9,18 @@ namespace Tasktor.Contracts.Plugins;
 public sealed record PluginsReport
 {
     public required IReadOnlyList<PluginInfo> Plugins { get; init; }
+
+    /// <summary>Packs found (D-H7: a pack gets one consent dialog for all its plugins).</summary>
+    public IReadOnlyList<PackInfo> Packs { get; init; } = [];
+}
+
+public sealed record PackInfo
+{
+    public required string Id { get; init; }
+
+    public required string Name { get; init; }
+
+    public string? Author { get; init; }
 }
 
 public sealed record PluginInfo

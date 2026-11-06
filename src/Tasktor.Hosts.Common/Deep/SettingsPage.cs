@@ -84,13 +84,43 @@ public static class SettingsPage
     public static string PluginConsent(Contracts.Plugins.PluginInfo p)
     {
         ArgumentNullException.ThrowIfNull(p);
+        return (p.Author is { Length: > 0 } a ? "From: " + a + "\n\n" : string.Empty) + Facts(p) + "\n\n" + Limits;
+    }
+
+    /// <summary>
+    /// D-H7: a pack gets one dialog for all its plugins, each with its own facts, and the limits said once. Null when the
+    /// pack is not in the report.
+    /// </summary>
+    public static (Contracts.Plugins.PackInfo Pack, string Text)? PackConsent(Contracts.Plugins.PluginsReport? report, string packId)
+    {
+        if (report?.Packs.FirstOrDefault(p => p.Id == packId) is not { } pack)
+        {
+            return null;
+        }
+
+        var parts = report.Plugins.Where(p => p.Pack == packId).Select(p => p.Name + "\n" + Facts(p));
+        return (pack, (pack.Author is { Length: > 0 } a ? "From: " + a + "\n\n" : string.Empty)
+            + "This pack turns on all of these:\n\n" + string.Join("\n\n", parts) + "\n\n" + Limits);
+    }
+
+    /// <summary>The action that turns a pack on after its one dialog.</summary>
+    public static CardAction EnablePack(string packId) => new()
+    {
+        Id = "pack",
+        Label = packId,
+        Action = "plugin.enable_pack",
+        Target = new Dictionary<string, string>(StringComparer.Ordinal) { ["pack"] = packId },
+    };
+
+    private const string Limits = "Tasktor cannot block a plugin's network use (that needs admin firewall rules), and a plugin runs with your rights, like any program you run. If its files change, Tasktor asks again.";
+
+    private static string Facts(Contracts.Plugins.PluginInfo p)
+    {
         static string List(IReadOnlyList<string> items) => items.Count == 0 ? "nothing" : string.Join(", ", items);
-        return (p.Author is { Length: > 0 } a ? "From: " + a + "\n\n" : string.Empty)
-            + "What it reads: " + List(p.Reads)
-            + "\n\n" + (p.Network.Count == 0 ? "It declares no network use." : "What it contacts: " + List(p.Network) + ".")
-            + "\n\nIts actions: " + List(p.Actions)
-            + "\n\nIt runs: " + (p.CommandLine ?? "(unknown)")
-            + "\n\nTasktor cannot block a plugin's network use (that needs admin firewall rules), and a plugin runs with your rights, like any program you run. If its files change, Tasktor asks again.";
+        return "What it reads: " + List(p.Reads)
+            + "\n" + (p.Network.Count == 0 ? "It declares no network use." : "What it contacts: " + List(p.Network) + ".")
+            + "\nIts actions: " + List(p.Actions)
+            + "\nIt runs: " + (p.CommandLine ?? "(unknown)");
     }
 
     /// <summary>A plugin's switch: on records the consent (hashes pinned); off drops it, so turning it on again asks again.</summary>

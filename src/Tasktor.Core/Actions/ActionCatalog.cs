@@ -87,6 +87,7 @@ public static class ActionCatalog
         new("plugin.resume", ActionClass.Reversible, "Resume plugin", Surface.Flyout | Surface.Cli),
         new("plugin.action", ActionClass.Reversible, "Plugin action", Surface.Flyout | Surface.Widget | Surface.Toast),
         new("plugin.enable", ActionClass.Reversible, "Enable plugin", Surface.Flyout, UserOnly: true),
+        new("plugin.enable_pack", ActionClass.Reversible, "Enable plugin pack", Surface.Flyout, UserOnly: true),
         // Turning a Module on records its consent (U1 H1); both are the user's call, never a rule's.
         new("module.enable", ActionClass.Reversible, "Turn on", Surface.Flyout, UserOnly: true),
         new("module.disable", ActionClass.Reversible, "Turn off", Surface.Flyout | Surface.Cli, UserOnly: true),
