@@ -102,6 +102,7 @@ public static class ActionCatalog
         // reversible: alerts, cards, rules, focus, presets, learned
         new("alert.snooze", ActionClass.Reversible, "Snooze", Surface.Flyout | Surface.Toast | Surface.Tray),
         new("alerts.snooze_all", ActionClass.Reversible, "Snooze alerts for 1 hour", Surface.Tray | Surface.Flyout),
+        new("rules.edit", ActionClass.Read, "Edit rules.json", Surface.Flyout | Surface.Cli),
         new("rule.enable", ActionClass.Reversible, "Turn rule on", Surface.Flyout | Surface.Cli, Undo: "rule.disable", UserOnly: true),
         new("rule.disable", ActionClass.Reversible, "Turn rule off", Surface.Flyout | Surface.Cli, Undo: "rule.enable", UserOnly: true),
         new("rule.its_fine", ActionClass.Reversible, "It's fine", Surface.Toast | Surface.Flyout),

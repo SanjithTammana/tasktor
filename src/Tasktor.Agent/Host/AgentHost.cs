@@ -363,6 +363,25 @@ public sealed class AgentHost : IAsyncDisposable
         };
     }
 
+    private IDisposable? _rulesReload;
+
+    /// <summary>
+    /// U1 hot reload: rules.json is re-read and validated on every change (an editor's save, a switch, a restore), 300 ms
+    /// after the last write so a save in several steps loads once. Errors go to the error card as at start.
+    /// </summary>
+    private void WatchRules()
+    {
+        _owned.Add(new FileWatch([Store.Rules], () => Loop.Post(() =>
+        {
+            _rulesReload?.Dispose();
+            _rulesReload = Loop.At(Loop.Clock.UtcNow + TimeSpan.FromMilliseconds(300), () =>
+            {
+                _rulesReload = null;
+                ReloadRules();
+            });
+        })));
+    }
+
     /// <summary>U4 D-G3 Settings → Rules: every rule (on and off), its source and last firing, and the load errors. Loop only.</summary>
     public Contracts.Rules.RulesReport RulesReport()
     {
@@ -434,6 +453,7 @@ public sealed class AgentHost : IAsyncDisposable
         Loop.Post(InitHotkey);
         Loop.Post(() => Plugins.Discover(Loop.Clock.UtcNow));
         Loop.Post(() => ReloadRules());
+        Loop.Post(WatchRules);
         Loop.Post(() => Publisher.Publish(force: true));
         Pipe.Start();
     }
@@ -591,6 +611,32 @@ public sealed class AgentHost : IAsyncDisposable
         Router.Register("open", OpenCard);
         Router.Register("card.pin", req => Pin(req, pin: true));
         Router.Register("settings.hotkey", SetHotkey);
+        Router.Register("rules.edit", _ =>
+        {
+            var path = Store.Rules;
+            return new PreparedAction
+            {
+                Summary = "Edit rules.json",
+                Run = _ =>
+                {
+                    try
+                    {
+                        if (!File.Exists(path))
+                        {
+                            File.WriteAllText(path, RulesToggle.Starter); // only when missing: the user's file is never rewritten here
+                        }
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        return new ActionResult { Action = "rules.edit", Status = ActionStatus.Failed, Message = "Could not create rules.json" };
+                    }
+
+                    return Options.Launch("edit:" + path)
+                        ? new ActionResult { Action = "rules.edit", Status = ActionStatus.Ok, Message = "Opened rules.json; changes apply when you save" }
+                        : new ActionResult { Action = "rules.edit", Status = ActionStatus.Failed, Message = "No editor opened " + path };
+                },
+            };
+        });
         Router.Register("rule.enable", req => SwitchRule(req, on: true));
         Router.Register("rule.disable", req => SwitchRule(req, on: false));
         Pipe.RegisterPull("rules", _ => JsonSerializer.SerializeToNode(RulesReport(), ContractsJsonContext.Default.RulesReport));

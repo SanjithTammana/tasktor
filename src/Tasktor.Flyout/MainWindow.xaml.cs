@@ -437,6 +437,13 @@ public sealed partial class MainWindow : Window
         }
 
         PageContent.Children.Add(new TextBlock { Text = "Rules", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 16, 0, 0) });
+        var editRules = new Button { Content = SettingsPage.EditRules.Label, Margin = new Thickness(0, 4, 0, 8) };
+        editRules.Click += async (_, _) =>
+        {
+            await RunAsync(SettingsPage.EditRules); // a save reloads the rules; re-read the list then
+            _rules = null;
+        };
+        PageContent.Children.Add(editRules);
         foreach (var error in _rules?.Errors ?? [])
         {
             PageContent.Children.Add(Text("Not loaded: " + error, "TasktorInkBrush"));
