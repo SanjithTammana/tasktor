@@ -49,7 +49,7 @@ M11 is done; M12–M15 have their Linux-testable logic, gates and release workfl
 
 ## Next
 - **M12, remaining:** wiring `DeepCapture` into `tasktor-capture`'s `Program` once its sources exist, and the Windows adapters: `LowLevelInputHook` (`WH_KEYBOARD_LL` / `WH_MOUSE_LL` into the ring, watchdog), `UiaReader` / `UiaWalkSource`, `MediaSessionSource` (SMTC + WASAPI meters), `VisibleWindows`, the secure-desktop check, the tray indicator + edge-line window (created before any hook; no indicator → exit).
-- **M14, Windows UI:** the WinUI 3 flyout (nine pages, seven dialogs), the Widgets provider over `AdaptiveCardRenderer`, `ToastNotifier` and the tray menu from `ActionCatalog`, the switcher window + thumbnails + hotkey / hook, `PresetRestorer` with the `preset.*` handlers, `FancyZonesBridge`, `VirtualDesktopInfo`, card `module.presets`, MSIX packaging.
+- **M14, Windows UI (re-scoped by U4's 2026-11-06 amendment, D-G10–D-G16):** the edge strip and the shelf host (sentence + timeline strip, inline confirm), the command line, and the deep window (the nine pages, seven dialogs), instead of the 400 × 640 flyout; the Widgets provider over `AdaptiveCardRenderer`, `ToastNotifier` and the tray menu from `ActionCatalog`, the switcher window + thumbnails + hotkey / hook, `PresetRestorer` with the `preset.*` handlers, `FancyZonesBridge`, `VirtualDesktopInfo`, card `module.presets`, MSIX packaging.
 - Every catalog action now has a handler (QualityGateTests' Pending list is empty).
 
 ## Interpretations
@@ -158,6 +158,7 @@ M11 is done; M12–M15 have their Linux-testable logic, gates and release workfl
 - **Side tracks are keyed by app.** Two activities in one app (a YouTube tab behind a chess tab of the same browser) stay on track 1 until the extension's tab media (`Ext.Media`) refines it. A window brought to the front ends its side track at that moment; otherwise a track ends at its last qualifying moment (reported 30 s later).
 - **Activity document sections:** `typed`, `first seen view <hwnd>`, `new in view <hwnd>`, `clicked`, `media`; a suppressed run is written as `[password, 12 keys]`; a non-human actor is appended as `(agent:<exe>)`; media lines only on change.
 - **Bundled Python verification is by Sigstore, not a pinned hash:** the session cannot reach python.org to compute one, and Sigstore ties the zip to the release manager's identity. If the identity or the bundle URL is wrong, the release fails (fail-closed), never ships unverified.
+- **Surfaces direction (U4 amended 2026-11-06):** the maintainer chose edge (at rest) → shelf (sentence over a timeline strip) → command line, with the nine pages moved to a deep window; neutral surfaces + the Windows accent; no cards. Mockups were worked out on a private design canvas; the decisions are in U4's "Amended 2026-11-06" table.
 - **Browser exe as the app** for app blocks: `chrome.exe` / `msedge.exe`, so "Don't capture this app" on a browser stops its context records too.
 
 ## Needs Windows verification
