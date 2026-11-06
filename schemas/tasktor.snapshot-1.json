@@ -841,6 +841,23 @@
             ]
           }
         },
+        "hotkey": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "keys": {
+              "type": "string"
+            },
+            "registered": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "keys"
+          ]
+        },
         "pinned": {
           "type": [
             "array",

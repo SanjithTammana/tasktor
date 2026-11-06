@@ -12,6 +12,7 @@ using Tasktor.Core.Loop;
 using Tasktor.Core.State;
 using Tasktor.Core.Storage;
 using Tasktor.Core.Time;
+using Tasktor.Core.Windows;
 
 namespace Tasktor.Agent.Host;
 
@@ -303,10 +304,70 @@ public sealed class AgentHost : IAsyncDisposable
         Publisher.MarkChanged();
     }
 
+    /// <summary>
+    /// Registers the command line's hotkey (the tray's thread owns it), replacing the previous one; false when another
+    /// program holds the combination. Null when there is no tray (tests, headless): the setting is still kept.
+    /// </summary>
+    public Func<Hotkey, bool>? ApplyHotkey { get; set; }
+
+    /// <summary>The configured hotkey at start (after Composition set <see cref="ApplyHotkey"/>).</summary>
+    private void InitHotkey()
+    {
+        if (ApplyHotkey is not { } apply)
+        {
+            return;
+        }
+
+        var h = Hotkey.FromSetting(Settings.Current.Flyout?.Hotkey);
+        var ok = apply(h);
+        UpdateState(s => s with { Hotkey = new Contracts.Snapshot.HotkeyState { Keys = h.ToString(), Registered = ok } });
+    }
+
+    /// <summary><c>settings.hotkey keys=…</c> (people only): register it now and keep it; a taken one keeps the old.</summary>
+    private PreparedAction SetHotkey(ActionRequest req)
+    {
+        if (Hotkey.Parse(req.Args?.GetValueOrDefault("keys"), out var why) is not { } h)
+        {
+            return new PreparedAction { Summary = "Set the hotkey", Refusal = why };
+        }
+
+        var old = Hotkey.FromSetting(Settings.Current.Flyout?.Hotkey);
+        var apply = ApplyHotkey;
+        bool ok = true, oldOk = true;
+        return new PreparedAction
+        {
+            Summary = "Command line hotkey " + h,
+            Run = _ =>
+            {
+                if (apply is not null && !(ok = apply(h)))
+                {
+                    oldOk = apply(old); // put the old one back
+                }
+
+                return ok
+                    ? new ActionResult { Action = req.Action, Status = ActionStatus.Ok, Message = "Command line: " + h }
+                    : new ActionResult { Action = req.Action, Status = ActionStatus.Failed, Message = h + " is used by another program; kept " + old };
+            },
+            Done = _ =>
+            {
+                if (ok)
+                {
+                    Settings.Update(c => c with { Flyout = (c.Flyout ?? new Contracts.Config.FlyoutSettings()) with { Hotkey = h.ToString() } });
+                }
+
+                if (apply is not null)
+                {
+                    UpdateState(s => s with { Hotkey = new Contracts.Snapshot.HotkeyState { Keys = (ok ? h : old).ToString(), Registered = ok || oldOk } });
+                }
+            },
+        };
+    }
+
     /// <summary>Start the loop thread and the pipe; publish the first snapshot (D-H10: start to first snapshot &lt; 1 s).</summary>
     public void Start()
     {
         Loop.Start();
+        Loop.Post(InitHotkey);
         Loop.Post(() => Plugins.Discover(Loop.Clock.UtcNow));
         Loop.Post(() => ReloadRules());
         Loop.Post(() => Publisher.Publish(force: true));
@@ -465,6 +526,7 @@ public sealed class AgentHost : IAsyncDisposable
         Router.Register("refits.resume", _ => Toggle("Refits resumed", p => p with { Refits = false }));
         Router.Register("open", OpenCard);
         Router.Register("card.pin", req => Pin(req, pin: true));
+        Router.Register("settings.hotkey", SetHotkey);
         Router.Register("card.unpin", req => Pin(req, pin: false));
         Router.Register("status", _ => new PreparedAction { Summary = "status", Immediate = new ActionResult { Action = "status", Status = ActionStatus.Ok } });
         Router.Register("quit", _ => new PreparedAction

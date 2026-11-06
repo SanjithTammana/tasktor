@@ -58,4 +58,15 @@ public sealed class SettingsPageTests
         Assert.NotEmpty(composed);
         Assert.Equal(composed.Order(), ModuleCatalog.All.Select(m => m.Id).Order());
     }
+
+    [Fact]
+    public void General_shows_the_command_line_shortcut_and_says_when_another_program_holds_it()
+    {
+        static System.Text.Json.Nodes.JsonNode Root(string state) => System.Text.Json.Nodes.JsonNode.Parse("{\"state\":" + state + "}")!;
+        Assert.Equal(new HotkeyRow("Win+Alt+T", null), SettingsPage.Hotkey(Root("""{"hotkey":{"keys":"Win+Alt+T","registered":true}}""")));
+        Assert.Equal(new HotkeyRow("Ctrl+Alt+K", "Another program uses this shortcut. Pick another."), SettingsPage.Hotkey(Root("""{"hotkey":{"keys":"Ctrl+Alt+K","registered":false}}""")));
+        Assert.Null(SettingsPage.Hotkey(Root("{}"))); // no tray (headless): nothing to set
+        var req = SettingsPage.SetHotkey(" ctrl+shift+space ");
+        Assert.Equal(("settings.hotkey", "ctrl+shift+space"), (req.Action, req.Args!["keys"]));
+    }
 }

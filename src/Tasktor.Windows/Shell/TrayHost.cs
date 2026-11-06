@@ -38,6 +38,7 @@ public sealed unsafe partial class TrayHost : IDisposable
     private const uint WmTrayCallback = WmApp + 1;
     private const uint WmApply = WmApp + 2;
     private const uint WmStop = WmApp + 3;
+    private const uint WmSetHotKey = WmApp + 4;
     private const uint WmNull = 0x0000;
     private const uint WmDestroy = 0x0002;
     private const uint WmSettingChange = 0x001A;
@@ -87,6 +88,13 @@ public sealed unsafe partial class TrayHost : IDisposable
 
     /// <summary>False when another program already holds Win+Alt+T.</summary>
     public bool HotKeyRegistered { get; private set; }
+
+    /// <summary>
+    /// Replace the command line's hotkey (<c>RegisterHotKey</c> modifiers and virtual key); false when another program
+    /// holds it, and then no hotkey is registered. Blocks until the tray thread has done it. Any thread.
+    /// </summary>
+    public bool SetHotKey(uint modifiers, uint virtualKey) =>
+        _owner != 0 && SendMessageW(_owner, WmSetHotKey, (nint)modifiers, (nint)virtualKey) == 1;
 
     /// <summary>The user clicked the balloon (it stands for a toast; the agent opens the shelf). Raised on the tray thread.</summary>
     public event Action? BalloonClicked;
@@ -226,6 +234,16 @@ public sealed unsafe partial class TrayHost : IDisposable
             {
                 case WmApply:
                     Apply();
+                    return true;
+                case WmSetHotKey:
+                    // A hotkey belongs to the thread that registered it: swap it here, on the tray's own thread.
+                    if (HotKeyRegistered)
+                    {
+                        UnregisterHotKey(_owner, CommandHotKey);
+                    }
+
+                    HotKeyRegistered = RegisterHotKey(_owner, CommandHotKey, (uint)wParam | 0x4000, (uint)lParam) != 0; // | MOD_NOREPEAT
+                    result = HotKeyRegistered ? 1 : 0;
                     return true;
                 case WmStop:
                     RemoveIcon();
@@ -732,6 +750,9 @@ public sealed unsafe partial class TrayHost : IDisposable
 
     [LibraryImport("user32.dll")]
     private static partial int RegisterHotKey(nint hwnd, int id, uint modifiers, uint key);
+
+    [LibraryImport("user32.dll")]
+    private static partial nint SendMessageW(nint hwnd, uint msg, nint wParam, nint lParam);
 
     [LibraryImport("user32.dll")]
     private static partial int UnregisterHotKey(nint hwnd, int id);
