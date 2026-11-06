@@ -5,6 +5,7 @@
     <RootNamespace>Tasktor.Capture</RootNamespace>
     <AssemblyName>tasktor-capture</AssemblyName>
     <IsAotCompatible>true</IsAotCompatible>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PublishAot>true</PublishAot>
   </PropertyGroup>
   <ItemGroup>
@@ -13,3 +14,4 @@
     <ProjectReference Include="../Tasktor.Windows/Tasktor.Windows.csproj" />
   </ItemGroup>
 </Project>
+

@@ -266,6 +266,37 @@ public sealed class BrowserEndpointTests : IDisposable
     }
 
     [Fact]
+    public async Task Disposing_the_server_waits_for_an_inflight_context_callback()
+    {
+        var (_, ep, _) = World();
+        var name = "tasktor-test-cap-" + Guid.NewGuid().ToString("N")[..10];
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        ep.ContextChanged += (_, _, _) => { entered.Set(); release.Wait(TimeSpan.FromSeconds(10)); };
+        var server = new CapturePipeServer(ep, name);
+        server.Start();
+        await using var pipe = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        try
+        {
+            await pipe.ConnectAsync(cts.Token);
+            var reader = new PipeFraming.LineReader(pipe);
+            await PipeFraming.WriteAsync(pipe, JsonSerializer.Serialize<BrowserMessage>(Hello(), ContractsJsonContext.Default.BrowserMessage), cts.Token);
+            Assert.NotNull(await reader.ReadLineAsync(cts.Token));
+            await PipeFraming.WriteAsync(pipe, JsonSerializer.Serialize<BrowserMessage>(Tab(2, "example.org"), ContractsJsonContext.Default.BrowserMessage), cts.Token);
+            Assert.True(await Task.Run(() => entered.Wait(TimeSpan.FromSeconds(5))));
+            var stopping = server.DisposeAsync().AsTask();
+            await Task.Delay(200, cts.Token);
+            Assert.False(stopping.IsCompleted);
+            release.Set();
+            await stopping.WaitAsync(cts.Token);
+        }
+        finally
+        {
+            release.Set();
+        }
+    }
+    [Fact]
     public async Task A_refused_hello_is_answered_then_the_connection_closes()
     {
         var (_, ep, _) = World();
@@ -309,3 +340,4 @@ public sealed class BrowserEndpointTests : IDisposable
         Assert.False(File.Exists(path));
     }
 }
+

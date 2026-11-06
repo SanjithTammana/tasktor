@@ -145,6 +145,7 @@ public sealed class CapturePipeServer : IAsyncDisposable
     private readonly CancellationTokenSource _cts = new();
     private readonly Lock _gate = new();
     private readonly Dictionary<string, (Stream Stream, SemaphoreSlim Write)> _sessions = new(StringComparer.Ordinal);
+    private readonly List<Task> _sessionTasks = [];
     private Task? _accept;
     private int _next;
 
@@ -188,7 +189,8 @@ public sealed class CapturePipeServer : IAsyncDisposable
             }
 
             var id = "s" + Interlocked.Increment(ref _next);
-            _ = ServeAsync(id, pipe, ct);
+            _sessionTasks.RemoveAll(static task => task.IsCompleted);
+            _sessionTasks.Add(ServeAsync(id, pipe, ct));
         }
     }
 
@@ -301,6 +303,8 @@ public sealed class CapturePipeServer : IAsyncDisposable
             await _accept.ConfigureAwait(false);
         }
 
+        await Task.WhenAll(_sessionTasks).ConfigureAwait(false);
         _cts.Dispose();
     }
 }
+
