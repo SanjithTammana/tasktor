@@ -37,7 +37,9 @@
         "toast",
         "cli",
         "rule",
-        "shell"
+        "shell",
+        "shelf",
+        "command"
       ]
     },
     "confirm": {

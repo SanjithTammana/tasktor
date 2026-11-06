@@ -25,7 +25,8 @@ public sealed class OriginPolicy
         ArgumentNullException.ThrowIfNull(def);
         ArgumentNullException.ThrowIfNull(req);
         // Surface tags (U4 H-G3) are enforced: the CLI, widget, tray and toasts reach only rows offered there.
-        // The flyout and the shell host every page, so they reach every row; rules follow the rule row below.
+        // The flyout, the shelf, the command line and the shell host every page (or search every row), so they reach every
+        // row; rules follow the rule row below.
         var surface = req.Origin switch
         {
             Origin.Cli => Surface.Cli,
@@ -85,7 +86,7 @@ public sealed class OriginPolicy
                 return req.Confirm == CliYes ? (PolicyVerdict.Allow, "ok") : (PolicyVerdict.NeedsConfirm, "needs_yes");
 
             default:
-                // Viewers (widget, flyout, tray, shell): destructive is two-step with a confirm token.
+                // Viewers (widget, flyout, shelf, command, tray, shell): destructive is two-step with a confirm token.
                 if (!needsConfirm || hasValidToken)
                 {
                     return (PolicyVerdict.Allow, "ok");

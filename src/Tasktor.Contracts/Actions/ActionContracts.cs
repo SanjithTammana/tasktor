@@ -22,6 +22,12 @@ public enum Origin
     [JsonStringEnumMemberName("cli")] Cli,
     [JsonStringEnumMemberName("rule")] Rule,
     [JsonStringEnumMemberName("shell")] Shell,
+
+    /// <summary>U4 amended D-G11: the shelf (sentence nouns and the inline confirm).</summary>
+    [JsonStringEnumMemberName("shelf")] Shelf,
+
+    /// <summary>U4 amended D-G12: the command line (Win+Alt+T).</summary>
+    [JsonStringEnumMemberName("command")] Command,
 }
 
 /// <summary><c>tasktor.action/1</c> request: one verb for every action (U1 D-H4).</summary>

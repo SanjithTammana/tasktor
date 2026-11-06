@@ -24,7 +24,7 @@ public sealed class ShelfTests
         Actions = actions,
     };
 
-    private static CardAction A(string id, string? noun, int priority = 1) => new() { Id = id, Label = id, Noun = noun, Priority = priority };
+    private static CardAction A(string id, string? noun, int priority = 1) => new() { Id = id, Label = id, Action = id, Noun = noun, Priority = priority };
 
     [Fact]
     public void Calm_machine_is_all_quiet_plus_the_jobs_fact()
@@ -135,6 +135,16 @@ public sealed class ShelfTests
     }
 
     [Fact]
+    public void Row_and_plugin_actions_do_not_make_a_noun()
+    {
+        var row = new CardAction { Id = "end", Label = "End", Action = "app.end", Noun = "Chrome", Target = new Dictionary<string, string> { ["app"] = "{row}" } };
+        var plugin = new CardAction { Id = "sync", Label = "Sync", Noun = "Drive" };
+        var s = ShelfComposer.Compose([C("m", "warn", "Chrome holds 5.7 GB; Drive is syncing", row, plugin)], Resolver);
+        Assert.Empty(s.Nouns);
+        Assert.Equal("Chrome holds 5.7 GB; Drive is syncing.", s.Text);
+    }
+
+    [Fact]
     public void Overlapping_nouns_keep_the_earlier_one()
     {
         var s = ShelfComposer.Compose([C("j", "warn", "train.py stalled", A("a", "train.py"), A("b", "py stalled"))], Resolver);
@@ -173,6 +183,14 @@ public sealed class ShelfTests
     }
 
     [Fact]
+    public void Series_pull_becomes_load()
+    {
+        Assert.Equal([0.25, 0.0, 1.0], EdgeGrain.LoadFromSeries(JsonNode.Parse("""{ "id": "system.cpu_pct", "hour": [25, null, 100] }""")));
+        Assert.Empty(EdgeGrain.LoadFromSeries(null));
+        Assert.Empty(EdgeGrain.LoadFromSeries(JsonNode.Parse("{}")));
+    }
+
+    [Fact]
     public void Contrast_matches_wcag_reference_values()
     {
         Assert.Equal(21.0, ThemeTokens.Contrast(Rgb.Parse("#000000"), Rgb.Parse("#FFFFFF")), 6);
@@ -200,6 +218,9 @@ public sealed class ShelfTests
 
     private static readonly XNamespace X = "http://schemas.microsoft.com/winfx/2006/xaml";
     private static readonly XNamespace P = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+
+    // XAML takes named weights; these are their OpenType values.
+    private static readonly Dictionary<string, int> Weights = new(StringComparer.Ordinal) { ["SemiLight"] = 350, ["Normal"] = 400, ["SemiBold"] = 600 };
 
     private static XDocument Xaml() => XDocument.Load(Path.Combine(RepoPaths.Root, "src", "Tasktor.Flyout", "Themes", "Tasktor.xaml"));
 
@@ -254,7 +275,7 @@ public sealed class ShelfTests
             Assert.Equal(step.Family, s["FontFamily"]);
             Assert.Equal(step.Size, double.Parse(s["FontSize"], CultureInfo.InvariantCulture));
             Assert.Equal(step.LineHeight, double.Parse(s["LineHeight"], CultureInfo.InvariantCulture));
-            Assert.Equal(step.Weight, int.Parse(s["FontWeight"], CultureInfo.InvariantCulture));
+            Assert.Equal(step.Weight, Weights[s["FontWeight"]]);
         }
 
         var spacing = doc.Root.Elements(X + "Double").ToDictionary(e => (string)e.Attribute(X + "Key")!, e => int.Parse(e.Value, CultureInfo.InvariantCulture));

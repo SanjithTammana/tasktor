@@ -109,7 +109,8 @@ public sealed class PipeServer : IAsyncDisposable
 
     public static IReadOnlySet<Origin> DefaultOrigins(string client, NamedPipeServerStream stream) => client switch
     {
-        "flyout" => new HashSet<Origin> { Origin.Flyout, Origin.Toast },
+        // The flyout process hosts the shelf, the command line and the deep window (U4 amended D-G11–D-G13).
+        "flyout" => new HashSet<Origin> { Origin.Flyout, Origin.Shelf, Origin.Command, Origin.Toast },
         "widget" => new HashSet<Origin> { Origin.Widget },
         "shell" => new HashSet<Origin> { Origin.Shell },
         _ => new HashSet<Origin> { Origin.Cli },

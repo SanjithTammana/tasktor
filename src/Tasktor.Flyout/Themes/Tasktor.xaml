@@ -107,42 +107,42 @@
         <Setter Property="FontFamily" Value="Segoe UI Variable Display" />
         <Setter Property="FontSize" Value="34" />
         <Setter Property="LineHeight" Value="44" />
-        <Setter Property="FontWeight" Value="350" />
+        <Setter Property="FontWeight" Value="SemiLight" />
     </Style>
     <Style x:Key="TasktorSentenceTextStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="Segoe UI Variable Display" />
         <Setter Property="FontSize" Value="26" />
         <Setter Property="LineHeight" Value="38" />
-        <Setter Property="FontWeight" Value="350" />
+        <Setter Property="FontWeight" Value="SemiLight" />
     </Style>
     <Style x:Key="TasktorTitleTextStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="Segoe UI Variable Display" />
         <Setter Property="FontSize" Value="28" />
         <Setter Property="LineHeight" Value="36" />
-        <Setter Property="FontWeight" Value="600" />
+        <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
     <Style x:Key="TasktorSubtitleTextStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
         <Setter Property="FontSize" Value="20" />
         <Setter Property="LineHeight" Value="28" />
-        <Setter Property="FontWeight" Value="600" />
+        <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
     <Style x:Key="TasktorBodyStrongTextStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="LineHeight" Value="20" />
-        <Setter Property="FontWeight" Value="600" />
+        <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
     <Style x:Key="TasktorBodyTextStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="LineHeight" Value="20" />
-        <Setter Property="FontWeight" Value="400" />
+        <Setter Property="FontWeight" Value="Normal" />
     </Style>
     <Style x:Key="TasktorCaptionTextStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="LineHeight" Value="16" />
-        <Setter Property="FontWeight" Value="400" />
+        <Setter Property="FontWeight" Value="Normal" />
     </Style>
 </ResourceDictionary>
