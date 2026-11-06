@@ -21,7 +21,8 @@ namespace Tasktor.Agent.Host;
 /// <summary>Builds the real agent: the host plus the Windows adapters and every feature. Grows milestone by milestone.</summary>
 internal static class Composition
 {
-    public static AgentHost Create(StoreLayout store)
+    /// <param name="tray">Show the tray icon and the edge (the real agent only; tests and CI rigs leave it off).</param>
+    public static AgentHost Create(StoreLayout store, bool tray = false)
     {
         var windows = OperatingSystem.IsWindows();
         var runner = new ChildProcessRunner(AppContext.BaseDirectory);
@@ -44,11 +45,84 @@ internal static class Composition
         });
         host.Loop.Post(() =>
         {
-            var (apps, pdh) = AddSystemMonitor(host, windows, processTable);
+            var (apps, pdh, totals) = AddSystemMonitor(host, windows, processTable);
+            if (tray && windows)
+            {
+                AddTray(host, totals);
+            }
+
             AddJobWatch(host, windows, processTable, apps, pdh);
             AddSourcesAndGuards(host, windows, processTable, apps);
         });
         return host;
+    }
+
+    /// <summary>
+    /// U4 D-G4 / amended D-G10, D-G15: the tray icon and the edge on their own UI thread. Their events are posted to the
+    /// loop (menu rows go through the router with origin tray); hover and click open the shelf.
+    /// </summary>
+    private static void AddTray(AgentHost host, SystemTotals totals)
+    {
+        var tray = new Windows.Shell.TrayHost();
+        var presenter = new TrayPresenter();
+        var launcher = new FlyoutLauncher(host.Options.InstallDir);
+        Windows.Shell.TrayDisplay? display = null;
+        Windows.Shell.TrayEdgeImage? edge = null;
+
+        void Show()
+        {
+            if (display is null || host.Publisher.Latest is not { } snap)
+            {
+                return;
+            }
+
+            var state = host.State.ToJson();
+            var cards = snap.Cards ?? [];
+            var now = host.Loop.Clock.UtcNow;
+            var worst = Core.State.GlanceText.WorstSeverity(cards, state);
+            var recording = TrayPresenter.Recording(snap.State.Capture, now);
+            var sentence = TrayPresenter.Sentence(cards, state);
+            tray.Update(new Windows.Shell.TrayView(
+                presenter.Icon(TrayPresenter.StateOf(snap.State, snap.Agent, worst, now), display),
+                display.IconSize,
+                TrayPresenter.Tooltip(Core.State.GlanceText.Compose(cards, state), recording),
+                TrayPresenter.Menu(sentence, snap.State, snap.Agent, now),
+                edge));
+        }
+
+        void Repaint()
+        {
+            if (display is not null)
+            {
+                edge = TrayPresenter.Edge(display, totals.HourRing["system.cpu_pct"].ToArray(), totals.HourSeverity.ToArray());
+            }
+
+            Show();
+        }
+
+        tray.DisplayChanged += d => host.Loop.Post(() =>
+        {
+            display = d;
+            Repaint();
+        });
+        tray.OpenRequested += () => launcher.ShowShelf();
+        tray.MenuChosen += item => host.Loop.Post(() => _ = host.Router.Submit(item.Action! with { Origin = Contracts.Actions.Origin.Tray }));
+        host.Publisher.Published += _ => Show();
+        totals.Sampled += (_, isTick) =>
+        {
+            if (isTick)
+            {
+                Repaint();
+            }
+        };
+        if (tray.Start())
+        {
+            host.Own(tray);
+        }
+        else
+        {
+            tray.Dispose();
+        }
     }
 
     /// <summary>Section B: the long-job watch over the same process table.</summary>
@@ -75,7 +149,7 @@ internal static class Composition
     }
 
     /// <summary>Section A: totals, apps, disk, pressure, battery, and the ports Module when it is on.</summary>
-    private static (Apps Apps, PdhMetricSource? Pdh) AddSystemMonitor(AgentHost host, bool windows, Win32ProcessTable processTable)
+    private static (Apps Apps, PdhMetricSource? Pdh, SystemTotals Totals) AddSystemMonitor(AgentHost host, bool windows, Win32ProcessTable processTable)
     {
         var ctx = host.NewFeatureContext();
         var pdh = windows ? new PdhMetricSource() : null;
@@ -108,7 +182,7 @@ internal static class Composition
             host.AddFeature(new Ports(ctx, windows ? new ListenerSource(processTable) : new NoListeners()));
         }
 
-        return (apps, pdh);
+        return (apps, pdh, totals);
     }
 
     /// <summary>Section U2: calendar, guards, agents, folders, connectivity, space, focus and device batteries.</summary>
