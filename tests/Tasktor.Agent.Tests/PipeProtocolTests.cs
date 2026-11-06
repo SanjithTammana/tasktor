@@ -143,6 +143,38 @@ public sealed class PipeProtocolTests : IAsyncLifetime
         Assert.DoesNotContain("events.db", data.ToJsonString(), StringComparison.Ordinal); // sizes and dates only, no names
     }
 
+    private static ActionRequest Module(string action, string id, Dictionary<string, string>? args = null) =>
+        new() { Action = action, Origin = Origin.Flyout, Target = new Dictionary<string, string> { ["module"] = id }, Args = args };
+
+    [Fact]
+    public async Task Turning_a_Module_on_records_consent_and_applies_at_the_next_start()
+    {
+        await using var c = await PipeClient.ConnectAsync("flyout", _agent.PipeName, 10000);
+        var on = await c.ActAsync(Module("module.enable", "focus"));
+        Assert.Equal(ActionStatus.Ok, on.Status);
+        Assert.Equal("Turned on Focus. Restart Tasktor to apply it.", on.Message);
+        AgentFixture.WaitFor(() => _agent.Host.OnLoop(() => _agent.Host.Settings.ModuleOn("focus") && _agent.Host.Consents.HasModule("focus")).GetAwaiter().GetResult());
+
+        var states = (await c.PullAsync("modules"))!.Data!["modules"]!.AsArray();
+        var focus = states.Single(m => m!["id"]!.GetValue<string>() == "focus")!;
+        Assert.Equal((true, false, true), (focus["on"]!.GetValue<bool>(), focus["running"]!.GetValue<bool>(), focus["consented"]!.GetValue<bool>()));
+        Assert.Equal(Contracts.Config.ModuleCatalog.All.Count, states.Count);
+
+        Assert.Equal("Turned off Focus.", (await c.ActAsync(Module("module.disable", "focus"))).Message);
+        AgentFixture.WaitFor(() => !_agent.Host.OnLoop(() => _agent.Host.Settings.ModuleOn("focus")).GetAwaiter().GetResult());
+    }
+
+    [Fact]
+    public async Task Modules_refuse_unknown_ids_rules_and_capture_without_its_own_screen()
+    {
+        await using var c = await PipeClient.ConnectAsync("flyout", _agent.PipeName, 10000);
+        Assert.Equal(ActionStatus.Refused, (await c.ActAsync(Module("module.enable", "nope"))).Status);
+        var capture = await c.ActAsync(Module("module.enable", "capture"));
+        Assert.Equal(ActionStatus.Refused, capture.Status);
+        Assert.False(_agent.Host.OnLoop(() => _agent.Host.Consents.HasModule("capture")).GetAwaiter().GetResult());
+        Assert.Equal(ActionStatus.Ok, (await c.ActAsync(Module("module.enable", "capture", new() { ["screen"] = "capture" }))).Status);
+    }
+
     private sealed class RawClient : IAsyncDisposable
     {
         private readonly System.IO.Pipes.NamedPipeClientStream _s;
