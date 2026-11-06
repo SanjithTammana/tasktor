@@ -8,11 +8,11 @@ public sealed record ConsentsFile
 {
     public int SchemaVersion { get; init; } = 1;
 
-    public Dictionary<string, DateTimeOffset> Modules { get; init; } = new(StringComparer.Ordinal);
+    public Dictionary<string, DateTimeOffset> Modules { get; set; } = new(StringComparer.Ordinal);
 
-    public Dictionary<string, PluginConsent> Plugins { get; init; } = new(StringComparer.Ordinal);
+    public Dictionary<string, PluginConsent> Plugins { get; set; } = new(StringComparer.Ordinal);
 
-    public Dictionary<string, DateTimeOffset> ArrangeRules { get; init; } = new(StringComparer.Ordinal);
+    public Dictionary<string, DateTimeOffset> ArrangeRules { get; set; } = new(StringComparer.Ordinal);
 }
 
 /// <summary>A plugin consent pinned to the SHA-256 of <c>plugin.json</c> and of the command's target file (U1 D-H7).</summary>
@@ -34,7 +34,7 @@ public sealed record SelfUseFile
 
     public DateTimeOffset? Since { get; init; }
 
-    public Dictionary<string, long> Counts { get; init; } = new(StringComparer.Ordinal);
+    public Dictionary<string, long> Counts { get; set; } = new(StringComparer.Ordinal);
 }
 
 /// <summary><c>state\pause.json</c>: pause state persists across restarts (privacy rule 3).</summary>
@@ -58,6 +58,7 @@ public sealed record PauseFile
     ReadCommentHandling = JsonCommentHandling.Skip,
     AllowTrailingCommas = true,
     WriteIndented = true,
+    RespectNullableAnnotations = true, // an explicit null in a non-nullable slot is a bad file, not a crash later
     Converters = [typeof(Tasktor.Contracts.UtcTimestampConverter)])]
 [JsonSerializable(typeof(ConsentsFile))]
 [JsonSerializable(typeof(SelfUseFile))]
