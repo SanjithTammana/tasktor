@@ -24,6 +24,7 @@ internal static class Composition
     /// <param name="tray">Show the tray icon and the edge (the real agent only; tests and CI rigs leave it off).</param>
     public static AgentHost Create(StoreLayout store, bool tray = false)
     {
+        var notifier = new SwitchableNotifier(); // the tray's balloons once it is up (U4 D-G7 fallback)
         var windows = OperatingSystem.IsWindows();
         var runner = new ChildProcessRunner(AppContext.BaseDirectory);
         if (windows)
@@ -42,13 +43,14 @@ internal static class Composition
             KeyProtection = windows ? Windows.Security.Dpapi.Protection : KeyProtection.None,
             ProcessControl = control,
             ReadProcess = windows ? processTable.ReadOne : PortableProcessTable.ReadOne,
+            Notifier = notifier,
         });
         host.Loop.Post(() =>
         {
             var (apps, pdh, totals) = AddSystemMonitor(host, windows, processTable);
             if (tray && windows)
             {
-                AddTray(host, totals);
+                AddTray(host, totals, notifier);
             }
 
             AddJobWatch(host, windows, processTable, apps, pdh);
@@ -61,7 +63,7 @@ internal static class Composition
     /// U4 D-G4 / amended D-G10, D-G15: the tray icon and the edge on their own UI thread. Their events are posted to the
     /// loop (menu rows go through the router with origin tray); hover and click open the shelf.
     /// </summary>
-    private static void AddTray(AgentHost host, SystemTotals totals)
+    private static void AddTray(AgentHost host, SystemTotals totals, SwitchableNotifier notifier)
     {
         var tray = new Windows.Shell.TrayHost();
         var presenter = new TrayPresenter();
@@ -107,6 +109,7 @@ internal static class Composition
         });
         tray.OpenRequested += () => launcher.ShowShelf();
         tray.CommandRequested += () => launcher.ShowCommand();
+        tray.BalloonClicked += () => launcher.ShowShelf();
         tray.MenuChosen += item => host.Loop.Post(() => _ = host.Router.Submit(item.Action! with { Origin = Contracts.Actions.Origin.Tray }));
         host.Publisher.Published += _ => Show();
         totals.Sampled += (_, isTick) =>
@@ -119,6 +122,7 @@ internal static class Composition
         if (tray.Start())
         {
             host.Own(tray);
+            notifier.Target = new BalloonNotifier(v => tray.ShowBalloon(v is null ? null : new Windows.Shell.TrayBalloon(v.Title, v.Body, (uint)v.Icon)));
         }
         else
         {
