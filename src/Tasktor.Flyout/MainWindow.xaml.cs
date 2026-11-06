@@ -61,7 +61,7 @@ public sealed partial class MainWindow : Window
     private void Refresh(bool fromSnapshot)
     {
         var cards = _snapshot.Mirror.Cards;
-        var visible = DeepPages.Visible(cards);
+        var visible = DeepPages.Visible(cards, DeepPages.HiddenPages(_snapshot.Mirror.Root));
         if (!visible.Any(p => p.Id == _page))
         {
             _page = DeepPages.Home; // its Module was turned off
@@ -423,6 +423,39 @@ public sealed partial class MainWindow : Window
 
         DrawRules();
         DrawPlugins();
+        DrawAppearance();
+    }
+
+    /// <summary>Settings → Appearance (U4): hide pages from the rail; Home, Your data and Settings always stay.</summary>
+    private void DrawAppearance()
+    {
+        PageContent.Children.Add(new TextBlock { Text = "Appearance", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 16, 0, 0) });
+        PageContent.Children.Add(Text("Pages shown in the list on the left. Home, Your data and Settings are always there.", "TasktorInk2Brush"));
+        var hidden = DeepPages.HiddenPages(_snapshot.Mirror.Root);
+        var list = new StackPanel();
+        foreach (var page in DeepPages.Hideable)
+        {
+            var grid = new Grid { MinHeight = 48 };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.Children.Add(new TextBlock { Text = page.Name, VerticalAlignment = VerticalAlignment.Center, Style = StyleOf("TasktorBodyTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+            var on = !hidden.Contains(page.Id);
+            var toggle = new ToggleSwitch { IsOn = on, OnContent = "Shown", OffContent = "Hidden", VerticalAlignment = VerticalAlignment.Center };
+            AutomationProperties.SetName(toggle, page.Name);
+            toggle.Toggled += async (_, _) =>
+            {
+                if (toggle.IsOn != on)
+                {
+                    await RunAsync(SettingsPage.ShowPage(page.Id, toggle.IsOn)); // the rail follows the next snapshot
+                }
+            };
+            Grid.SetColumn(toggle, 1);
+            grid.Children.Add(toggle);
+            list.Children.Add(grid);
+            list.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
+        }
+
+        PageContent.Children.Add(list);
     }
 
     private Contracts.Plugins.PluginsReport? _plugins;

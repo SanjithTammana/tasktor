@@ -152,6 +152,9 @@ public sealed record FlyoutSettings
     /// <summary>"Keep the window ready" (U4 D-G2).</summary>
     public bool KeepWarm { get; init; }
 
+    /// <summary>Deep-window pages hidden in Settings → Appearance (never Home, Your data or Settings).</summary>
+    public IReadOnlyList<string>? HiddenPages { get; init; }
+
     /// <summary>Cards pinned to Home, in order (<c>card.pin</c> / <c>card.unpin</c>). Null = the defaults; empty = none.</summary>
     public IReadOnlyList<string>? PinnedCards { get; init; }
 }

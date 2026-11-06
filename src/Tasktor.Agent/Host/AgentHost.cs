@@ -106,7 +106,7 @@ public sealed class AgentHost : IAsyncDisposable
         Archive = new SettingsArchive(Store);
         LoadPause();
         History.Changed += () => UpdateState(s => s with { RecentActions = History.Items.Count == 0 ? null : [.. History.Items] });
-        UpdateState(s => s with { Pinned = Settings.Current.Flyout?.PinnedCards });
+        UpdateState(s => s with { Pinned = Settings.Current.Flyout?.PinnedCards, HiddenPages = Settings.Current.Flyout?.HiddenPages is { Count: > 0 } h ? h : null });
         Router.Finished += (req, result, summary) => History.Record(req, result, summary, Loop.Clock.UtcNow);
         _owned.Add(Loop.Every(TimeSpan.FromMinutes(1), () => History.Prune(Loop.Clock.UtcNow)));
         Router.Completed += (req, result) =>
@@ -611,6 +611,37 @@ public sealed class AgentHost : IAsyncDisposable
         Router.Register("open", OpenCard);
         Router.Register("card.pin", req => Pin(req, pin: true));
         Router.Register("settings.hotkey", SetHotkey);
+        Router.Register("settings.page", req =>
+        {
+            // Settings → Appearance: hide or show a deep-window page. Home, Your data and Settings cannot be hidden.
+            var page = req.Args?.GetValueOrDefault("page");
+            var shown = req.Args?.GetValueOrDefault("shown");
+            if (Hosts.Common.Deep.DeepPages.Hideable.FirstOrDefault(p => p.Id == page) is not { } info || shown is not ("true" or "false"))
+            {
+                return new PreparedAction { Summary = "Show or hide a page", Refusal = "That page cannot be hidden" };
+            }
+
+            var show = shown == "true";
+            return new PreparedAction
+            {
+                Summary = (show ? "Show " : "Hide ") + info.Name,
+                Immediate = new ActionResult { Action = req.Action, Status = ActionStatus.Ok, Message = (show ? "Showing " : "Hid ") + info.Name },
+                Done = _ =>
+                {
+                    Settings.Update(c =>
+                    {
+                        var list = (c.Flyout?.HiddenPages ?? []).Where(p => p != info.Id).ToList();
+                        if (!show)
+                        {
+                            list.Add(info.Id);
+                        }
+
+                        return c with { Flyout = (c.Flyout ?? new Contracts.Config.FlyoutSettings()) with { HiddenPages = list.Count == 0 ? null : list } };
+                    });
+                    UpdateState(s => s with { HiddenPages = Settings.Current.Flyout?.HiddenPages });
+                },
+            };
+        });
         Router.Register("rules.edit", _ =>
         {
             var path = Store.Rules;

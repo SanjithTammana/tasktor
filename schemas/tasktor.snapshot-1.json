@@ -858,6 +858,15 @@
             "keys"
           ]
         },
+        "hidden_pages": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
         "pinned": {
           "type": [
             "array",
