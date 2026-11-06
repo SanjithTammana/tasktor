@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Tasktor.Contracts.Actions;
 using Tasktor.Contracts.Cards;
@@ -98,6 +99,7 @@ public sealed class FocusTimer : Feature
             "focus_presets",
             ["preset", "blocks", "mean_on_intent", "switches_per_block", "completion_rate", "excluded"],
             _ => FocusReview.Stats(_file.Blocks).Select(s => new object?[] { s.Preset, s.Blocks, s.MeanOnIntent, s.SwitchesPerBlock, s.CompletionRate, s.Excluded })));
+        Context.RegisterPull("focus", _ => PullFocus());
         Publish();
     }
 
@@ -107,6 +109,57 @@ public sealed class FocusTimer : Feature
         {
             Stop();
         }
+    }
+
+    /// <summary>
+    /// The deep window's Focus page (U4 D-G3): presets to start from, the last blocks, per-preset statistics and the
+    /// comparison line. Names, minutes and numbers only: no note text, no titles, no workflow ids.
+    /// </summary>
+    private JsonNode PullFocus()
+    {
+        var presets = new JsonArray();
+        foreach (var p in Context.Settings.FocusPresets)
+        {
+            presets.Add((JsonNode)new JsonObject { ["name"] = p.Name, ["summary"] = Summary(p) });
+        }
+
+        var blocks = new JsonArray();
+        foreach (var b in _file.Blocks.OrderByDescending(r => r.At).Take(10))
+        {
+            blocks.Add((JsonNode)new JsonObject
+            {
+                ["at"] = b.At.ToString("O", CultureInfo.InvariantCulture),
+                ["preset"] = b.Preset,
+                ["minutes"] = b.Minutes,
+                ["end"] = Word(b.End),
+                ["on_intent_share"] = b.OnIntentShare,
+                ["switches"] = b.Switches,
+                ["excluded"] = b.Excluded,
+            });
+        }
+
+        var stats = new JsonArray();
+        foreach (var s in FocusReview.Stats(_file.Blocks))
+        {
+            stats.Add((JsonNode)new JsonObject
+            {
+                ["preset"] = s.Preset,
+                ["blocks"] = s.Blocks,
+                ["mean_on_intent"] = Math.Round(s.MeanOnIntent, 3),
+                ["switches_per_block"] = Math.Round(s.SwitchesPerBlock, 1),
+                ["completion_rate"] = Math.Round(s.CompletionRate, 3),
+                ["excluded"] = s.Excluded,
+            });
+        }
+
+        return new JsonObject { ["tracking"] = TrackingOn(), ["presets"] = presets, ["blocks"] = blocks, ["stats"] = stats, ["review"] = ReviewLine() };
+    }
+
+    private static string Summary(FocusPreset p)
+    {
+        var parts = p.Blocks.Select(b => b.Minutes.ToString(CultureInfo.InvariantCulture) + " min " + (b.Kind == "focus" ? "focus" : "break"));
+        var text = string.Join(", ", parts);
+        return p.LongBreakEvery is > 0 and var every ? text + ", a long break every " + every.ToString(CultureInfo.InvariantCulture) : text;
     }
 
     private static string Word(BlockEnd e) => e switch { BlockEnd.Completed => "completed", BlockEnd.Skipped => "skipped", _ => "stopped" };

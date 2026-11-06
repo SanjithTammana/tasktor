@@ -166,4 +166,28 @@ public sealed class PresetRestorerTests
         Assert.Equal(ActionStatus.Ok, rig.Act(Request("preset.undo", "rule-b", "B")).Status);
         Assert.Equal(2, moves[3].Hwnd);
     }
+    [Fact]
+    public void PresetsPullListsCountsAndOffersUndoOnlyAfterAnArrange()
+    {
+        using var rig = new FeatureRig();
+        var window = new WindowInfo { Hwnd = 1, Pid = 7, AppId = "code.exe", FramePx = new RectPx(0, 0, 200, 200), WindowPx = new RectPx(0, 0, 200, 200) };
+        var monitor = new MonitorInfo("display", new RectPx(0, 0, 1000, 800), new RectPx(0, 0, 1000, 800), 96, true);
+        PresetPlace Place() => new() { Monitor = "display", Rect = new DipRect { W = 300, H = 300 } };
+        var preset = new Preset
+        {
+            Name = "Work",
+            Hotkey = "Ctrl+Alt+1",
+            Slots = [new PresetSlot { App = new PresetApp { AppId = "code.exe" }, Place = Place() }, new PresetSlot { App = new PresetApp { AppId = "other.exe" }, Place = Place(), Launch = new PresetLaunch { Exe = "private-tool.exe", Args = ["--private"] } }],
+        };
+        new PresetStore(rig.Context).Save(new PresetsFile { Presets = [preset] });
+        rig.Add(new PresetRestorer(rig.Context) { Windows = () => [window], UserChangedSince = (_, _) => false, Monitors = () => [monitor], Move = _ => true });
+        rig.Pump();
+        var pull = new Contracts.Pipe.PullMessage { Table = "presets" };
+        var first = Assert.Single(rig.Pulls["presets"](pull)!["presets"]!.AsArray())!;
+        Assert.Equal(("Work", 2, 1, "Ctrl+Alt+1", false), ((string)first["name"]!, (int)first["slots"]!, (int)first["launches"]!, (string)first["hotkey"]!, (bool)first["can_undo"]!));
+        rig.Act(new ActionRequest { Action = "preset.arrange", Origin = Origin.Flyout, Target = new Dictionary<string, string> { ["preset"] = "Work" } });
+        var after = rig.Pulls["presets"](pull)!;
+        Assert.True((bool)after["presets"]![0]!["can_undo"]!);
+        Assert.DoesNotContain("private", after.ToJsonString(), StringComparison.Ordinal);
+    }
 }
