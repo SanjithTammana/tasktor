@@ -635,7 +635,12 @@ public sealed class AgentHost : IAsyncDisposable
             };
             var cloud = DataExporter.IsCloudSynced(folder);
             return OffLoop(
-                "Export my data to " + folder + (cloud ? " (a cloud-synced folder: files will leave this PC)" : string.Empty),
+                // The confirm dialog shows this line: it names what the include flags add (D-S7: explicit flags + confirmation).
+                "Export my data to " + folder
+                    + (options.IncludeRaw && options.IncludeCapture ? ", including window titles and decrypted capture records"
+                        : options.IncludeRaw ? ", including window titles"
+                        : options.IncludeCapture ? ", including decrypted capture records" : string.Empty)
+                    + (cloud ? " (a cloud-synced folder: files will leave this PC)" : string.Empty),
                 () =>
                 {
                     var r = Exporter.Export(options, since);

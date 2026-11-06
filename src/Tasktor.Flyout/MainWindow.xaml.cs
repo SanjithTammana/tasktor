@@ -158,6 +158,10 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>"Your data": the agent's scan as sections with a two-step Forget each; re-pulled every 15 s while shown.</summary>
+    private bool _exportRaw;
+    private bool _exportCapture;
+    private bool _exporting;
+
     private void DrawData()
     {
         var fresh = _data is null ? TimeSpan.FromSeconds(2) : TimeSpan.FromSeconds(15);
@@ -177,6 +181,44 @@ public sealed partial class MainWindow : Window
         {
             PageContent.Children.Add(Section(section));
         }
+
+        DrawExport();
+    }
+
+    /// <summary>D-S7 Export: CSV + JSONL per table to a new folder; titles and capture records only when ticked (the agent asks).</summary>
+    private void DrawExport()
+    {
+        PageContent.Children.Add(new TextBlock { Text = "Export", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+        PageContent.Children.Add(Text("A copy of what Tasktor keeps, as CSV and JSONL files with a manifest, in a new folder under Documents. The files are plain text.", "TasktorInk2Brush"));
+        // The page is redrawn after every 15 s re-count: the ticks and the running export live in fields, not in the controls.
+        var raw = new CheckBox { Content = "Include window titles (the last 30 days of raw events)", IsChecked = _exportRaw };
+        raw.Click += (_, _) => _exportRaw = raw.IsChecked == true;
+        var capture = new CheckBox { Content = "Include capture records, decrypted (the last 7 days)", IsChecked = _exportCapture };
+        capture.Click += (_, _) => _exportCapture = capture.IsChecked == true;
+        var go = new Button { Content = _exporting ? "Exporting…" : "Export my data", IsEnabled = !_exporting, Style = StyleOf("AccentButtonStyle"), Margin = new Thickness(0, 8, 0, 0) };
+        go.Click += async (_, _) =>
+        {
+            _exporting = true;
+            go.IsEnabled = false;
+            try
+            {
+                if (await RunAsync(DataPage.Export(_exportRaw, _exportCapture)) is { Ok: true, Result.Message: { } done })
+                {
+                    await OnUi(() => InformAsync(done)); // where the files went
+                }
+            }
+            finally
+            {
+                _exporting = false;
+                if (_page == "data")
+                {
+                    Draw(_snapshot.Mirror.Cards);
+                }
+            }
+        };
+        PageContent.Children.Add(raw);
+        PageContent.Children.Add(capture);
+        PageContent.Children.Add(go);
     }
 
     private System.Text.Json.Nodes.JsonNode? _learned;
@@ -814,7 +856,7 @@ public sealed partial class MainWindow : Window
         return line;
     }
 
-    private async Task RunAsync(CardAction action, string? rowKey = null)
+    private async Task<ActionOutcome?> RunAsync(CardAction action, string? rowKey = null)
     {
         ActionOutcome outcome;
         try
@@ -823,7 +865,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException)
         {
-            return; // the agent went away; the page shows "Tasktor is not running." on the next refresh
+            return null; // the agent went away; the page shows "Tasktor is not running." on the next refresh
         }
 
         _dataAt = DateTimeOffset.MinValue; // a forget (or anything) may change what is kept: re-count on the next draw
@@ -844,6 +886,8 @@ public sealed partial class MainWindow : Window
         {
             await OnUi(() => InformAsync(r.Message ?? "Couldn't do that (" + (r.Reason ?? "failed") + ")."));
         }
+
+        return outcome;
     }
 
     private async Task<bool> ConfirmAsync(string summary)

@@ -60,4 +60,15 @@ public sealed class DataPageTests
         var plus = TimeZoneInfo.CreateCustomTimeZone("plus2", TimeSpan.FromHours(2), "plus2", "plus2");
         Assert.Equal("9 Oct 2026", DataPage.Section(Tracking, plus).Rows.Single(r => r.Label == "Oldest").Value);
     }
+
+    [Fact]
+    public void Export_sends_the_include_flags_only_when_ticked()
+    {
+        var plain = DataPage.Export(includeRaw: false, includeCapture: false);
+        Assert.Equal(("export.data", "Export my data"), (plain.Action, plain.Label));
+        Assert.Null(plain.Args); // the agent's defaults: no raw titles, no capture, CSV + JSONL, Documents\Tasktor export
+        var all = DataPage.Export(includeRaw: true, includeCapture: true);
+        Assert.Equal(("true", "true"), (all.Args!["include_raw"], all.Args["include_capture"])); // these two make the agent ask first
+        Assert.False(DataPage.Export(includeRaw: true, includeCapture: false).Args!.ContainsKey("include_capture"));
+    }
 }
