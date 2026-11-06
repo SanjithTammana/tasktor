@@ -229,6 +229,11 @@ public sealed class AgentHost : IAsyncDisposable
     public void AddFeature(Feature feature)
     {
         ArgumentNullException.ThrowIfNull(feature);
+        if (_building is { } module)
+        {
+            _moduleFeatures[module].Add(feature); // built for that Module: removed when it is turned off
+        }
+
         _features.Add(feature);
         Cards.Add(feature);
         feature.Enable();
@@ -688,10 +693,105 @@ public sealed class AgentHost : IAsyncDisposable
     }
 
     /// <summary>
-    /// The Modules composed at start (Composition reads config.json once); a change made later applies at the next
-    /// start, and the <c>modules</c> pull says which ones wait for it.
+    /// The Modules composed at start. A Module registered with <see cref="RegisterModule"/> starts and stops live; any
+    /// other one (threaded through always-on plumbing) applies at the next start, and the <c>modules</c> pull says so.
     /// </summary>
     private readonly HashSet<string> _modulesAtStart;
+
+    private readonly Dictionary<string, (Action Build, string[] DependsOn)> _moduleBuilders = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, List<Feature>> _moduleFeatures = new(StringComparer.Ordinal);
+    private string? _building;
+
+    /// <summary>
+    /// Composition registers a Module: <paramref name="build"/> adds its features (through <see cref="AddFeature"/>) and
+    /// runs now if the Module is on, and again whenever it is turned on. Modules it depends on (the other overload) are
+    /// wired into it at build time, so it is rebuilt when one of them starts or stops. Loop only.
+    /// </summary>
+    public void RegisterModule(string id, Action build) => RegisterModule(id, [], build);
+
+    /// <inheritdoc cref="RegisterModule(string, Action)"/>
+    public void RegisterModule(string id, string[] dependsOn, Action build)
+    {
+        ArgumentNullException.ThrowIfNull(build);
+        _moduleBuilders[id] = (build, dependsOn);
+        if (Settings.ModuleOn(id))
+        {
+            StartModule(id);
+        }
+    }
+
+    /// <summary>Whether a Module's features run now.</summary>
+    public bool ModuleRunning(string id) =>
+        _moduleBuilders.ContainsKey(id) ? _moduleFeatures.ContainsKey(id) : _modulesAtStart.Contains(id);
+
+    private void StartModule(string id)
+    {
+        if (_moduleFeatures.ContainsKey(id) || !_moduleBuilders.TryGetValue(id, out var m))
+        {
+            return;
+        }
+
+        _moduleFeatures[id] = [];
+        _building = id;
+        try
+        {
+            m.Build();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("module.start", LogField.Of("id", id), LogField.Of("type", ex.GetType().Name), LogField.Of("at", ErrorWhere.Of(ex)));
+            StopModule(id); // a Module that failed to build runs nothing
+        }
+        finally
+        {
+            _building = null;
+        }
+    }
+
+    private void StopModule(string id)
+    {
+        if (!_moduleFeatures.Remove(id, out var features))
+        {
+            return;
+        }
+
+        foreach (var f in Enumerable.Reverse(features))
+        {
+            f.Disable();
+            _features.Remove(f);
+            Cards.Remove(f);
+        }
+
+        Publisher.MarkChanged();
+        Rules.MarkDirty();
+    }
+
+    /// <summary>Turn a registered Module on or off now, and rebuild the running Modules wired to it. False: needs a restart.</summary>
+    private bool ApplyModule(string id, bool on)
+    {
+        if (!_moduleBuilders.ContainsKey(id))
+        {
+            return false;
+        }
+
+        if (on)
+        {
+            StartModule(id);
+        }
+        else
+        {
+            StopModule(id);
+        }
+
+        foreach (var dependent in _moduleBuilders.Where(kv => kv.Value.DependsOn.Contains(id) && _moduleFeatures.ContainsKey(kv.Key)).Select(kv => kv.Key).ToList())
+        {
+            StopModule(dependent);
+            StartModule(dependent);
+        }
+
+        Publisher.MarkChanged();
+        return true;
+    }
 
     /// <summary>
     /// <c>module.enable</c> / <c>module.disable</c> (user only): turning a Module on records its consent (U1 H1) and sets
@@ -713,7 +813,7 @@ public sealed class AgentHost : IAsyncDisposable
                 return new PreparedAction { Summary = "Turn on Capture", Refusal = "Capture is turned on from its own consent screen" };
             }
 
-            var restart = on != _modulesAtStart.Contains(info.Id);
+            var restart = !_moduleBuilders.ContainsKey(info.Id) && on != _modulesAtStart.Contains(info.Id);
             var message = (on ? "Turned on " : "Turned off ") + info.Name + (restart ? ". Restart Tasktor to apply it." : ".");
             return new PreparedAction
             {
@@ -727,6 +827,7 @@ public sealed class AgentHost : IAsyncDisposable
                     }
 
                     Settings.Update(c => c with { Modules = new Dictionary<string, bool>(c.Modules ?? new Dictionary<string, bool>(), StringComparer.Ordinal) { [info.Id] = on } });
+                    ApplyModule(info.Id, on);
                     Log.Info("module", LogField.Of("id", info.Id), LogField.Of("on", on ? "true" : "false"));
                 },
             };
@@ -741,7 +842,7 @@ public sealed class AgentHost : IAsyncDisposable
                 {
                     Id = m.Id,
                     On = Settings.ModuleOn(m.Id),
-                    Running = _modulesAtStart.Contains(m.Id),
+                    Running = ModuleRunning(m.Id),
                     Consented = Consents.HasModule(m.Id),
                 })],
             },

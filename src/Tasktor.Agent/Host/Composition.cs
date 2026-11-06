@@ -182,10 +182,7 @@ internal static class Composition
             BusyName = () => apps.TopGroups(1, "cpu").FirstOrDefault()?.Name,
         };
         host.AddFeature(battery);
-        if (host.Settings.ModuleOn("ports"))
-        {
-            host.AddFeature(new Ports(ctx, windows ? new ListenerSource(processTable) : new NoListeners()));
-        }
+        host.RegisterModule("ports", () => host.AddFeature(new Ports(ctx, windows ? new ListenerSource(processTable) : new NoListeners())));
 
         return (apps, pdh, totals);
     }
@@ -199,18 +196,11 @@ internal static class Composition
         apps.RuleGroups = () => host.Rules.Engine.Rules.Groups;
         host.Rules.RunCommand = ToolProcess.Start;
 
-        var calendarOn = new[] { "next_event", "deadlines", "event_mode", "meeting_guard" }.Any(settings.ModuleOn);
-        var feed = calendarOn ? new CalendarFeed(ctx, new CalendarSource(() => settings.Current.Calendar, host.Store, host.Loop.Clock)) : null;
+        // The feed reads and watches calendar files only while a feature holds it, so it is always built (Modules start live).
+        var feed = new CalendarFeed(ctx, new CalendarSource(() => settings.Current.Calendar, host.Store, host.Loop.Clock));
         NextEvent? next = null;
-        if (feed is not null && settings.ModuleOn("next_event"))
-        {
-            host.AddFeature(next = new NextEvent(ctx, feed));
-        }
-
-        if (feed is not null && settings.ModuleOn("deadlines"))
-        {
-            host.AddFeature(new Deadlines(ctx, feed));
-        }
+        host.RegisterModule("next_event", () => host.AddFeature(next = new NextEvent(ctx, feed)));
+        host.RegisterModule("deadlines", () => host.AddFeature(new Deadlines(ctx, feed)));
 
         // Event mode is plumbing for E11 too: always on; calendar windows only with its Module.
         var eventMode = new EventMode(ctx, settings.ModuleOn("event_mode") ? feed : null);
@@ -221,15 +211,14 @@ internal static class Composition
         host.Rules.ExtraGuards.Add(power.ManualGuards);
 
         MeetingGuard? meeting = null;
-        if (settings.ModuleOn("meeting_guard"))
+        power.Notices.Add(() => meeting is { Enabled: true } m ? m.Notice : null); // reads whichever guard runs now
+        host.RegisterModule("meeting_guard", () =>
         {
-            var guard = new MeetingGuard(ctx, windows ? new CallStateSource() : null, () => next?.MeetingNow is not null) { CallApps = () => Group("call_apps") };
-            meeting = guard;
-            host.AddFeature(guard);
-            power.Notices.Add(() => guard.Notice);
-        }
+            meeting = new MeetingGuard(ctx, windows ? new CallStateSource() : null, () => next is { Enabled: true } n && n.MeetingNow is not null) { CallApps = () => Group("call_apps") };
+            host.AddFeature(meeting);
+        });
 
-        if (settings.ModuleOn("agents"))
+        host.RegisterModule("agents", () =>
         {
             var profile = AgentHost.KnownFolder("UserProfile");
             host.AddFeature(new AgentWatch(ctx, apps, new AgentHookSource(host.Store.AgentsDir), windows ? processTable.ReadOne : PortableProcessTable.ReadOne, windows ? ProcessInfo.CommandLine : _ => null)
@@ -239,24 +228,31 @@ internal static class Composition
                 ShowWindow = windows ? Windows.Shell.WindowsShell.ShowWindowOf : null,
                 ClaudeSettingsPath = () => profile is null ? null : Path.Combine(profile, ".claude", "settings.json"),
             });
-        }
+        });
 
-        if (settings.ModuleOn("folders"))
+        FolderAction? folders = null;
+        host.RulesReloaded += _ =>
         {
-            var folders = new FolderAction(ctx, list => new FolderWatchSource(list, () => host.Loop.Clock.UtcNow))
+            if (folders is { Enabled: true } f)
+            {
+                f.Rewatch();
+            }
+        };
+        host.RegisterModule("folders", () =>
+        {
+            folders = new FolderAction(ctx, list => new FolderWatchSource(list, () => host.Loop.Clock.UtcNow))
             {
                 Folders = () => FolderAction.FoldersOf(host.Rules.Engine.Rules, AgentHost.KnownFolder),
             };
             host.AddFeature(folders);
-            host.RulesReloaded += _ => folders.Rewatch();
-        }
+        });
 
-        if (settings.ModuleOn("connectivity"))
+        host.RegisterModule("connectivity", () =>
         {
             var net = windows ? new ConnectivitySource() : null;
             var listeners = new ListenerSource(processTable);
             host.AddFeature(new Connectivity(ctx, net, net) { TopConnections = windows ? listeners.TopConnections : null });
-        }
+        });
 
         host.AddFeature(new SpaceReport(ctx, new CacheLocator(Environment.GetEnvironmentVariable, AgentHost.KnownFolder, Directory.Exists, ToolProcess.FirstLine))
         {
@@ -269,7 +265,25 @@ internal static class Composition
         var windowEvents = winEvents is null ? null : new SharedSource<Contracts.Workflow.WindowEvent>(winEvents);
 
         WorkflowTracking? tracking = null;
-        if (settings.ModuleOn("tracking"))
+        // Forget tracking: stop and close both stores before track\ goes, reopen fresh ones after (only if it was running).
+        var trackingWasOn = false;
+        host.Forgetter.Before[ForgetScope.Tracking].Add(() => host.Loop.InvokeAsync(() =>
+        {
+            trackingWasOn = tracking is { Enabled: true };
+            tracking?.Disable();
+            return true;
+        }));
+        host.Forgetter.After[ForgetScope.Tracking].Add(() => host.Loop.InvokeAsync(() =>
+        {
+            if (trackingWasOn && tracking is { } t && host.ModuleRunning("tracking"))
+            {
+                t.Model = null;
+                t.Enable();
+            }
+
+            return true;
+        }));
+        host.RegisterModule("tracking", () =>
         {
             // C9 (T0 tracking): Windows hooks, idle and session sources; none elsewhere (the feature still runs, empty).
             IEventSource<Contracts.Workflow.PresenceEvent>? presence = windows ? new BothPresence(new IdleSource(), new SessionSource()) : null;
@@ -279,57 +293,50 @@ internal static class Composition
                 PausedNow = () => host.Paused.Tracking,
                 OwnNames = [Environment.UserName],
                 OnAc = () => host.State.Current.Power is not { OnBattery: true },
-                Busy = () => eventMode.Active is not null || meeting?.InCall() == true,
+                Busy = () => eventMode.Active is not null || (meeting is { Enabled: true } m && m.InCall()),
                 Tasks = host.InternalTasks,
                 PreregPath = Path.Combine(host.Options.InstallDir, "worker", "prereg.json"),
                 PythonExe = Path.Combine(host.Options.InstallDir, "worker", "python", windows ? "python.exe" : "bin/python3"),
                 WorkerDir = Path.Combine(host.Options.InstallDir, "worker"),
             };
             host.AddFeature(tracking);
+        });
 
-            // Forget tracking: stop and close both stores before track\ goes, reopen fresh ones after.
-            host.Forgetter.Before[ForgetScope.Tracking].Add(() => host.Loop.InvokeAsync(() =>
-            {
-                tracking.Disable();
-                return true;
-            }));
-            host.Forgetter.After[ForgetScope.Tracking].Add(() => host.Loop.InvokeAsync(() =>
-            {
-                tracking.Model = null;
-                tracking.Enable();
-                return true;
-            }));
-        }
-
-        if (settings.ModuleOn("focus"))
+        // Focus and Projects are wired to the tracking that runs when they are built; turning tracking on or off rebuilds them.
+        WorkflowTracking? Tracking() => host.ModuleRunning("tracking") ? tracking : null;
+        host.RegisterModule("focus", ["tracking"], () =>
         {
-            var focus = new FocusTimer(ctx, eventMode, new NotesStore(host.Store.NotesDir)) { TrackingOn = () => settings.ModuleOn("tracking") && tracking is not null };
-            if (tracking is not null)
+            var t = Tracking();
+            var focus = new FocusTimer(ctx, eventMode, new NotesStore(host.Store.NotesDir)) { TrackingOn = () => settings.ModuleOn("tracking") && t is { Enabled: true } };
+            if (t is not null)
             {
-                focus.Measure = tracking.Measure;
-                focus.CurrentWorkflow = () => tracking.Current?.Shown?.Id;
+                focus.Measure = t.Measure;
+                focus.CurrentWorkflow = () => t.Current?.Shown?.Id;
             }
 
             host.AddFeature(focus);
-        }
+        });
 
-        if (settings.ModuleOn("projects"))
+        host.RegisterModule("projects", ["tracking"], () =>
         {
             var projects = new ProjectTime(ctx, new ProjectMap(host.Store.Projects));
             host.AddFeature(projects);
-            if (tracking is not null)
+            if (Tracking() is { } t)
             {
-                tracking.ActivityAssigned += (a, label, _, _) => projects.Add(label, a.ActiveMs, DateTimeOffset.FromUnixTimeMilliseconds(a.StartUtcMs));
+                t.ActivityAssigned += (a, label, _, _) =>
+                {
+                    if (projects.Enabled)
+                    {
+                        projects.Add(label, a.ActiveMs, DateTimeOffset.FromUnixTimeMilliseconds(a.StartUtcMs));
+                    }
+                };
             }
-        }
+        });
 
-        if (settings.ModuleOn("windows_watch"))
-        {
-            // I11 watches are user-authored (app + title pattern); none until the flyout's picker writes them (M14).
-            host.AddFeature(new WindowWatch(ctx, windowEvents?.Subscriber()));
-        }
+        // I11 watches are user-authored (app + title pattern); none until the flyout's picker writes them (M14).
+        host.RegisterModule("windows_watch", () => host.AddFeature(new WindowWatch(ctx, windowEvents?.Subscriber())));
 
-        if (settings.ModuleOn("capture"))
+        host.RegisterModule("capture", () =>
         {
             // T1 agent side: the card and capture.* actions over tasktor-capture's control pipe. While that host is not
             // running the link fails fast and the card says capture is not running.
@@ -342,12 +349,9 @@ internal static class Composition
                 ForegroundApp = windows ? Windows.Shell.Win32Windows.ForegroundExe : () => null,
                 SetupExtension = windows ? browser => SetupExtension(browser, AppContext.BaseDirectory) : null,
             });
-        }
+        });
 
-        if (settings.ModuleOn("batteries"))
-        {
-            host.AddFeature(new DeviceBatteries(ctx, windows ? new BluetoothBatterySource() : new NoDevices()));
-        }
+        host.RegisterModule("batteries", () => host.AddFeature(new DeviceBatteries(ctx, windows ? new BluetoothBatterySource() : new NoDevices())));
         AddWindowsFeatures(host, windows, windowEvents, winEvents);
     }
 
