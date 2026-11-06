@@ -143,6 +143,17 @@ public sealed class PipeProtocolTests : IAsyncLifetime
         Assert.DoesNotContain("events.db", data.ToJsonString(), StringComparison.Ordinal); // sizes and dates only, no names
     }
 
+    [Fact]
+    public async Task An_undoable_action_appears_in_recent_actions_with_its_undo()
+    {
+        await using var c = await PipeClient.ConnectAsync("flyout", _agent.PipeName, 10000);
+        var r = await c.ActAsync(new ActionRequest { Action = "priority.set", Origin = Origin.Flyout, Target = new Dictionary<string, string> { ["pid"] = "100" } });
+        Assert.Equal(ActionStatus.Ok, r.Status);
+        AgentFixture.WaitFor(() => _agent.Host.OnLoop(() => _agent.Host.State.Current.RecentActions).GetAwaiter().GetResult() is { Count: > 0 });
+        var recent = _agent.Host.OnLoop(() => _agent.Host.State.Current.RecentActions!).GetAwaiter().GetResult();
+        Assert.Equal(("Lower worker.exe", "priority.restore", "flyout"), (recent[0].Text, recent[0].Undo, recent[0].Origin));
+    }
+
     private static ActionRequest Module(string action, string id, Dictionary<string, string>? args = null) =>
         new() { Action = action, Origin = Origin.Flyout, Target = new Dictionary<string, string> { ["module"] = id }, Args = args };
 

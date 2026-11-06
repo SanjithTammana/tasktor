@@ -94,6 +94,9 @@ public sealed class ActionRouter
     /// <summary>Fires on the loop after each action completes (self-use counts, undo bookkeeping).</summary>
     public event Action<ActionRequest, ActionResult>? Completed;
 
+    /// <summary>Like <see cref="Completed"/>, with the handler's summary (for the recent-actions list).</summary>
+    public event Action<ActionRequest, ActionResult, string?>? Finished;
+
     public void Register(string actionId, Func<ActionRequest, PreparedAction> handler)
     {
         if (ActionCatalog.Find(actionId) is null)
@@ -309,6 +312,7 @@ public sealed class ActionRouter
             LogField.Of("result", result.Status.ToString().ToLowerInvariant()),
             LogField.Of("reason", result.Reason));
         Completed?.Invoke(req, result);
+        Finished?.Invoke(req, result, prep?.Summary);
         return Task.FromResult(result);
     }
 

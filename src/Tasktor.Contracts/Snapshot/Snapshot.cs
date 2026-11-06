@@ -76,6 +76,9 @@ public sealed record SnapshotState
 
     public CaptureState? Capture { get; init; }
 
+    /// <summary>Undoable actions of the last 30 minutes, newest first (U4 D-G3 Home "Undo"; the shelf's timeline).</summary>
+    public IReadOnlyList<RecentAction>? RecentActions { get; init; }
+
     public FocusState? Focus { get; init; }
 
     public ConnectivityState? Connectivity { get; init; }
@@ -326,6 +329,26 @@ public sealed record WorkflowState
     public WorkflowLevel Level { get; init; }
 
     public long? SwitchesToday { get; init; }
+}
+
+/// <summary>
+/// One undoable action that succeeded recently. <see cref="Text"/> is the action's own summary ("Lower Chrome");
+/// <see cref="Undo"/> is the catalog's reversing action, sent with <see cref="Target"/>; null once it was undone.
+/// </summary>
+public sealed record RecentAction
+{
+    public required DateTimeOffset At { get; init; }
+
+    public required string Action { get; init; }
+
+    public required string Text { get; init; }
+
+    /// <summary>Who did it: <c>flyout</c>, <c>shelf</c>, <c>cli</c>, <c>rule</c>, …</summary>
+    public required string Origin { get; init; }
+
+    public string? Undo { get; init; }
+
+    public IReadOnlyDictionary<string, string>? Target { get; init; }
 }
 
 public sealed record AlertState

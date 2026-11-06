@@ -796,6 +796,51 @@
             }
           }
         },
+        "recent_actions": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "object",
+            "properties": {
+              "at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "action": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "origin": {
+                "type": "string"
+              },
+              "undo": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "target": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "at",
+              "action",
+              "text",
+              "origin"
+            ]
+          }
+        },
         "focus": {
           "type": [
             "object",
