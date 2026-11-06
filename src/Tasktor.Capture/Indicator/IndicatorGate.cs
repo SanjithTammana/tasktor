@@ -48,14 +48,11 @@ public sealed class IndicatorGate(IRecordingIndicator indicator, Func<IDisposabl
             return;
         }
 
+        // Keep the signal visible if capture could not be stopped; a later Dispose can retry.
+        _capture?.Dispose();
+        _capture = null;
+        indicator.Dispose();
         _disposed = true;
-        try
-        {
-            _capture?.Dispose();
-        }
-        finally
-        {
-            indicator.Dispose();
-        }
     }
 }
+

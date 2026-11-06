@@ -2,7 +2,7 @@
 
 ## Done
 - Rebased the lane on the updated upstream base, then reconciled the previously pushed report history without a force push.
-- Added a fail-closed indicator startup gate and three synthetic tests. The gate is not yet wired to a Windows indicator or capture host.
+- Added an indicator startup gate and synthetic tests. If stopping capture throws, the gate keeps the indicator alive and permits a retry. The gate is not yet wired to a Windows indicator or capture host.
 
 ## Checks run
 - PASS: `dotnet build Tasktor.sln -c Release -warnaserror` on the updated base: 0 warnings, 0 errors.
@@ -16,7 +16,7 @@
 - SKIPPED: admin-dependent checks, second-account checks, firewall and audit-policy changes, browser-extension installation, and checks requiring the user at the keyboard, as instructed.
 - The test agent and flyout were stopped, and the isolated data directory was removed. Capture was not enabled.
 
-- PASS: three synthetic startup gate tests; the native Windows indicator and host wiring are outstanding.
+- PASS: four synthetic startup gate tests, including a capture-stop failure and retry; the native Windows indicator and host wiring are outstanding.
 
 ## Interpretations
 - The amended D-G16 indicator is the top edge of every monitor. The first indicator must fail closed before hooks are installed.
@@ -33,6 +33,7 @@
 - No open baseline blocker; the full .NET suite passed after the upstream shutdown fix.
 
 - Windows computer-use policy disallows Win-key shortcuts, so the Win+Alt+T shortcut itself cannot be automated in this session.
+
 
 
 
