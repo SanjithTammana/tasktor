@@ -55,9 +55,11 @@ M11 is done; M12–M15 have their Linux-testable logic, gates and release workfl
 
 - **M14 command line (window + hotkey).** `CommandController` (`Hosts.Common/Command`): type → requery, Up / Down wrap across sections, Enter runs the highlight with origin `command` (destructive: the agent's summary replaces the results, Enter = yes, Esc = keep), pages ask the view to open the deep window, a refusal stays open with a notice, closing resets. Win+Alt+T is a `RegisterHotKey` on the agent's tray thread (not a hook; the flyout process exits when idle, so it can't own the hotkey); the agent signals `ViewerSignal.ShowCommand` or starts the flyout with `--command`. WinUI `CommandWindow`: borderless, topmost, out of Alt+Tab, 640 px wide at a sixth of the work area's height.
 
+- **M14 shelf timeline strip.** `TimelineStrip` (`Hosts.Common/Shelf`): CPU, RAM, GPU, disk and network rows from the `series` pulls (network scaled to its hour peak, floor 1 Mbit/s); the row highest now leads and is carried 15 min past now as a dotted linear trend of its last ten minutes, labelled "full ≈H:mm" (RAM) or "100% ≈H:mm" when it gets there inside the window; the three most recent alerts of the hour written on it; start / now / end times. Drawn under the sentence in `ShelfWindow` (bands, event rules, the now line, the dotted forecast).
+
 ## Next
 - **M12, remaining:** wiring `DeepCapture` into `tasktor-capture`'s `Program` once its sources exist, and the Windows adapters: `LowLevelInputHook` (`WH_KEYBOARD_LL` / `WH_MOUSE_LL` into the ring, watchdog), `UiaReader` / `UiaWalkSource`, `MediaSessionSource` (SMTC + WASAPI meters), `VisibleWindows`, the secure-desktop check, the tray indicator + edge-line window (created before any hook; no indicator → exit).
-- **M14, shelf, remaining:** the timeline strip with events and the dotted forecast, the command line's dimmed desktop and a configurable hotkey; opening a page from a command result once the deep window has pages.
+- **M14, shelf, remaining:** user actions on the timeline strip ("you lowered Chrome": needs an action history the snapshot does not carry), the command line's dimmed desktop and a configurable hotkey; opening a page from a command result once the deep window has pages.
 - **M14, Windows UI (re-scoped by U4's 2026-11-06 amendment, D-G10–D-G16):** the deep window (the nine pages, seven dialogs), instead of the 400 × 640 flyout; the Widgets provider over `AdaptiveCardRenderer`, `ToastNotifier` and the tray menu from `ActionCatalog`, the switcher window + thumbnails + hotkey / hook, `PresetRestorer` with the `preset.*` handlers, `FancyZonesBridge`, `VirtualDesktopInfo`, card `module.presets`, MSIX packaging.
 - Every catalog action now has a handler (QualityGateTests' Pending list is empty).
 
@@ -180,6 +182,7 @@ M11 is done; M12–M15 have their Linux-testable logic, gates and release workfl
 - **Recording outranks severity on the icon** (the ring must always show while capture records); severity still shows on the shelf and in the menu's sentence.
 - **Tests must pass as a standard Windows user.** CI's runner is an administrator, so a test that creates a symbolic link passed there but failed on a normal account (error 1314). The folder-scan loop test now falls back to an NTFS junction (A5 acceptance 4 names a junction loop), and still asserts the link is a reparse point that the scanner does not follow.
 - **Command line without the dimmed desktop (for now).** WinUI 3 has no simple transparent full-monitor window; the panel stands alone on the shelf colour. A dim layer would be a separate layered Win32 window under it.
+- **The strip's forecast is a display trend, not an agent prediction:** a least-squares line over the lead row's last ten minutes, only labelled when it reaches 100 % within the 15 minutes shown. Events are the hour's alerts; user actions wait for an action history.
 - **Browser exe as the app** for app blocks: `chrome.exe` / `msedge.exe`, so "Don't capture this app" on a browser stops its context records too.
 
 ## Needs Windows verification

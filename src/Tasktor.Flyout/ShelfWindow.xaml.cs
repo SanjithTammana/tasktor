@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Shapes;
 using Tasktor.Contracts.Actions;
 using Tasktor.Contracts.Cards;
 using Tasktor.Hosts.Common.Pipe;
@@ -80,6 +81,7 @@ public sealed partial class ShelfWindow : Window
         Activate();
         IsShown = true;
         _ = LoadGrainAsync();
+        _ = LoadStripAsync();
     }
 
     public void HideShelf()
@@ -230,6 +232,112 @@ public sealed partial class ShelfWindow : Window
 
         GrainPath.Data = plain;
         HotPath.Data = bright;
+    }
+
+    private async Task LoadStripAsync()
+    {
+        var pulled = new Dictionary<string, System.Text.Json.Nodes.JsonNode?>();
+        try
+        {
+            foreach (var (id, _) in TimelineStrip.Series)
+            {
+                pulled[id] = await _snapshot.PullAsync("series", new Dictionary<string, string> { ["id"] = id });
+            }
+        }
+        catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+            // Draw what arrived; a missing series is simply not a row.
+        }
+
+        var alerts = _snapshot.Mirror.Root?["state"]?["alerts"] as System.Text.Json.Nodes.JsonArray;
+        DrawStrip(TimelineStrip.Compose(pulled, alerts, DateTimeOffset.Now, TimeZoneInfo.Local));
+        DispatcherQueue.TryEnqueue(Layout);
+    }
+
+    private void DrawStrip(TimelineModel m)
+    {
+        const double labelW = 64, top = 22, rowH = 12, maxT = rowH - 3;
+        Strip.Children.Clear();
+        if (m.Rows.Count == 0)
+        {
+            Strip.Height = 0;
+            return;
+        }
+
+        var width = Math.Max(320, _widthDip - 96);
+        var pastW = (width - labelW) * (TimelineStrip.Past / (TimelineStrip.Past + TimelineStrip.Future));
+        var nowX = labelW + pastW;
+        var bottom = top + (m.Rows.Count * rowH);
+        double X(double at) => labelW + (at * pastW);
+
+        foreach (var e in m.Events)
+        {
+            Strip.Children.Add(new Line { X1 = X(e.At), Y1 = top - 4, X2 = X(e.At), Y2 = bottom, Stroke = ThemeBrush("TasktorRuleBrush"), StrokeThickness = 1 });
+            Strip.Children.Add(Label(e.Label, X(e.At) + 4, 0, "TasktorInk2Brush"));
+        }
+
+        for (var r = 0; r < m.Rows.Count; r++)
+        {
+            var row = m.Rows[r];
+            var c = top + (r * rowH) + (rowH / 2);
+            var band = new Polygon { Fill = ThemeBrush(row.Lead ? "TasktorInkBrush" : "TasktorInk3Brush") };
+            for (var i = 0; i < row.Values.Count; i++)
+            {
+                band.Points.Add(new Point(X(TimelineStrip.At(i, row.Values.Count)), c - (row.Values[i] * maxT / 2)));
+            }
+
+            for (var i = row.Values.Count - 1; i >= 0; i--)
+            {
+                band.Points.Add(new Point(X(TimelineStrip.At(i, row.Values.Count)), c + (row.Values[i] * maxT / 2) + 0.5));
+            }
+
+            Strip.Children.Add(band);
+            var name = Label(row.Label, 0, c - 8, row.Lead ? "TasktorInkBrush" : "TasktorInk3Brush");
+            name.FontWeight = row.Lead ? FontWeights.SemiBold : FontWeights.Normal;
+            Strip.Children.Add(name);
+
+            if (row.Lead && m.Forecast is { } f)
+            {
+                var step = (width - nowX) / f.Values.Count;
+                var upper = new Polyline { Stroke = ThemeBrush("TasktorInkBrush"), StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 3, 4 } };
+                var lower = new Polyline { Stroke = ThemeBrush("TasktorInkBrush"), StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 3, 4 } };
+                upper.Points.Add(new Point(nowX, c - (row.Values[^1] * maxT / 2)));
+                lower.Points.Add(new Point(nowX, c + (row.Values[^1] * maxT / 2)));
+                for (var k = 0; k < f.Values.Count; k++)
+                {
+                    upper.Points.Add(new Point(nowX + ((k + 1) * step), c - (f.Values[k] * maxT / 2)));
+                    lower.Points.Add(new Point(nowX + ((k + 1) * step), c + (f.Values[k] * maxT / 2)));
+                }
+
+                Strip.Children.Add(upper);
+                Strip.Children.Add(lower);
+                if (f.Label is { } text)
+                {
+                    Strip.Children.Add(Label(text, nowX + 8, c - 22, "TasktorInkBrush"));
+                }
+            }
+        }
+
+        Strip.Children.Add(new Line { X1 = nowX, Y1 = top - 4, X2 = nowX, Y2 = bottom, Stroke = ThemeBrush("TasktorInk3Brush"), StrokeThickness = 1 });
+        Strip.Children.Add(Label(m.Start, labelW, bottom + 4, "TasktorInk3Brush"));
+        var now = Label("now", nowX - 20, bottom + 4, "TasktorInkBrush");
+        now.Width = 40;
+        now.TextAlignment = TextAlignment.Center;
+        Strip.Children.Add(now);
+        var end = Label(m.End, width - 60, bottom + 4, "TasktorInk3Brush");
+        end.Width = 60;
+        end.TextAlignment = TextAlignment.Right;
+        Strip.Children.Add(end);
+        Strip.Width = width;
+        Strip.Height = bottom + 22;
+    }
+
+    private static TextBlock Label(string text, double x, double y, string brush)
+    {
+        var t = new TextBlock { Text = text, FontSize = 12, Foreground = ThemeBrush(brush) };
+        Canvas.SetLeft(t, x);
+        Canvas.SetTop(t, y);
+        return t;
     }
 
     private void Layout()
