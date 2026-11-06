@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hostname, allowed, isSecure } from './logic.js';
+import { hostname, allowed, isSecure, privateAllowed } from './logic.js';
 
 test('hostname never includes path, query, credentials or port', () => {
   assert.equal(hostname('https://user:pw@Example.COM:443/a?secret=1#x'), 'example.com');
@@ -61,4 +61,13 @@ test('the content script carries the same never-read list (it cannot import modu
   const { SKIP_SELECTOR } = await import('./logic.js');
   const src = await readFile(new URL('./content.js', import.meta.url), 'utf8');
   assert.ok(src.includes(`const SKIP = '${SKIP_SELECTOR}';`));
+});
+test('private windows need the profile opt-in and the browser permission, and blocks still apply', () => {
+  const tab = { id: 3, url: 'https://example.com/a', incognito: true };
+  const blocks = { paused: false, paused_tabs: [], excluded_hosts: [] };
+  assert.equal(allowed(tab, blocks), false);
+  assert.equal(allowed(tab, blocks, privateAllowed(true, false)), false);
+  assert.equal(allowed(tab, blocks, privateAllowed('true', true)), false);
+  assert.equal(allowed(tab, blocks, privateAllowed(true, true)), true);
+  assert.equal(allowed(tab, { ...blocks, excluded_hosts: ['example.com'] }, true), false);
 });

@@ -215,6 +215,9 @@ public static unsafe partial class Win32Windows
         finally { CloseHandle(process); }
     }
 
+    /// <summary>The foreground window's exe file name (e.g. <c>chrome.exe</c>), or null.</summary>
+    public static string? ForegroundExe() => Sources.ProcessInfo.ForegroundPid() is var pid and > 0 ? ExeOf(pid) : null;
+
     private static string? ExeOf(uint pid)
     {
         var proc = OpenProcess(ProcessQueryLimitedInformation, 0, pid);

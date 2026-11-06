@@ -5,8 +5,9 @@ export function hostname(url) {
   } catch { return null; }
 }
 
-export function allowed(tab, blocks) {
-  return Boolean(tab && !tab.incognito && blocks && !blocks.paused &&
+// privateOk: the user turned on private windows for this profile (popup) and the browser allows the extension there.
+export function allowed(tab, blocks, privateOk = false) {
+  return Boolean(tab && (!tab.incognito || privateOk === true) && blocks && !blocks.paused &&
     !blocks.paused_tabs.includes(tab.id) &&
     !blocks.excluded_hosts.includes(hostname(tab.url)));
 }
@@ -76,3 +77,8 @@ export function mediaDue(last, now, playing) {
 
 // Never read: form values and anything a secure field marks (password, card, one-time code), scripts and hidden text.
 export const SKIP_SELECTOR = 'script, style, noscript, template, textarea, input, select, option, [contenteditable=""], [contenteditable="true"], [aria-hidden="true"], [hidden], [type="password"], [autocomplete^="cc-"], [autocomplete~="one-time-code"], [autocomplete~="current-password"], [autocomplete~="new-password"], [data-sensitive]';
+
+// Private windows are read only with both: the profile's opt-in (stored by the popup) and the browser's own permission.
+export function privateAllowed(optIn, browserAllows) {
+  return optIn === true && browserAllows === true;
+}

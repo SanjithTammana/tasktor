@@ -25,6 +25,9 @@
         "extension_version": {
           "type": "string"
         },
+        "incognito": {
+          "type": "boolean"
+        },
         "at": {
           "type": "string",
           "format": "date-time"
@@ -73,6 +76,9 @@
             "string",
             "null"
           ]
+        },
+        "incognito": {
+          "type": "boolean"
         },
         "at": {
           "type": "string",

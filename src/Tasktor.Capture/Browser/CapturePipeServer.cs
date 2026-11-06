@@ -246,6 +246,8 @@ public sealed class CapturePipeServer : IAsyncDisposable
                 _sessions.Remove(id);
             }
 
+            _endpoint.Closed(id);
+
             await pipe.DisposeAsync().ConfigureAwait(false);
             write.Dispose();
         }

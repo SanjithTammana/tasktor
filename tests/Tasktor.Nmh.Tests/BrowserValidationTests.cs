@@ -23,6 +23,16 @@ public sealed class BrowserValidationTests
     private static BrowserMessage? Read(string json) => BrowserValidation.Read(Encoding.UTF8.GetBytes(json));
 
     [Fact]
+    public void Hello_and_tab_carry_the_private_window_flag()
+    {
+        var hello = Assert.IsType<BrowserHello>(Read("{\"type\":\"hello\",\"at\":\"2026-01-01T00:00:00Z\",\"contract\":1,\"client\":\"nmh\",\"browser\":\"edge\",\"extension_version\":\"1.0.0\",\"incognito\":true}"));
+        Assert.True(hello.Incognito);
+        var tab = Assert.IsType<BrowserTab>(Read("{\"type\":\"tab\",\"at\":\"2026-01-01T00:00:00Z\",\"tab\":1,\"window\":1,\"active\":true,\"audible\":false}"));
+        Assert.False(tab.Incognito); // absent = a normal tab
+        Assert.Null(Read("{\"type\":\"tab\",\"at\":\"2026-01-01T00:00:00Z\",\"tab\":1,\"window\":1,\"active\":true,\"audible\":false,\"incognito\":\"yes\"}"));
+    }
+
+    [Fact]
     public void A_tab_may_carry_its_full_address_only_on_its_own_http_host()
     {
         const string head = "{\"type\":\"tab\",\"at\":\"2026-01-01T00:00:00Z\",\"tab\":1,\"window\":1,\"active\":true,\"audible\":false";

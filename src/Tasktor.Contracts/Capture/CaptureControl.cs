@@ -78,6 +78,12 @@ public sealed record CaptureStatus
 
     public long RecordsToday { get; init; }
 
+    /// <summary>
+    /// The browsers whose companion extension is connected now (<c>chrome</c>, <c>edge</c>). The agent offers to set the
+    /// extension up when a browser is in front for 60 s without one (C §5.5 failure table).
+    /// </summary>
+    public IReadOnlyList<string>? Extensions { get; set; }
+
     /// <summary>Records removed by a forget command.</summary>
     public long? Forgotten { get; init; }
 

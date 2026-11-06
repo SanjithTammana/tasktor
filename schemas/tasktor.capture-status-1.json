@@ -56,6 +56,15 @@
     "records_today": {
       "type": "integer"
     },
+    "extensions": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
     "forgotten": {
       "type": [
         "integer",
