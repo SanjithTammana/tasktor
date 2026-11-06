@@ -330,6 +330,33 @@ public sealed partial class MainWindow : Window
             _ = PullModulesAsync();
         }
 
+        if (SettingsPage.Hotkey(_snapshot.Mirror.Root) is { } hotkey)
+        {
+            PageContent.Children.Add(new TextBlock { Text = "General", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+            var row = new Grid { MinHeight = 56, ColumnSpacing = 8 };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = "Command line shortcut", Style = StyleOf("TasktorBodyTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+            text.Children.Add(new TextBlock { Text = hotkey.Note ?? "For example Win+Alt+T or Ctrl+Shift+Space", TextWrapping = TextWrapping.Wrap, Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush(hotkey.Note is null ? "TasktorInk3Brush" : "TasktorInkBrush") });
+            row.Children.Add(text);
+            var box = new TextBox { Text = hotkey.Keys, MinWidth = 180, VerticalAlignment = VerticalAlignment.Center };
+            AutomationProperties.SetName(box, "Command line shortcut");
+            Grid.SetColumn(box, 1);
+            row.Children.Add(box);
+            var change = new Button { Content = "Change", VerticalAlignment = VerticalAlignment.Center };
+            change.Click += async (_, _) =>
+            {
+                await RunAsync(SettingsPage.SetHotkey(box.Text)); // the result (or why it was refused) shows as usual
+                Draw(_snapshot.Mirror.Cards);
+            };
+            Grid.SetColumn(change, 2);
+            row.Children.Add(change);
+            PageContent.Children.Add(row);
+            PageContent.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
+        }
+
         PageContent.Children.Add(new TextBlock { Text = "Modules", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
         var list = new StackPanel();
         foreach (var row in SettingsPage.Modules(_modules))

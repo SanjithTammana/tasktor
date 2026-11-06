@@ -122,6 +122,7 @@ internal static class Composition
         if (tray.Start())
         {
             host.Own(tray);
+            host.ApplyHotkey = h => tray.SetHotKey(h.Modifiers, h.VirtualKey); // the configured one replaces Win+Alt+T at start
             notifier.Target = new BalloonNotifier(v => tray.ShowBalloon(v is null ? null : new Windows.Shell.TrayBalloon(v.Title, v.Body, (uint)v.Icon)));
         }
         else
