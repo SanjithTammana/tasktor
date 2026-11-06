@@ -16,7 +16,7 @@ public sealed record FocusFile
 {
     public int SchemaVersion { get; init; } = 1;
 
-    public List<BlockResult> Blocks { get; init; } = [];
+    public List<BlockResult> Blocks { get; set; } = [];
 }
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]

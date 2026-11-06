@@ -17,7 +17,7 @@ public sealed record ConnectivityFile
     public int SchemaVersion { get; init; } = 1;
 
     /// <summary>UTC hour (ISO, <c>2026-11-04T09</c>) → drops.</summary>
-    public Dictionary<string, int> Hourly { get; init; } = new(StringComparer.Ordinal);
+    public Dictionary<string, int> Hourly { get; set; } = new(StringComparer.Ordinal);
 }
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]

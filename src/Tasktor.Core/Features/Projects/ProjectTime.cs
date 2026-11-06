@@ -14,7 +14,7 @@ public sealed record ProjectsFile
 {
     public int SchemaVersion { get; init; } = 1;
 
-    public Dictionary<string, string> Map { get; init; } = new(StringComparer.Ordinal);
+    public Dictionary<string, string> Map { get; set; } = new(StringComparer.Ordinal);
 }
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]

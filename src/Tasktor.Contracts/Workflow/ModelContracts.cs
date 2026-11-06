@@ -1,21 +1,22 @@
+using System.Text.Json.Serialization;
 namespace Tasktor.Contracts.Workflow;
 
 /// <summary><c>prereg.json</c> (D-C6): every threshold of C, fixed before data; its hash is stamped into each model.</summary>
 public sealed record PreregFile
 {
-    public string Schema { get; init; } = ContractIds.Prereg;
+    public string Schema { get; set; } = ContractIds.Prereg;
 
     public int SchemaVersion { get; init; } = 1;
 
-    public EpisodeThresholds Episodes { get; init; } = new();
+    public EpisodeThresholds Episodes { get; set; } = new();
 
-    public FeatureSpec Features { get; init; } = new();
+    public FeatureSpec Features { get; set; } = new();
 
-    public ClusteringSpec Clustering { get; init; } = new();
+    public ClusteringSpec Clustering { get; set; } = new();
 
-    public GateThresholds Gates { get; init; } = new();
+    public GateThresholds Gates { get; set; } = new();
 
-    public AssignmentSpec Assignment { get; init; } = new();
+    public AssignmentSpec Assignment { get; set; } = new();
 }
 
 public sealed record EpisodeThresholds
@@ -168,7 +169,7 @@ public sealed record ExtractMeta
 }
 
 /// <summary>A workflow window: its activities (extract indices) with active dwell (ms).</summary>
-public sealed record ExtractWindow(long Id, int Day, IReadOnlyList<int> Activities, IReadOnlyList<long> DwellMs);
+public sealed record ExtractWindow(long Id, int Day, [property: JsonRequired] IReadOnlyList<int> Activities, [property: JsonRequired] IReadOnlyList<long> DwellMs);
 
 /// <summary>The worker's job on stdin (C-H: one JSON document).</summary>
 public sealed record WorkerJob
@@ -254,7 +255,7 @@ public sealed record ModelCluster
     public string? MergedInto { get; init; }
 }
 
-public sealed record SidecarFile(string Name, string Dtype, IReadOnlyList<int> Shape, string Sha256);
+public sealed record SidecarFile([property: JsonRequired] string Name, [property: JsonRequired] string Dtype, [property: JsonRequired] IReadOnlyList<int> Shape, [property: JsonRequired] string Sha256);
 
 /// <summary><c>eval.json</c>: every gate with its value and threshold, the null model's numbers beside the model's.</summary>
 public sealed record EvalReport
@@ -288,15 +289,15 @@ public sealed record GateResult
 /// <summary><c>overrides.json</c> (C7), kept forever, keyed by stable ids; applied after every fit.</summary>
 public sealed record OverridesFile
 {
-    public string Schema { get; init; } = ContractIds.Overrides;
+    public string Schema { get; set; } = ContractIds.Overrides;
 
-    public IReadOnlyDictionary<string, string> Names { get; init; } = new Dictionary<string, string>();
+    public IReadOnlyDictionary<string, string> Names { get; set; } = new Dictionary<string, string>();
 
-    public IReadOnlyDictionary<string, string> Merge { get; init; } = new Dictionary<string, string>();
+    public IReadOnlyDictionary<string, string> Merge { get; set; } = new Dictionary<string, string>();
 
-    public IReadOnlyList<string> Hide { get; init; } = [];
+    public IReadOnlyList<string> Hide { get; set; } = [];
 
-    public IReadOnlyList<string> SplitRequest { get; init; } = [];
+    public IReadOnlyList<string> SplitRequest { get; set; } = [];
 
-    public IReadOnlyList<string> HideTerm { get; init; } = [];
+    public IReadOnlyList<string> HideTerm { get; set; } = [];
 }

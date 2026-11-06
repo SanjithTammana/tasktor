@@ -9,13 +9,13 @@ using Tasktor.Core.Features.SystemMonitor;
 namespace Tasktor.Core.Features.Space;
 
 /// <summary>One report line: a named category, its folder and size. The cleanup command is the tool's own.</summary>
-public sealed record SpaceItem(string Name, string Kind, string? Path, long Bytes, string? Cleanup);
+public sealed record SpaceItem([property: JsonRequired] string Name, [property: JsonRequired] string Kind, string? Path, long Bytes, string? Cleanup);
 
 public sealed record SpaceReportFile
 {
     public DateTimeOffset At { get; init; }
 
-    public List<SpaceItem> Items { get; init; } = [];
+    public List<SpaceItem> Items { get; set; } = [];
 }
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]

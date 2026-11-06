@@ -25,7 +25,7 @@ public sealed record FrozenFile
 {
     public int SchemaVersion { get; init; } = 1;
 
-    public List<FrozenJob> Jobs { get; init; } = [];
+    public List<FrozenJob> Jobs { get; set; } = [];
 }
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]
