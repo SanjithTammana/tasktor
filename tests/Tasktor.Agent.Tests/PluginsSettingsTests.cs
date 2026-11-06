@@ -37,4 +37,34 @@ public sealed class PluginsSettingsTests
         Assert.Equal(ActionStatus.Ok, (await Act("plugin.disable")).Status);
         Assert.Equal(PluginState.Found, (await host.Loop.InvokeAsync(host.PluginsReport)).Plugins.Single(x => x.Id == "todo").State); // consent dropped: on again asks again
     }
+
+    [Fact]
+    public async Task A_pack_is_listed_and_turned_on_with_one_consent()
+    {
+        using var store = new TempStore();
+        var pack = Path.Combine(store.Layout.PluginsDir, "my-pack");
+        Directory.CreateDirectory(pack);
+        File.WriteAllText(Path.Combine(pack, "pack.json"), """{ "contract": 1, "id": "my-pack", "name": "My pack", "author": "Example", "version": "1.0", "plugins": ["a", "b"] }""");
+        foreach (var id in new[] { "a", "b" })
+        {
+            Directory.CreateDirectory(Path.Combine(pack, id));
+            File.WriteAllText(Path.Combine(pack, id, "main.py"), "print('{}')");
+            File.WriteAllText(Path.Combine(pack, id, "plugin.json"), $$"""
+                { "contract": 1, "id": "{{id}}", "name": "Plugin {{id}}", "version": "0.1.0", "command": ["{python}", "main.py"],
+                  "interval": "5m", "timeout": "10s", "reads": ["nothing"], "network": [], "settings": [], "actions": [] }
+                """);
+        }
+
+        await using var host = new AgentHost(new AgentOptions { Store = store.Layout, PipeName = "tasktor-test-" + Guid.NewGuid().ToString("N")[..12] });
+        host.Start();
+        var report = await host.Loop.InvokeAsync(host.PluginsReport);
+        Assert.Equal(("my-pack", "My pack", "Example"), (report.Packs.Single().Id, report.Packs.Single().Name, report.Packs.Single().Author));
+        Assert.All(report.Plugins.Where(p => p.Id is "a" or "b"), p => Assert.Equal(("my-pack", PluginState.Found), (p.Pack, p.State)));
+
+        var on = await (await host.Loop.InvokeAsync(() => host.Router.Submit(new ActionRequest { Action = "plugin.enable_pack", Origin = Origin.Flyout, Target = new Dictionary<string, string> { ["pack"] = "my-pack" } }))).WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal((ActionStatus.Ok, "Turned on My pack"), (on.Status, on.Message));
+        Assert.All((await host.Loop.InvokeAsync(host.PluginsReport)).Plugins.Where(p => p.Id is "a" or "b"), p => Assert.NotEqual(PluginState.Found, p.State));
+        var none = await (await host.Loop.InvokeAsync(() => host.Router.Submit(new ActionRequest { Action = "plugin.enable_pack", Origin = Origin.Flyout, Target = new Dictionary<string, string> { ["pack"] = "nope" } }))).WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(ActionStatus.Refused, none.Status);
+    }
 }

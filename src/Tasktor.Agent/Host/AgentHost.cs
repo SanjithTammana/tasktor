@@ -1080,6 +1080,7 @@ public sealed class AgentHost : IAsyncDisposable
                 Pack = c?.Pack,
             };
         })],
+        Packs = [.. Plugins.Packs.Where(p => p.Problem is null).OrderBy(p => p.Id, StringComparer.Ordinal).Select(p => new Contracts.Plugins.PackInfo { Id = p.Id, Name = p.Manifest.Name, Author = p.Manifest.Author })],
     };
 
     private void RegisterPluginHandlers()
@@ -1101,6 +1102,17 @@ public sealed class AgentHost : IAsyncDisposable
         };
 
         Router.Register("plugin.enable", req => Plugin(req, id => Now("Turned on " + id, () => Plugins.Enable(id, Loop.Clock.UtcNow))));
+        Router.Register("plugin.enable_pack", req =>
+        {
+            // D-H7: one consent for every plugin in the pack (the dialog listed each one's facts).
+            var id = req.Target?.GetValueOrDefault("pack");
+            if (Plugins.Packs.FirstOrDefault(p => p.Id == id && p.Problem is null) is not { } pack)
+            {
+                return new PreparedAction { Summary = "plugin pack", Refusal = "No such pack" };
+            }
+
+            return Now("Turned on " + pack.Manifest.Name, () => Plugins.EnablePack(pack.Id, Loop.Clock.UtcNow) > 0);
+        });
         Router.Register("plugin.disable", req => Plugin(req, id => Now("Turned off " + id, () =>
         {
             Plugins.Disable(id);
