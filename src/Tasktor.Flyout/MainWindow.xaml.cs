@@ -105,6 +105,10 @@ public sealed partial class MainWindow : Window
         if (_page == DeepPages.Home)
         {
             DrawAlerts();
+            if (HomePage.Undo(_snapshot.Mirror.Root?["state"]?["recent_actions"], DateTimeOffset.Now) is { } undo)
+            {
+                PageContent.Children.Add(Section(undo));
+            }
         }
 
         if (_page == "data")

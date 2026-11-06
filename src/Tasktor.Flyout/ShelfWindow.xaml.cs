@@ -250,7 +250,8 @@ public sealed partial class ShelfWindow : Window
         }
 
         var alerts = _snapshot.Mirror.Root?["state"]?["alerts"] as System.Text.Json.Nodes.JsonArray;
-        DrawStrip(TimelineStrip.Compose(pulled, alerts, DateTimeOffset.Now, TimeZoneInfo.Local));
+        var recent = _snapshot.Mirror.Root?["state"]?["recent_actions"] as System.Text.Json.Nodes.JsonArray;
+        DrawStrip(TimelineStrip.Compose(pulled, alerts, DateTimeOffset.Now, TimeZoneInfo.Local, recent));
         DispatcherQueue.TryEnqueue(Layout);
     }
 

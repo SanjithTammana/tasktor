@@ -104,6 +104,9 @@ public sealed class AgentHost : IAsyncDisposable
         Exporter = new DataExporter();
         Archive = new SettingsArchive(Store);
         LoadPause();
+        History.Changed += () => UpdateState(s => s with { RecentActions = History.Items.Count == 0 ? null : [.. History.Items] });
+        Router.Finished += (req, result, summary) => History.Record(req, result, summary, Loop.Clock.UtcNow);
+        _owned.Add(Loop.Every(TimeSpan.FromMinutes(1), () => History.Prune(Loop.Clock.UtcNow)));
         Router.Completed += (req, result) =>
         {
             if (result.Status is ActionStatus.Ok or ActionStatus.Partial)
@@ -140,6 +143,9 @@ public sealed class AgentHost : IAsyncDisposable
     public LogicLoop Loop { get; }
 
     public Scheduler Scheduler { get; }
+
+    /// <summary>Undoable actions of the last 30 minutes (snapshot <c>recent_actions</c>).</summary>
+    public ActionHistory History { get; } = new();
 
     private readonly SchedulerDriver _schedulerDriver;
 

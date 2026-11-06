@@ -39,7 +39,7 @@ public static class TimelineStrip
         ("system.disk_active_pct", "Disk"), ("system.net_rx_bps", "Net"),
     ];
 
-    public static TimelineModel Compose(IReadOnlyDictionary<string, JsonNode?> pulled, JsonArray? alerts, DateTimeOffset now, TimeZoneInfo zone)
+    public static TimelineModel Compose(IReadOnlyDictionary<string, JsonNode?> pulled, JsonArray? alerts, DateTimeOffset now, TimeZoneInfo zone, JsonArray? recentActions = null)
     {
         ArgumentNullException.ThrowIfNull(pulled);
         ArgumentNullException.ThrowIfNull(zone);
@@ -61,7 +61,7 @@ public static class TimelineStrip
         var lead = rows.Count == 0 ? -1 : rows.Select((r, i) => (r, i)).MaxBy(x => x.r.Values[^1]).i;
         var model = rows.Select((r, i) => new TimelineRow(r.Label, r.Values, i == lead)).ToList();
         var forecast = lead < 0 ? null : Forecast(model[lead], now, zone);
-        return new TimelineModel(model, Events(alerts, now), forecast, Clock(now - Past, zone), Clock(now + Future, zone));
+        return new TimelineModel(model, Events(alerts, recentActions, now), forecast, Clock(now - Past, zone), Clock(now + Future, zone));
     }
 
     /// <summary>Where value <paramref name="index"/> of <paramref name="count"/> sits on the past span (0–1): the newest at 1.</summary>
@@ -88,13 +88,20 @@ public static class TimelineStrip
         return new TimelineForecast(values, label);
     }
 
-    private static List<TimelineEvent> Events(JsonArray? alerts, DateTimeOffset now)
+    /// <summary>Alerts by when they started and the user's (or a rule's) own actions by when they ran: "you lowered Chrome".</summary>
+    private static List<TimelineEvent> Events(JsonArray? alerts, JsonArray? actions, DateTimeOffset now)
     {
         var from = now - Past;
+        static DateTimeOffset? When(JsonObject o, string key) =>
+            o[key] is JsonValue v && v.TryGetValue<string>(out var s) && DateTimeOffset.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var t) ? t : null;
+        var mine = (actions ?? []).OfType<JsonObject>()
+            .Select(a => (Since: When(a, "at"), Text: a["text"] is JsonValue tv && tv.TryGetValue<string>(out var text) && text.Length > 0
+                ? Short((a["origin"]?.ToString() == "rule" ? "a rule: " : "you: ") + text)
+                : null));
         return (alerts ?? [])
             .OfType<JsonObject>()
-            .Select(a => (Since: a["since"] is JsonValue v && v.TryGetValue<string>(out var s) && DateTimeOffset.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var t) ? t : (DateTimeOffset?)null,
-                Text: Text(a)))
+            .Select(a => (Since: When(a, "since"), Text: Text(a)))
+            .Concat(mine)
             .Where(a => a.Since is { } t && t >= from && t <= now && a.Text is not null)
             .OrderByDescending(a => a.Since)
             .Take(MaxEvents)
@@ -103,11 +110,10 @@ public static class TimelineStrip
             .ToList();
     }
 
-    private static string? Text(JsonObject alert)
-    {
-        var text = (alert["text"] ?? alert["rule"]) is JsonValue v && v.TryGetValue<string>(out var s) ? s.Trim() : null;
-        return text is not { Length: > 0 } ? null : text.Length <= MaxLabel ? text : text[..(MaxLabel - 1)] + "…";
-    }
+    private static string? Text(JsonObject alert) =>
+        (alert["text"] ?? alert["rule"]) is JsonValue v && v.TryGetValue<string>(out var s) && s.Trim().Length > 0 ? Short(s.Trim()) : null;
+
+    private static string Short(string text) => text.Length <= MaxLabel ? text : text[..(MaxLabel - 1)] + "…";
 
     private static double Slope(IReadOnlyList<double> ys)
     {

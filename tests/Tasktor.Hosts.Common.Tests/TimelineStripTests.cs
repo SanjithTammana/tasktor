@@ -85,6 +85,17 @@ public sealed class TimelineStripTests
     }
 
     [Fact]
+    public void The_users_and_rules_actions_are_written_on_the_strip_with_the_alerts()
+    {
+        var alerts = new JsonArray(new JsonObject { ["rule"] = "ram", ["since"] = Now.AddMinutes(-30).ToString("O"), ["text"] = "RAM passed 80%" });
+        var actions = new JsonArray(
+            new JsonObject { ["at"] = Now.AddMinutes(-12).ToString("O"), ["text"] = "Lower Chrome", ["origin"] = "shelf" },
+            new JsonObject { ["at"] = Now.AddMinutes(-6).ToString("O"), ["text"] = "Pause train.py", ["origin"] = "rule" });
+        var m = TimelineStrip.Compose(Pulls(_ => 10, _ => 10), alerts, Now, TimeZoneInfo.Utc, actions);
+        Assert.Equal(["RAM passed 80%", "you: Lower Chrome", "a rule: Pause train.py"], m.Events.Select(e => e.Label));
+    }
+
+    [Fact]
     public void Missing_series_are_skipped_and_short_history_sits_at_the_right()
     {
         var pulled = new Dictionary<string, JsonNode?> { ["system.cpu_pct"] = Hour([10, 20, 30]), ["system.gpu_pct"] = null };
