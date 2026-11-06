@@ -136,6 +136,36 @@ public sealed class FocusTests : IDisposable
     }
 
     [Fact]
+    public void The_focus_pull_lists_presets_recent_blocks_and_the_comparison_and_carries_no_note_text()
+    {
+        _rig.Settings.Update(c => c with { Focus = new FocusSettings { Presets = [new FocusPreset { Name = "Sprint 15/3", Blocks = [new() { Kind = "focus", Minutes = 15 }, new() { Kind = "break", Minutes = 3 }] }] } });
+        new NotesStore(_rig.Store.Layout.NotesDir).Save("Today", "secret note body");
+        Act("focus.start", new() { ["preset"] = "50/10" });
+        _rig.Advance(TimeSpan.FromMinutes(20));
+        Act("focus.stop");
+        var pulled = _rig.Pulls["focus"](new Contracts.Pipe.PullMessage { Table = "focus" })!;
+        Assert.Equal(["Pomodoro 25/5", "50/10", "90/20", "Sprint 15/3"], pulled["presets"]!.AsArray().Select(p => (string)p!["name"]!));
+        Assert.Equal("25 min focus, 5 min break, a long break every 4", (string)pulled["presets"]![0]!["summary"]!);
+        var block = Assert.Single(pulled["blocks"]!.AsArray());
+        Assert.Equal(("50/10", 20, "stopped"), ((string)block!["preset"]!, (int)block["minutes"]!, (string)block["end"]!));
+        Assert.Equal(0.8, (double)block["on_intent_share"]!);
+        Assert.Equal("50/10", (string)pulled["stats"]![0]!["preset"]!);
+        Assert.StartsWith("Comparing presets", (string)pulled["review"]!, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret", pulled.ToJsonString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("Today", pulled.ToJsonString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("wf-", pulled.ToJsonString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_focus_pull_with_no_blocks_is_empty_lists()
+    {
+        var pulled = _rig.Pulls["focus"](new Contracts.Pipe.PullMessage { Table = "focus" })!;
+        Assert.Empty(pulled["blocks"]!.AsArray());
+        Assert.Empty(pulled["stats"]!.AsArray());
+        Assert.Equal(3, pulled["presets"]!.AsArray().Count);
+    }
+
+    [Fact]
     public void Without_tracking_blocks_store_no_numbers_and_the_card_says_to_turn_it_on()
     {
         _focus.TrackingOn = () => false;
