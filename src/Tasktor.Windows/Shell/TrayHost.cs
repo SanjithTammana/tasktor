@@ -20,6 +20,9 @@ public sealed record TrayMenuItem(string Label, ActionRequest? Action = null, bo
 /// <summary>The edge strip's bounds and premultiplied BGRA pixels (<c>0xAARRGGBB</c>, rows top first).</summary>
 public sealed record TrayEdgeImage(TrayRect Bounds, uint[] Pixels);
 
+/// <summary>A balloon on the tray icon (NIF_INFO): Windows shows it as a notification. <see cref="IconFlags"/> is NIIF_*.</summary>
+public sealed record TrayBalloon(string Title, string Body, uint IconFlags);
+
 /// <summary>Everything the tray shows. The agent composes it; the host only draws it.</summary>
 public sealed record TrayView(uint[] Icon, int IconSize, string Tooltip, IReadOnlyList<TrayMenuItem> Menu, TrayEdgeImage? Edge);
 
@@ -49,6 +52,9 @@ public sealed unsafe partial class TrayHost : IDisposable
     private const uint NinSelect = 0x0400;
     private const uint NinKeySelect = 0x0401;
     private const uint NinPopupOpen = 0x0406;
+    private const uint NinBalloonUserClick = 0x0405;
+    private const uint NifInfo = 0x10;
+    private const uint NiifRespectQuietTime = 0x80;
     private const uint NimAdd = 0, NimModify = 1, NimDelete = 2, NimSetVersion = 4;
     private const uint NifMessage = 0x1, NifIcon = 0x2, NifTip = 0x4;
     private const uint WsPopup = 0x80000000;
@@ -67,6 +73,8 @@ public sealed unsafe partial class TrayHost : IDisposable
     private bool _iconAdded;
     private bool _hoverTracking;
     private List<TrayMenuItem> _menuIds = [];
+    private TrayBalloon? _balloon;
+    private bool _balloonPending;
 
     /// <summary>The display changed (and once at start). Raised on the tray thread.</summary>
     public event Action<TrayDisplay>? DisplayChanged;
@@ -79,6 +87,24 @@ public sealed unsafe partial class TrayHost : IDisposable
 
     /// <summary>False when another program already holds Win+Alt+T.</summary>
     public bool HotKeyRegistered { get; private set; }
+
+    /// <summary>The user clicked the balloon (it stands for a toast; the agent opens the shelf). Raised on the tray thread.</summary>
+    public event Action? BalloonClicked;
+
+    /// <summary>Show <paramref name="balloon"/>, or clear the current one with null; safe from any thread.</summary>
+    public void ShowBalloon(TrayBalloon? balloon)
+    {
+        lock (_gate)
+        {
+            _balloon = balloon;
+            _balloonPending = true;
+        }
+
+        if (_owner != 0)
+        {
+            PostMessageW(_owner, WmApply, 0, 0);
+        }
+    }
 
     /// <summary>A menu row with an action was chosen. Raised on the tray thread.</summary>
     public event Action<TrayMenuItem>? MenuChosen;
@@ -211,6 +237,9 @@ public sealed unsafe partial class TrayHost : IDisposable
                         case NinSelect or NinKeySelect or NinPopupOpen:
                             OpenRequested?.Invoke();
                             break;
+                        case NinBalloonUserClick:
+                            BalloonClicked?.Invoke();
+                            break;
                         case WmContextMenu:
                             ShowMenu((short)(wParam & 0xFFFF), (short)((wParam >> 16) & 0xFFFF));
                             break;
@@ -310,6 +339,43 @@ public sealed unsafe partial class TrayHost : IDisposable
         }
 
         _shown = view;
+        ApplyBalloon();
+    }
+
+    private void ApplyBalloon()
+    {
+        TrayBalloon? balloon;
+        lock (_gate)
+        {
+            if (!_balloonPending || !_iconAdded)
+            {
+                return; // a balloon needs the icon; it is shown once the icon is up
+            }
+
+            _balloonPending = false;
+            balloon = _balloon;
+        }
+
+        var data = new NotifyIconData { CbSize = (uint)sizeof(NotifyIconData), Hwnd = _owner, Id = 1, Flags = NifInfo };
+        if (balloon is not null)
+        {
+            data.InfoFlags = balloon.IconFlags | NiifRespectQuietTime; // quiet hours and Do Not Disturb decide (D-G7)
+            Copy(balloon.Title, data.InfoTitle, 64);
+            Copy(balloon.Body, data.Info, 256);
+        }
+
+        Shell_NotifyIconW(NimModify, &data); // an empty text removes the balloon
+    }
+
+    private static void Copy(string text, char* buffer, int size)
+    {
+        var n = Math.Min(text.Length, size - 1);
+        for (var i = 0; i < n; i++)
+        {
+            buffer[i] = text[i];
+        }
+
+        buffer[n] = '\0';
     }
 
     private void SetIcon(string tooltip)

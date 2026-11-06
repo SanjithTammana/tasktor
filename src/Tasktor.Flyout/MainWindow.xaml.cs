@@ -79,7 +79,7 @@ public sealed partial class MainWindow : Window
         }
 
         Nav.SelectedItem = Nav.MenuItems.OfType<NavigationViewItem>().FirstOrDefault(i => (string)i.Tag == _page);
-        if (fromSnapshot && _page is "settings" or "data")
+        if (fromSnapshot && _page is "settings" or "data" or "learned")
         {
             return;
         }
@@ -122,6 +122,24 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (_page == "learned")
+        {
+            DrawLearned();
+            return;
+        }
+
+        if (_page == "focus")
+        {
+            DrawFocus();
+            return;
+        }
+
+        if (_page == "windows")
+        {
+            DrawWindows();
+            return;
+        }
+
         var shown = DeepPages.CardsFor(_page, cards);
         if (shown.Count == 0 && _page != "data")
         {
@@ -155,6 +173,145 @@ public sealed partial class MainWindow : Window
         foreach (var section in DataPage.Sections(_data, TimeZoneInfo.Local))
         {
             PageContent.Children.Add(Section(section));
+        }
+    }
+
+    private System.Text.Json.Nodes.JsonNode? _learned;
+    private bool _pullingLearned;
+
+    /// <summary>"What Tasktor learned": the agent's learned pull as sections; pulled again after any action here.</summary>
+    private void DrawLearned()
+    {
+        if (_learned is null && !_pullingLearned)
+        {
+            _pullingLearned = true;
+            _ = PullLearnedAsync();
+        }
+
+        if (_learned is null)
+        {
+            PageContent.Children.Add(Text(_snapshot.Connected ? "Reading what Tasktor learned…" : "Tasktor is not running.", "TasktorInk2Brush"));
+            return;
+        }
+
+        foreach (var section in LearnedPage.Sections(_learned))
+        {
+            PageContent.Children.Add(Section(section));
+        }
+    }
+
+    private async Task PullLearnedAsync()
+    {
+        try
+        {
+            _learned = await _snapshot.PullAsync("learned");
+        }
+        catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+            // stays on "Reading…" until the next visit
+        }
+        finally
+        {
+            _pullingLearned = false;
+        }
+
+        if (_page == "learned")
+        {
+            Draw(_snapshot.Mirror.Cards);
+        }
+    }
+
+    private System.Text.Json.Nodes.JsonNode? _focusPull;
+    private DateTimeOffset _focusAt = DateTimeOffset.MinValue;
+    private bool _pullingFocus;
+
+    /// <summary>Focus: the running block from the snapshot (redrawn on every change), presets and recent blocks from the focus pull (every 30 s, and after any action here).</summary>
+    private void DrawFocus()
+    {
+        if (DateTimeOffset.Now - _focusAt > TimeSpan.FromSeconds(30) && !_pullingFocus)
+        {
+            _pullingFocus = true;
+            _ = PullFocusAsync();
+        }
+
+        var focus = _snapshot.Mirror.Root?["state"]?["focus"];
+        foreach (var section in FocusPage.Sections(focus, _focusPull, DateTimeOffset.Now))
+        {
+            PageContent.Children.Add(Section(section));
+        }
+
+        if (_focusPull is null)
+        {
+            PageContent.Children.Add(Text(_snapshot.Connected ? "Reading your presets…" : "Tasktor is not running.", "TasktorInk2Brush"));
+        }
+    }
+
+    private async Task PullFocusAsync()
+    {
+        try
+        {
+            _focusPull = await _snapshot.PullAsync("focus");
+        }
+        catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+            // keeps what it had; tried again in 30 s
+        }
+        finally
+        {
+            _pullingFocus = false;
+            _focusAt = DateTimeOffset.Now;
+        }
+
+        if (_page == "focus")
+        {
+            Draw(_snapshot.Mirror.Cards);
+        }
+    }
+
+    private System.Text.Json.Nodes.JsonNode? _windowsPull;
+    private DateTimeOffset _windowsAt = DateTimeOffset.MinValue;
+    private bool _pullingWindows;
+
+    /// <summary>Windows: the presets pull as sections with Arrange, Apply and Undo; pulled again every 15 s and after any action here (an undo appears once an arrange has run).</summary>
+    private void DrawWindows()
+    {
+        if (DateTimeOffset.Now - _windowsAt > TimeSpan.FromSeconds(15) && !_pullingWindows)
+        {
+            _pullingWindows = true;
+            _ = PullWindowsAsync();
+        }
+
+        if (_windowsPull is null)
+        {
+            PageContent.Children.Add(Text(_snapshot.Connected ? "Reading your presets…" : "Tasktor is not running.", "TasktorInk2Brush"));
+            return;
+        }
+
+        foreach (var section in WindowsPage.Sections(_windowsPull))
+        {
+            PageContent.Children.Add(Section(section));
+        }
+    }
+
+    private async Task PullWindowsAsync()
+    {
+        try
+        {
+            _windowsPull = await _snapshot.PullAsync("presets");
+        }
+        catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+            // keeps what it had; tried again in 15 s
+        }
+        finally
+        {
+            _pullingWindows = false;
+            _windowsAt = DateTimeOffset.Now;
+        }
+
+        if (_page == "windows")
+        {
+            Draw(_snapshot.Mirror.Cards);
         }
     }
 
@@ -408,6 +565,8 @@ public sealed partial class MainWindow : Window
                 return Line(row.Kind == RowKind.Alert ? mark.TrimEnd(' ', '·') : null, row.Label, "TasktorInkBrush");
             case RowKind.Chart:
                 return Chart(row);
+            case RowKind.Tree when row.Series == "processes":
+                return ProcessTree();
             case RowKind.Meter:
                 var meter = Line(row.Label, mark + row.Value, "TasktorInkBrush");
                 if (row.Fraction is { } f)
@@ -418,6 +577,110 @@ public sealed partial class MainWindow : Window
                 return meter;
             default:
                 return Line(row.Label, mark + (row.Value ?? string.Empty), "TasktorInkBrush");
+        }
+    }
+
+    private System.Text.Json.Nodes.JsonNode? _procs;
+    private DateTimeOffset _procsAt = DateTimeOffset.MinValue;
+    private bool _pullingProcs;
+    private readonly HashSet<string> _expanded = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Apps → processes (A2/A3). The full process table is pulled only while this is on screen, at most every 5 s
+    /// (U1: "pulled only while the table is open"); which apps are open survives the page's redraws.
+    /// </summary>
+    private StackPanel ProcessTree()
+    {
+        if (DateTimeOffset.Now - _procsAt > TimeSpan.FromSeconds(5) && !_pullingProcs)
+        {
+            _pullingProcs = true;
+            _ = PullProcessesAsync();
+        }
+
+        var panel = new StackPanel { Spacing = 2, Margin = new Thickness(0, 8, 0, 0) };
+        foreach (var app in AppsTree.From(_procs))
+        {
+            var header = new Grid();
+            foreach (var w in new[] { 3.0, 1, 1, 1 })
+            {
+                header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(w, GridUnitType.Star) });
+            }
+
+            string[] cells = [app.Name, app.Cpu, app.Memory, app.Count == 1 ? "1 process" : app.Count + " processes"];
+            for (var i = 0; i < cells.Length; i++)
+            {
+                var t = new TextBlock { Text = cells[i], Style = StyleOf("TasktorBodyTextStyle"), Foreground = ThemeBrush(i == 0 ? "TasktorInkBrush" : "TasktorInk2Brush"), TextAlignment = i == 0 ? TextAlignment.Left : TextAlignment.Right };
+                Grid.SetColumn(t, i);
+                header.Children.Add(t);
+            }
+
+            var body = new StackPanel();
+            foreach (var p in app.Processes)
+            {
+                var line = Line(p.Exe + " · " + p.Pid, p.Locked is { } why ? why : p.Cpu + " · " + p.Memory, p.Locked is null ? "TasktorInkBrush" : "TasktorInk3Brush");
+                if (p.Actions.Count > 0)
+                {
+                    line.ContextFlyout = Menu(p.Actions);
+                }
+
+                body.Children.Add(line);
+            }
+
+            var id = app.AppId;
+            var expander = new Expander
+            {
+                Header = header,
+                Content = body,
+                IsExpanded = _expanded.Contains(id),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            };
+            expander.Expanding += (_, _) => _expanded.Add(id);
+            expander.Collapsed += (_, _) => _expanded.Remove(id);
+            if (app.Actions.Count > 0)
+            {
+                expander.ContextFlyout = Menu(app.Actions);
+            }
+
+            AutomationProperties.SetName(expander, app.Name + ", " + app.Cpu + " CPU, " + app.Memory);
+            panel.Children.Add(expander);
+        }
+
+        if (_procs is null)
+        {
+            panel.Children.Add(Text("Reading the process table…", "TasktorInk2Brush"));
+        }
+
+        return panel;
+    }
+
+    private MenuFlyout Menu(IReadOnlyList<CardAction> actions)
+    {
+        var menu = new MenuFlyout();
+        foreach (var action in actions)
+        {
+            var item = new MenuFlyoutItem { Text = action.Label };
+            item.Click += async (_, _) => await RunAsync(action);
+            menu.Items.Add(item);
+        }
+
+        return menu;
+    }
+
+    private async Task PullProcessesAsync()
+    {
+        try
+        {
+            _procs = await _snapshot.PullAsync("processes");
+        }
+        catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+            // keep the last table; the next draw tries again
+        }
+        finally
+        {
+            _procsAt = DateTimeOffset.Now;
+            _pullingProcs = false;
         }
     }
 
@@ -534,6 +797,19 @@ public sealed partial class MainWindow : Window
         }
 
         _dataAt = DateTimeOffset.MinValue; // a forget (or anything) may change what is kept: re-count on the next draw
+        if (_page == "learned")
+        {
+            _learned = null; // relearn / forget / learning on-off: read it again
+            Draw(_snapshot.Mirror.Cards);
+        }
+
+        if (_page is "focus" or "windows")
+        {
+            _focusAt = DateTimeOffset.MinValue; // a block started, a preset arranged: read both pulls again
+            _windowsAt = DateTimeOffset.MinValue;
+            Draw(_snapshot.Mirror.Cards);
+        }
+
         if (!outcome.Ok && !outcome.Declined && outcome.Result is { } r)
         {
             await OnUi(() => InformAsync(r.Message ?? "Couldn't do that (" + (r.Reason ?? "failed") + ")."));
