@@ -207,27 +207,29 @@ public sealed partial class ShelfWindow : Window
     private async Task LoadGrainAsync()
     {
         IReadOnlyList<double> load;
+        IReadOnlyList<bool> hot;
         try
         {
-            load = EdgeGrain.LoadFromSeries(await _snapshot.PullAsync("series", new Dictionary<string, string> { ["id"] = "system.cpu_pct" }));
+            var pulled = await _snapshot.PullAsync("series", new Dictionary<string, string> { ["id"] = "system.cpu_pct" });
+            load = EdgeGrain.LoadFromSeries(pulled);
+            hot = EdgeGrain.HotFromSeries(pulled, load.Count);
         }
         catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException)
         {
-            load = [];
+            (load, hot) = ([], []);
         }
 
-        // Severity history per minute is not served yet; the stretch is drawn plain until it is (PROGRESS: Next).
-        var ticks = EdgeGrain.Compute(load, [.. load.Select(_ => false)], (int)_widthDip);
+        var ticks = EdgeGrain.Compute(load, hot, (int)_widthDip);
         var plain = new GeometryGroup();
-        var hot = new GeometryGroup();
+        var bright = new GeometryGroup();
         foreach (var t in ticks)
         {
             var line = new LineGeometry { StartPoint = new Point(t.X + 1, 6), EndPoint = new Point(t.X + 1, 6 - (t.Height * 6)) };
-            (t.Hot ? hot : plain).Children.Add(line);
+            (t.Hot ? bright : plain).Children.Add(line);
         }
 
         GrainPath.Data = plain;
-        HotPath.Data = hot;
+        HotPath.Data = bright;
     }
 
     private void Layout()

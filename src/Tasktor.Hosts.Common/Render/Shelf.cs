@@ -182,5 +182,25 @@ public static class EdgeGrain
             ? [.. hour.Select(v => (BindingResolver.AsDouble(v) ?? 0) / 100.0)]
             : [];
 
+    /// <summary>
+    /// The <c>series</c> pull's per-minute worst severity as bright flags for <paramref name="count"/> load points:
+    /// right-aligned (both end at "now"), warn or worse is bright, anything missing is plain.
+    /// </summary>
+    public static IReadOnlyList<bool> HotFromSeries(System.Text.Json.Nodes.JsonNode? pulled, int count)
+    {
+        var hot = new bool[Math.Max(0, count)];
+        if (pulled?["severity"] is not System.Text.Json.Nodes.JsonArray sev)
+        {
+            return hot;
+        }
+
+        for (int i = hot.Length - 1, j = sev.Count - 1; i >= 0 && j >= 0; i--, j--)
+        {
+            hot[i] = (BindingResolver.AsDouble(sev[j]) ?? 0) >= 1;
+        }
+
+        return hot;
+    }
+
     private static double Clamp(double v) => double.IsNaN(v) ? 0 : Math.Clamp(v, 0, 1);
 }

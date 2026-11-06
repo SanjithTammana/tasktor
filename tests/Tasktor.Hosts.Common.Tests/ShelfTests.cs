@@ -191,6 +191,15 @@ public sealed class ShelfTests
     }
 
     [Fact]
+    public void Series_severity_becomes_bright_flags_aligned_to_now()
+    {
+        var pulled = JsonNode.Parse("""{ "hour": [1, 2, 3, 4], "severity": [2, 0, 1] }""");
+        Assert.Equal([false, true, false, true], EdgeGrain.HotFromSeries(pulled, 4));
+        Assert.Equal([false, true], EdgeGrain.HotFromSeries(pulled, 2));
+        Assert.Equal([false, false], EdgeGrain.HotFromSeries(JsonNode.Parse("{}"), 2));
+    }
+
+    [Fact]
     public void Contrast_matches_wcag_reference_values()
     {
         Assert.Equal(21.0, ThemeTokens.Contrast(Rgb.Parse("#000000"), Rgb.Parse("#FFFFFF")), 6);

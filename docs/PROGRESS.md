@@ -52,7 +52,7 @@ M11 is done; M12–M15 have their Linux-testable logic, gates and release workfl
 
 ## Next
 - **M12, remaining:** wiring `DeepCapture` into `tasktor-capture`'s `Program` once its sources exist, and the Windows adapters: `LowLevelInputHook` (`WH_KEYBOARD_LL` / `WH_MOUSE_LL` into the ring, watchdog), `UiaReader` / `UiaWalkSource`, `MediaSessionSource` (SMTC + WASAPI meters), `VisibleWindows`, the secure-desktop check, the tray indicator + edge-line window (created before any hook; no indicator → exit).
-- **M14, shelf, remaining:** the agent's tray icon + edge strip (GDI layered window on the tray thread; launches / signals the flyout), a per-minute worst-severity series for the grain's bright stretch, the timeline strip with events and the dotted forecast, the command line (Win+Alt+T).
+- **M14, shelf, remaining:** the agent's tray icon + edge strip (GDI layered window on the tray thread; launches / signals the flyout), the timeline strip with events and the dotted forecast, the command line (Win+Alt+T).
 - **M14, Windows UI (re-scoped by U4's 2026-11-06 amendment, D-G10–D-G16):** the deep window (the nine pages, seven dialogs), instead of the 400 × 640 flyout; the Widgets provider over `AdaptiveCardRenderer`, `ToastNotifier` and the tray menu from `ActionCatalog`, the switcher window + thumbnails + hotkey / hook, `PresetRestorer` with the `preset.*` handlers, `FancyZonesBridge`, `VirtualDesktopInfo`, card `module.presets`, MSIX packaging.
 - Every catalog action now has a handler (QualityGateTests' Pending list is empty).
 
@@ -169,7 +169,7 @@ M11 is done; M12–M15 have their Linux-testable logic, gates and release workfl
 - **Shelf nouns** match exactly (ordinal) in the verdict; a noun not found is skipped and its action stays on the card. Cards whose verdict binding is missing stay silent rather than saying "—".
 - **The edge lives with the tray icon in the agent, not in the WinUI process.** D-G10 says the shelf host draws it, but D-H10's row for the process it replaces is "0 MB 30 s after it hides" and U1 D-H9 puts the tray icon in the agent; a resident WinUI process would cost tens of MB at rest. The agent's tray thread will own a GDI layered strip (no WinUI) and launch / signal the flyout on hover or click. Hover needs the strip to take mouse input, so it is not click-through for the cursor; it covers only the taskbar's top 6 px.
 - **The flyout process hosts the shelf, the command line and the deep window** (client name `flyout`, origins `flyout` / `shelf` / `command` / `toast`). The project keeps its name to avoid churn.
-- **Grain brightness waits for a severity series.** The agent serves per-minute load (`series`) but not per-minute worst severity, so the shelf's grain draws every tick plain for now.
+- **Grain brightness: per-minute worst severity.** `SystemTotals.ObserveSeverity` is fed after every snapshot publish (the only moments a card's severity can change, so a spell shorter than the idle 60 s sample is still seen); each tick stores the minute's worst beside the load points and carries the current severity into quiet minutes. The `series` pull returns it as `severity` (0 / 1 / 2), right-aligned with `hour`; warn or worse is bright.
 - **Shelf confirm copy:** the agent's `Summary` is the sentence; the buttons are "Keep it" (accent, focused) and the action's own label.
 - **Browser exe as the app** for app blocks: `chrome.exe` / `msedge.exe`, so "Don't capture this app" on a browser stops its context records too.
 

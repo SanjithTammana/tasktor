@@ -28,6 +28,9 @@ public sealed class SystemTotals : Feature
     private readonly Dictionary<string, SeverityHold> _holds = [];
     private DemandLease? _tickLease;
     private DateTimeOffset _lastHourPoint = DateTimeOffset.MinValue;
+    private readonly RingBuffer<byte> _hourSeverity = new(60);
+    private Severity _minuteSeverity;
+    private Severity _currentSeverity;
 
     public SystemTotals(FeatureContext context, IMetricSource source)
         : base(context)
@@ -52,6 +55,24 @@ public sealed class SystemTotals : Feature
 
     /// <summary>The A2.7 verdict line and its severity, computed by the apps feature (null when nothing is saturated).</summary>
     public Func<SystemState, (string Text, Severity Severity)?>? Verdict { get; set; }
+
+    /// <summary>
+    /// The worst card severity changed or was re-read (U4 amended D-G10: the edge's bright stretch). The agent calls it
+    /// after every snapshot publish, which is every moment a card's severity can change; each 60 s tick stores the
+    /// minute's worst next to the load points (so the two hour series line up), and a minute with no publish keeps the
+    /// severity it started with. Loop-only.
+    /// </summary>
+    public void ObserveSeverity(Severity worst)
+    {
+        _currentSeverity = worst;
+        if (worst > _minuteSeverity)
+        {
+            _minuteSeverity = worst;
+        }
+    }
+
+    /// <summary>The per-minute worst severity, oldest first (0 normal, 1 warn, 2 critical).</summary>
+    public RingBuffer<byte> HourSeverity => _hourSeverity;
 
     /// <summary>Raised on the loop after each sample; <c>isTick</c> marks the 60 s history points.</summary>
     public event Action<MetricFrame, bool>? Sampled;
@@ -216,6 +237,8 @@ public sealed class SystemTotals : Feature
         {
             _lastHourPoint = now;
             AddPoint(_hour, Raw);
+            _hourSeverity.Add((byte)_minuteSeverity);
+            _minuteSeverity = _currentSeverity;
         }
 
         Latest = state;
@@ -335,7 +358,10 @@ public sealed class SystemTotals : Feature
         ];
     }
 
-    /// <summary><c>pull series</c> with <c>args.id</c>: the hour ring (60 tick points) and the live ring.</summary>
+    /// <summary>
+    /// <c>pull series</c> with <c>args.id</c>: the hour ring (60 tick points), the live ring, and the per-minute worst
+    /// severity (the same for every id; right-aligned with <c>hour</c>).
+    /// </summary>
     private JsonNode? PullSeries(Contracts.Pipe.PullMessage pull)
     {
         var id = pull.Args?.GetValueOrDefault("id") ?? "system.cpu_pct";
@@ -349,6 +375,7 @@ public sealed class SystemTotals : Feature
             ["id"] = id,
             ["hour"] = new JsonArray([.. hour.ToArray().Select(v => (JsonNode?)JsonValue.Create(Math.Round(v, 2)))]),
             ["live"] = new JsonArray([.. _live[id].ToArray().Select(v => (JsonNode?)JsonValue.Create(Math.Round(v, 2)))]),
+            ["severity"] = new JsonArray([.. _hourSeverity.ToArray().Select(v => (JsonNode?)JsonValue.Create((int)v))]),
         };
     }
 
