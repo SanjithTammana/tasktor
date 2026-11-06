@@ -63,10 +63,12 @@ M11 is done; M12–M15 have their Linux-testable logic, gates and release workfl
 
 - **M14 deep window row actions.** `CardRows.RowActions`: a card's catalog actions whose target names `{row}` belong to one table row; the deep window offers them on each keyed row's context menu (right-click / Shift+F10) and fills `{row}` from the row key; the card's own actions stay under it.
 
+- **M14 Your data page.** Contract `DataReport` / `DataGroup` (sizes, counts, oldest / newest, retention in words; no names or paths) served by the agent's `data` pull. `DataInventory` (Core) scans the store in the `forget` scopes' groups (learned, tracking, capture, the rest), never following links; notes and presets are the user's content and are not listed. The scan runs off the loop: a pull answers with the last result and starts a fresh scan whose result is posted back. `DataPage` (Hosts.Common) turns it into the deep window's rows with a two-step "Forget this…" / "Forget everything…" (`forget` with the group's scope); the page re-counts after any action.
+
 ## Next
 - **M12, remaining:** wiring `DeepCapture` into `tasktor-capture`'s `Program` once its sources exist, and the Windows adapters: `LowLevelInputHook` (`WH_KEYBOARD_LL` / `WH_MOUSE_LL` into the ring, watchdog), `UiaReader` / `UiaWalkSource`, `MediaSessionSource` (SMTC + WASAPI meters), `VisibleWindows`, the secure-desktop check, the tray indicator + edge-line window (created before any hook; no indicator → exit).
 - **M14, shelf, remaining:** user actions on the timeline strip ("you lowered Chrome": needs an action history the snapshot does not carry), the command line's dimmed desktop and a configurable hotkey.
-- **M14, deep window, remaining:** the apps `Tree`, Home's pinned list from settings and its 30-minute Undo, the Learned / Focus / Windows / Your data / Settings page bodies, the six other dialogs.
+- **M14, deep window, remaining:** the apps `Tree`, Home's pinned list from settings and its 30-minute Undo, the Learned / Focus / Windows / Settings page bodies, Export on Your data (D-S7), the six other dialogs.
 - **M14, Windows UI (re-scoped by U4's 2026-11-06 amendment, D-G10–D-G16):** the deep window's remaining pages (the nine pages, seven dialogs), instead of the 400 × 640 flyout; the Widgets provider over `AdaptiveCardRenderer`, `ToastNotifier` and the tray menu from `ActionCatalog`, the switcher window + thumbnails + hotkey / hook, `PresetRestorer` with the `preset.*` handlers, `FancyZonesBridge`, `VirtualDesktopInfo`, card `module.presets`, MSIX packaging.
 - Every catalog action now has a handler (QualityGateTests' Pending list is empty).
 
@@ -190,6 +192,7 @@ M11 is done; M12–M15 have their Linux-testable logic, gates and release workfl
 - **Tests must pass as a standard Windows user.** CI's runner is an administrator, so a test that creates a symbolic link passed there but failed on a normal account (error 1314). The folder-scan loop test now falls back to an NTFS junction (A5 acceptance 4 names a junction loop), and still asserts the link is a reparse point that the scanner does not follow.
 - **Command line without the dimmed desktop (for now).** WinUI 3 has no simple transparent full-monitor window; the panel stands alone on the shelf colour. A dim layer would be a separate layered Win32 window under it.
 - **The strip's forecast is a display trend, not an agent prediction:** a least-squares line over the lead row's last ten minutes, only labelled when it reaches 100 % within the 15 minutes shown. Events are the hour's alerts; user actions wait for an action history.
+- **`data` pull payload is a contract record without its own schema file**, like the other pull payloads (`learned`, `folders`, `series`): the pipe's `pull_result` schema carries it as data. Retention words come from the code's constants (logs `FileLogWriter.KeepDays`).
 - **Browser exe as the app** for app blocks: `chrome.exe` / `msedge.exe`, so "Don't capture this app" on a browser stops its context records too.
 
 ## Needs Windows verification

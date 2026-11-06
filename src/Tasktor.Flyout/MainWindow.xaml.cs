@@ -27,6 +27,9 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<string, (System.Text.Json.Nodes.JsonNode? Node, DateTimeOffset At)> _series = [];
     private readonly HashSet<string> _pulling = [];
     private static readonly TimeSpan SeriesFresh = TimeSpan.FromSeconds(30);
+    private Contracts.Export.DataReport? _data;
+    private DateTimeOffset _dataAt = DateTimeOffset.MinValue;
+    private bool _pullingData;
 
     public MainWindow(SnapshotClient snapshot, string page)
     {
@@ -95,8 +98,13 @@ public sealed partial class MainWindow : Window
             DrawAlerts();
         }
 
+        if (_page == "data")
+        {
+            DrawData();
+        }
+
         var shown = DeepPages.CardsFor(_page, cards);
-        if (shown.Count == 0)
+        if (shown.Count == 0 && _page != "data")
         {
             PageContent.Children.Add(Text(_snapshot.Connected ? "Nothing to show on this page yet." : "Tasktor is not running.", "TasktorInk2Brush"));
             return;
@@ -106,6 +114,51 @@ public sealed partial class MainWindow : Window
         foreach (var card in shown)
         {
             PageContent.Children.Add(Section(renderer.Render(CardFitter.Fit(card, FitTarget.Flyout, resolver), resolver)));
+        }
+    }
+
+    /// <summary>"Your data": the agent's scan as sections with a two-step Forget each; re-pulled every 15 s while shown.</summary>
+    private void DrawData()
+    {
+        var fresh = _data is null ? TimeSpan.FromSeconds(2) : TimeSpan.FromSeconds(15);
+        if (DateTimeOffset.Now - _dataAt > fresh && !_pullingData)
+        {
+            _pullingData = true;
+            _ = PullDataAsync();
+        }
+
+        if (_data is null)
+        {
+            PageContent.Children.Add(Text("Counting what Tasktor keeps…", "TasktorInk2Brush"));
+            return;
+        }
+
+        foreach (var section in DataPage.Sections(_data, TimeZoneInfo.Local))
+        {
+            PageContent.Children.Add(Section(section));
+        }
+    }
+
+    private async Task PullDataAsync()
+    {
+        try
+        {
+            var node = await _snapshot.PullAsync("data");
+            _data = node is null ? _data : System.Text.Json.JsonSerializer.Deserialize(node, Contracts.ContractsJsonContext.Default.DataReport);
+        }
+        catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            // keep what we had; try again on the next refresh
+        }
+        finally
+        {
+            _dataAt = DateTimeOffset.Now;
+            _pullingData = false;
+        }
+
+        if (_page == "data")
+        {
+            Draw(_snapshot.Mirror.Cards);
         }
     }
 
@@ -321,6 +374,7 @@ public sealed partial class MainWindow : Window
             return; // the agent went away; the page shows "Tasktor is not running." on the next refresh
         }
 
+        _dataAt = DateTimeOffset.MinValue; // a forget (or anything) may change what is kept: re-count on the next draw
         if (!outcome.Ok && !outcome.Declined && outcome.Result is { } r)
         {
             await OnUi(() => InformAsync(r.Message ?? "Couldn't do that (" + (r.Reason ?? "failed") + ")."));

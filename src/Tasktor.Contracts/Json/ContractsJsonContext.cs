@@ -30,6 +30,7 @@ namespace Tasktor.Contracts;
     MaxDepth = 32,
     Converters = [typeof(UtcTimestampConverter)])]
 [JsonSerializable(typeof(SnapshotRecord))]
+[JsonSerializable(typeof(DataReport))]
 [JsonSerializable(typeof(PreregFile))]
 [JsonSerializable(typeof(ExtractMeta))]
 [JsonSerializable(typeof(WorkerJob))]

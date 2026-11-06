@@ -129,6 +129,20 @@ public sealed class PipeProtocolTests : IAsyncLifetime
         Assert.Contains("proc.end", catalog!.Data!.AsArray().Select(n => n!.GetValue<string>()));
     }
 
+    [Fact]
+    public async Task Data_pull_scans_off_the_loop_and_answers_with_the_forget_groups()
+    {
+        Directory.CreateDirectory(_agent.Store.Layout.TrackDir);
+        File.WriteAllBytes(_agent.Store.Layout.EventsDb, new byte[1234]);
+        await using var c = await PipeClient.ConnectAsync("flyout", _agent.PipeName, 10000);
+        await c.PullAsync("data"); // the first pull starts a scan; it may answer before the scan ends
+        AgentFixture.WaitFor(() => _agent.Host.OnLoop(() => _agent.Host.DataReport).GetAwaiter().GetResult() is not null);
+        var data = (await c.PullAsync("data"))!.Data!;
+        Assert.Equal(["learned", "tracking", "capture", "all"], data["groups"]!.AsArray().Select(g => g!["scope"]!.GetValue<string>()));
+        Assert.True(data["groups"]![1]!["bytes"]!.GetValue<long>() >= 1234);
+        Assert.DoesNotContain("events.db", data.ToJsonString(), StringComparison.Ordinal); // sizes and dates only, no names
+    }
+
     private sealed class RawClient : IAsyncDisposable
     {
         private readonly System.IO.Pipes.NamedPipeClientStream _s;
