@@ -25,6 +25,12 @@ public sealed record BrowserHello : BrowserMessage
     public required string Client { get; init; }
     public required string Browser { get; init; }
     public required string ExtensionVersion { get; init; }
+
+    /// <summary>
+    /// C §5.5: the user turned on private windows for this browser profile (the popup's opt-in, and the browser's own
+    /// "allow in Incognito / InPrivate"). Without it the capture host drops every private tab.
+    /// </summary>
+    public bool Incognito { get; set; }
 }
 
 public sealed record BrowserTab : BrowserMessage
@@ -46,6 +52,9 @@ public sealed record BrowserTab : BrowserMessage
 
     /// <summary>The tab's title. Personal data.</summary>
     public string? Title { get; init; }
+
+    /// <summary>An Incognito / InPrivate tab: dropped unless the session's hello opted in.</summary>
+    public bool Incognito { get; set; }
 }
 
 /// <summary>

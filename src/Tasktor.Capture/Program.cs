@@ -52,6 +52,7 @@ internal static class Program
         {
             ResolveTab = endpoint.ResolveTab,
             RecordsToday = () => recorder.RecordsToday,
+            Extensions = endpoint.Connected,
             ForgetSince = recorder.ForgetSince,
         };
         control.Changed += endpoint.NotifyBlocksChanged;
@@ -61,7 +62,7 @@ internal static class Program
         var (queued, _) = QueueDrain.Drain(Path.Combine(store.CaptureDir, "nmh-queue.jsonl"));
         foreach (var m in queued)
         {
-            if (m is Contracts.Capture.BrowserTab t)
+            if (m is Contracts.Capture.BrowserTab { Incognito: false } t)
             {
                 recorder.Browser("chrome", t.Tab, new TabContext(t.Host is null ? null : Contracts.Platform.Sensitive.Of(t.Host), Secure: true, t.Active, t.Active), queued: true);
             }

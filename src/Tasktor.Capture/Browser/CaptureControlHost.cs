@@ -31,6 +31,9 @@ public sealed class CaptureControl
     /// <summary>Records stored today (the vault's count).</summary>
     public Func<long> RecordsToday { get; init; } = () => 0;
 
+    /// <summary>The browsers with a connected extension (the browser endpoint).</summary>
+    public Func<IReadOnlyList<string>> Extensions { get; init; } = () => [];
+
     /// <summary>Forget records since a time; returns how many were removed (the vault).</summary>
     public Func<DateTimeOffset, long> ForgetSince { get; init; } = _ => 0;
 
@@ -134,6 +137,7 @@ public sealed class CaptureControl
                 PausedUntil = pauses.Count > 0 && pauses.All(p => p.Until is not null) ? pauses.Max(p => p.Until) : null,
                 Blocks = [.. _blocks.Blocks.Select(b => new CaptureBlockInfo { Id = b.Id, Kind = Kind(b.Kind), Text = Text(b), Until = b.Until, ByRule = b.AddedBy != "user" })],
                 RecordsToday = RecordsToday(),
+                Extensions = Extensions(),
             };
         }
     }

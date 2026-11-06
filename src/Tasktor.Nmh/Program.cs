@@ -10,8 +10,16 @@ namespace Tasktor.Nmh;
 internal static class Program
 {
     private static long s_rejected;
-    private static async Task Main(string[] args)
+    private static async Task<int> Main(string[] args)
     {
+        if (args is ["--register" or "--unregister"])
+        {
+            if (!OperatingSystem.IsWindows()) return 2;
+            if (args[0] == "--unregister") Registration.Unregister();
+            else Registration.Register(Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "tasktor-nmh.exe"), Path.Combine(StoreLayout.Resolve(exeDir: AppContext.BaseDirectory).Root, "nmh"));
+            return 0;
+        }
+
         using var input = Console.OpenStandardInput();
         using var output = Console.OpenStandardOutput();
         using var pipe = new NamedPipeClientStream(".", PipeName.ForCapture(), PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
@@ -49,7 +57,7 @@ internal static class Program
                     try { await PipeFraming.WriteAsync(pipe, line, stop.Token).ConfigureAwait(false); continue; }
                     catch (IOException) { }
                 }
-                if (message is BrowserTab or BrowserFocus or BrowserVisibility or BrowserTabClosed) queue.Append(line);
+                if (message is BrowserTab { Incognito: false } or BrowserFocus or BrowserVisibility or BrowserTabClosed) queue.Append(line); // a private tab is never queued: no hello vouches for it
                 if (message is BrowserBlockRequest request)
                 {
                     BrowserMessage ack = new BrowserAck { At = DateTimeOffset.UtcNow, RequestId = request.RequestId, Ok = false, Reason = "capture_not_running" };
@@ -64,6 +72,8 @@ internal static class Program
             await pipe.DisposeAsync().ConfigureAwait(false);
             try { await reader.ConfigureAwait(false); } catch (OperationCanceledException) { }
         }
+
+        return 0;
     }
 
     private static async Task ReadPipeAndStopAsync(Stream pipe, Stream output, SemaphoreSlim outputLock, CancellationTokenSource stop)
