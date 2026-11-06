@@ -25,13 +25,21 @@ public sealed class StoreSet(EventStore events, EpisodeStore episodes) : IDispos
 /// </summary>
 public sealed class StoreWriter : IDisposable
 {
+    /// <summary>How long <see cref="Dispose"/> waits for the queue to drain before handing the close to the writer thread.</summary>
+    public static readonly TimeSpan DrainWait = TimeSpan.FromSeconds(10);
+
     private readonly BlockingCollection<Action<StoreSet>> _queue = new(boundedCapacity: 4096);
     private readonly Thread? _thread;
     private readonly StoreSet _stores;
+    private readonly TimeSpan _drainWait;
+    private volatile bool _disposing;
+    private volatile bool _closeOnExit;
+    private int _closed;
 
-    private StoreWriter(StoreSet stores, bool thread)
+    private StoreWriter(StoreSet stores, bool thread, TimeSpan drainWait)
     {
         _stores = stores;
+        _drainWait = drainWait;
         if (thread)
         {
             _thread = new Thread(Run) { IsBackground = true, Name = "tasktor-store-writer", Priority = ThreadPriority.BelowNormal };
@@ -39,46 +47,101 @@ public sealed class StoreWriter : IDisposable
         }
     }
 
-    public static StoreWriter Threaded(StoreSet stores) => new(stores, true);
+    public static StoreWriter Threaded(StoreSet stores) => new(stores, true, DrainWait);
 
-    public static StoreWriter Inline(StoreSet stores) => new(stores, false);
+    /// <summary>For tests: a threaded writer with a short drain wait.</summary>
+    internal static StoreWriter Threaded(StoreSet stores, TimeSpan drainWait) => new(stores, true, drainWait);
+
+    public static StoreWriter Inline(StoreSet stores) => new(stores, false, TimeSpan.Zero);
 
     public long Failures { get; private set; }
 
+    /// <summary>The stores are closed (by <see cref="Dispose"/>, or by the writer thread once it drained).</summary>
+    public bool Closed => Volatile.Read(ref _closed) == 1;
+
+    /// <summary>Queue a write. After <see cref="Dispose"/> began, writes are dropped (the stores are closing).</summary>
     public void Enqueue(Action<StoreSet> work)
     {
+        if (_disposing)
+        {
+            return;
+        }
+
         if (_thread is null)
         {
             work(_stores);
             return;
         }
 
-        if (!_queue.IsAddingCompleted)
+        try
         {
             _queue.TryAdd(work, 1000);
+        }
+        catch (InvalidOperationException)
+        {
+            // adding was completed between the check and the add: the stores are closing
         }
     }
 
     private void Run()
     {
-        foreach (var work in _queue.GetConsumingEnumerable())
+        try
         {
-            try
+            foreach (var work in _queue.GetConsumingEnumerable())
             {
-                work(_stores);
+                try
+                {
+                    work(_stores);
+                }
+                catch (Storage.SqliteException)
+                {
+                    Failures++; // a full disk or a locked file: the batch is lost, never the loop
+                }
             }
-            catch (Storage.SqliteException)
+        }
+        finally
+        {
+            if (_closeOnExit)
             {
-                Failures++; // a full disk or a locked file: the batch is lost, never the loop
+                Close(); // Dispose stopped waiting; the last one out closes
             }
         }
     }
 
-    /// <summary>Drain the queue and close both stores (turning tracking off closes them within 1 s, C1 acceptance 6).</summary>
+    /// <summary>
+    /// Drain the queue and close both stores. Turning tracking off closes them within 1 s on a normal machine (C1
+    /// acceptance 6); on a loaded one the drain may take longer, and nothing is ever disposed while the writer still uses
+    /// it: after <see cref="DrainWait"/> the writer thread closes the stores itself when it finishes.
+    /// </summary>
     public void Dispose()
     {
+        if (_disposing)
+        {
+            return;
+        }
+
+        _disposing = true;
         _queue.CompleteAdding();
-        _thread?.Join(TimeSpan.FromSeconds(1));
+        if (_thread is null || _thread.Join(_drainWait))
+        {
+            Close();
+            return;
+        }
+
+        _closeOnExit = true;
+        if (!_thread.IsAlive)
+        {
+            Close(); // it finished between the join and the flag
+        }
+    }
+
+    private void Close()
+    {
+        if (Interlocked.Exchange(ref _closed, 1) == 1)
+        {
+            return;
+        }
+
         _queue.Dispose();
         _stores.Dispose();
     }
