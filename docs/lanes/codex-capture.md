@@ -1,11 +1,14 @@
 # Capture lane report
 
 ## Done
-- Indicator adapter (capture: Win32 recording indicator): capture-owned tray ring and two-pixel monitor-top windows; display and DPI messages rebuild edges, and failure is surfaced to the host. Host wiring is the next item.
+- Host wiring (capture: gate host startup): consent is checked first; the indicator gate starts the capture lifetime only after indicator creation, and recording sources drain before indicator removal. Browser-pipe shutdown now waits for active sessions.
+- Indicator adapter (capture: Win32 recording indicator): capture-owned tray ring and two-pixel monitor-top windows; display and DPI messages rebuild edges, and failure is surfaced to the host. The host wiring is described above.
 - Rebased the lane on the updated upstream base, then reconciled the previously pushed report history without a force push.
-- Added an indicator startup gate and synthetic tests. If stopping capture throws, the gate keeps the indicator alive and permits a retry. The gate is not yet wired to a Windows indicator or capture host.
+- Added an indicator startup gate and synthetic tests. If stopping capture throws, the gate keeps the indicator alive and permits a retry. The gate now owns the capture host lifetime.
 
 ## Checks run
+- PASS: isolated capture host smoke test: without consent, exit code 3; with consent in a temporary store, the process stayed alive for five seconds after indicator-gated startup. The process was stopped and the store deleted. No hooks are installed yet.
+- PASS: full .NET suite, including 79 Capture tests; synthetic tests cover indicator refusal, loss before start and a browser callback held open during server disposal.
 - PASS: indicator-only probe, no capture: startup succeeded on a two-monitor PC; two visible edge windows matched both monitor top bounds and were exactly two physical pixels high. Tray registration returned success. Physical monitor changes, DPI changes, and visual tray appearance remain to be verified.
 - PASS: full .NET suite (Core 463, Capture 75); full Release solution build with zero warnings; Python worker 108 passed. The Capture suite was rerun after the DPI-awareness failure guard and passed 75 tests.
 - PASS: `dotnet build Tasktor.sln -c Release -warnaserror` on the updated base: 0 warnings, 0 errors.
@@ -20,6 +23,8 @@
 - The test agent and flyout were stopped, and the isolated data directory was removed. Capture was not enabled.
 
 - PASS: four synthetic startup gate tests, including a capture-stop failure and retry; the native Windows indicator and host wiring are outstanding.
+
+- IN PROGRESS: low-level hook work is being developed separately; the existing ring requires a discriminator and mouse payload before it can safely carry both device types.
 
 ## Interpretations
 - The amended D-G16 indicator is the top edge of every monitor. The first indicator must fail closed before hooks are installed.
@@ -36,6 +41,8 @@
 - No open baseline blocker; the full .NET suite passed after the upstream shutdown fix.
 
 - Windows computer-use policy disallows Win-key shortcuts, so the Win+Alt+T shortcut itself cannot be automated in this session.
+
+
 
 
 
