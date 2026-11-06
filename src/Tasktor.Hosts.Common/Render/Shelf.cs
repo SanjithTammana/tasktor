@@ -23,7 +23,8 @@ public sealed record ShelfSentence(Severity Severity, IReadOnlyList<ShelfSegment
 /// first (ties keep the provider's order), at most <see cref="MaxClauses"/>; the rest are counted in
 /// <see cref="ShelfSentence.More"/>. A calm machine is one short sentence: "All quiet." plus, when there is one, the jobs
 /// card's verdict. Each action's <see cref="CardAction.Noun"/> marks its first occurrence in that card's clause as a
-/// control; a noun that does not occur is skipped (the action stays on the card).
+/// control; a noun that does not occur, or whose actions the shelf cannot run (<see cref="ShelfRunnable"/>), is skipped
+/// (the action stays on the card).
 /// </summary>
 public static class ShelfComposer
 {
@@ -87,11 +88,18 @@ public static class ShelfComposer
         return text[^1] is '.' or '!' or '?' ? text : text + ".";
     }
 
+    /// <summary>
+    /// The shelf runs catalog actions that need no row: a <c>{row}</c> target needs the table it came from, and a plugin
+    /// action is sent by the plugin's host. Both stay on the card in the deep window.
+    /// </summary>
+    public static bool ShelfRunnable(CardAction action) =>
+        action is { Action.Length: > 0 } && (action.Target is null || !action.Target.Values.Any(v => v.Contains("{row}", StringComparison.Ordinal)));
+
     private static void AddClause(Card card, string clause, List<ShelfSegment> segments, List<ShelfNoun> nouns)
     {
         // Each distinct noun once, at its first occurrence; overlapping matches keep the earlier one.
         var found = (card.Actions ?? [])
-            .Where(a => !string.IsNullOrWhiteSpace(a.Noun))
+            .Where(a => !string.IsNullOrWhiteSpace(a.Noun) && ShelfRunnable(a))
             .GroupBy(a => a.Noun!, StringComparer.Ordinal)
             .Select(g => (text: g.Key, at: clause.IndexOf(g.Key, StringComparison.Ordinal), actions: g.OrderBy(a => a.Priority).ToList()))
             .Where(n => n.at >= 0)
@@ -167,6 +175,12 @@ public static class EdgeGrain
 
         return ticks;
     }
+
+    /// <summary>The agent's <c>series</c> pull (percent per minute under <c>hour</c>) as 0–1 load; empty when missing.</summary>
+    public static IReadOnlyList<double> LoadFromSeries(System.Text.Json.Nodes.JsonNode? pulled) =>
+        pulled?["hour"] is System.Text.Json.Nodes.JsonArray hour
+            ? [.. hour.Select(v => (BindingResolver.AsDouble(v) ?? 0) / 100.0)]
+            : [];
 
     private static double Clamp(double v) => double.IsNaN(v) ? 0 : Math.Clamp(v, 0, 1);
 }

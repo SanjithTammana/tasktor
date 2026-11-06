@@ -96,6 +96,10 @@ public sealed class ActionRouterTests
         { Origin.Tray, "proc.end", ActionStatus.Refused },
         { Origin.Widget, "settings.reset", ActionStatus.Refused },
         { Origin.Flyout, "plugin.enable", ActionStatus.Ok },
+        { Origin.Shelf, "priority.set", ActionStatus.Ok },
+        { Origin.Shelf, "proc.end", ActionStatus.NeedsConfirm },
+        { Origin.Command, "app.end", ActionStatus.NeedsConfirm },
+        { Origin.Command, "plugin.enable", ActionStatus.Ok },
     };
 
     [Theory]
