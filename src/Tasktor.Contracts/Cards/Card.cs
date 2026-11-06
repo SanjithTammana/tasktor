@@ -40,6 +40,13 @@ public sealed record CardAction
 
     /// <summary>Set for destructive actions: renderers label them "End…" and open the two-step confirm.</summary>
     public bool? Destructive { get; init; }
+
+    /// <summary>
+    /// U4 amended D-G11: the word in this card's verdict the action belongs to (for example "Chrome" in "Chrome holds
+    /// 5.7 GB"). The shelf turns that word into the control that unfolds the action. Optional; without it the action is
+    /// still reachable from the card.
+    /// </summary>
+    public string? Noun { get; init; }
 }
 
 /// <summary>A card = ordered blocks + hints (A D-A5/D-A6, U1 D-H2).</summary>
