@@ -126,7 +126,12 @@ public sealed unsafe partial class Win32RecordingIndicator : IRecordingIndicator
                 if (!self.RebuildEdges()) self.Fail();
                 return 0;
             }
-            if (msg == WmClose || msg == WmDestroy) return 0;
+            if (msg == WmDestroy)
+            {
+                if (self._started && !self._stopRequested && !self._rebuilding && (hwnd == self._owner || self._edges.Contains(hwnd))) self.Fail();
+                return 0;
+            }
+            if (msg == WmClose) return 0;
         }
         catch { self.Fail(); }
         return DefWindowProcW(hwnd, msg, wParam, lParam);
@@ -245,6 +250,7 @@ public sealed unsafe partial class Win32RecordingIndicator : IRecordingIndicator
     [LibraryImport("gdi32.dll")] private static partial nint CreateBitmap(int width, int height, uint planes, uint depth, void* bits);
     [LibraryImport("gdi32.dll")] private static partial nint CreateDIBSection(nint dc, BitmapInfoHeader* info, uint usage, nint* bits, nint section, uint offset);
 }
+
 
 
 
