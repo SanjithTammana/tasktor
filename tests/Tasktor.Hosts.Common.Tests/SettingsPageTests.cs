@@ -69,4 +69,26 @@ public sealed class SettingsPageTests
         var req = SettingsPage.SetHotkey(" ctrl+shift+space ");
         Assert.Equal(("settings.hotkey", "ctrl+shift+space"), (req.Action, req.Args!["keys"]));
     }
+
+    [Fact]
+    public void Rules_list_each_rule_with_its_source_and_last_firing_on_ones_first()
+    {
+        var report = new Contracts.Rules.RulesReport
+        {
+            Rules =
+            [
+                new() { Id = "quiet", Source = "default", On = false },
+                new() { Id = "hot", Description = "CPU hot for 5 min", Source = "default", On = true, LastFired = new DateTimeOffset(2026, 11, 6, 14, 5, 0, TimeSpan.Zero) },
+                new() { Id = "mine", Source = "user", On = true },
+            ],
+            Errors = ["rules.json line 4 (bad): unknown metric: x"],
+        };
+        var rows = SettingsPage.Rules(report, TimeZoneInfo.Utc);
+        Assert.Equal(["CPU hot for 5 min", "mine", "quiet"], rows.Select(r => r.Title));
+        Assert.Equal("Shipped with Tasktor · last fired 14:05", rows[0].Note);
+        Assert.Equal(("Yours (rules.json)", true), (rows[1].Note, rows[1].On));
+        Assert.Equal(("rule.disable", "hot"), (SettingsPage.SwitchRule(rows[0], on: false).Action, SettingsPage.SwitchRule(rows[0], false).Target!["rule"]));
+        Assert.Equal("rule.enable", SettingsPage.SwitchRule(rows[2], on: true).Action);
+        Assert.Empty(SettingsPage.Rules(null, TimeZoneInfo.Utc));
+    }
 }

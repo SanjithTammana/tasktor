@@ -363,6 +363,70 @@ public sealed class AgentHost : IAsyncDisposable
         };
     }
 
+    /// <summary>U4 D-G3 Settings → Rules: every rule (on and off), its source and last firing, and the load errors. Loop only.</summary>
+    public Contracts.Rules.RulesReport RulesReport()
+    {
+        var set = Rules.Engine.Rules;
+        static string Source(RuleOrigin o) => o switch { RuleOrigin.Default => "default", RuleOrigin.Pack => "pack", _ => "user" };
+        Contracts.Rules.RuleInfo Info(CompiledRule r, bool on) => new()
+        {
+            Id = r.Id,
+            Description = r.Rule.Description,
+            Source = Source(r.Origin),
+            On = on,
+            LastFired = on ? Rules.Engine.LastFired(r.Id) : null,
+        };
+        return new Contracts.Rules.RulesReport
+        {
+            Rules = [.. set.Rules.Select(r => Info(r, true)), .. set.OffRules.Select(r => Info(r, false))],
+            Errors = [.. set.Errors.Select(e => e.ToString())],
+        };
+    }
+
+    /// <summary>
+    /// <c>rule.enable</c> / <c>rule.disable</c> (people only): a toggle written into rules.json as text (the user's comments
+    /// stay; <see cref="RulesToggle"/>), then the rules reload. A rules.json that is not valid JSON is never overwritten.
+    /// </summary>
+    private PreparedAction SwitchRule(ActionRequest req, bool on)
+    {
+        var id = req.Target?.GetValueOrDefault("rule");
+        var set = Rules.Engine.Rules;
+        if (id is null || (set.Find(id) is null && !set.OffRules.Any(r => r.Id == id)))
+        {
+            return new PreparedAction { Summary = on ? "Turn rule on" : "Turn rule off", Refusal = "No such rule" };
+        }
+
+        var path = Store.Rules;
+        var ok = false;
+        return new PreparedAction
+        {
+            Summary = (on ? "Turn on " : "Turn off ") + id,
+            Run = _ =>
+            {
+                try
+                {
+                    var text = RulesToggle.Apply(File.Exists(path) ? File.ReadAllText(path) : null, id, on);
+                    var tmp = path + ".tmp";
+                    File.WriteAllText(tmp, text);
+                    File.Move(tmp, path, overwrite: true);
+                    ok = true;
+                    return new ActionResult { Action = req.Action, Status = ActionStatus.Ok, Message = (on ? "Turned on " : "Turned off ") + id };
+                }
+                catch (Exception ex) when (ex is FormatException or IOException or UnauthorizedAccessException)
+                {
+                    return new ActionResult { Action = req.Action, Status = ActionStatus.Failed, Message = ex is FormatException f ? f.Message : "Could not write rules.json" };
+                }
+            },
+            Done = _ =>
+            {
+                if (ok)
+                {
+                    ReloadRules();
+                }
+            },
+        };
+    }
+
     /// <summary>Start the loop thread and the pipe; publish the first snapshot (D-H10: start to first snapshot &lt; 1 s).</summary>
     public void Start()
     {
@@ -527,6 +591,9 @@ public sealed class AgentHost : IAsyncDisposable
         Router.Register("open", OpenCard);
         Router.Register("card.pin", req => Pin(req, pin: true));
         Router.Register("settings.hotkey", SetHotkey);
+        Router.Register("rule.enable", req => SwitchRule(req, on: true));
+        Router.Register("rule.disable", req => SwitchRule(req, on: false));
+        Pipe.RegisterPull("rules", _ => JsonSerializer.SerializeToNode(RulesReport(), ContractsJsonContext.Default.RulesReport));
         Router.Register("card.unpin", req => Pin(req, pin: false));
         Router.Register("status", _ => new PreparedAction { Summary = "status", Immediate = new ActionResult { Action = "status", Status = ActionStatus.Ok } });
         Router.Register("quit", _ => new PreparedAction
