@@ -32,6 +32,32 @@ public sealed class IndicatorGateTests
         Assert.Equal(new[] { "indicators", "capture", "capture disposed", "indicator disposed" }, events);
     }
 
+    [Fact]
+    public void Failed_capture_shutdown_keeps_the_indicator_visible_and_allows_retry()
+    {
+        var events = new List<string>();
+        var gate = new IndicatorGate(new FakeIndicator(events, true), () => new RetryLease(events));
+        Assert.True(gate.Start());
+        Assert.Throws<InvalidOperationException>(gate.Dispose);
+        Assert.DoesNotContain("indicator disposed", events);
+        gate.Dispose();
+        Assert.Equal(new[] { "indicators", "stop failed", "capture disposed", "indicator disposed" }, events);
+    }
+
+    private sealed class RetryLease(List<string> events) : IDisposable
+    {
+        private bool _first = true;
+        public void Dispose()
+        {
+            if (_first)
+            {
+                _first = false;
+                events.Add("stop failed");
+                throw new InvalidOperationException();
+            }
+            events.Add("capture disposed");
+        }
+    }
     private sealed class FakeIndicator(List<string> events, bool succeeds) : IRecordingIndicator
     {
         public bool Start() { events.Add("indicators"); return succeeds; }
@@ -43,3 +69,4 @@ public sealed class IndicatorGateTests
         public void Dispose() => events.Add("capture disposed");
     }
 }
+
