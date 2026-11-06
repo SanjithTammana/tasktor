@@ -32,6 +32,7 @@ namespace Tasktor.Contracts;
 [JsonSerializable(typeof(SnapshotRecord))]
 [JsonSerializable(typeof(DataReport))]
 [JsonSerializable(typeof(Tasktor.Contracts.Config.ModulesReport))]
+[JsonSerializable(typeof(Tasktor.Contracts.Rules.RulesReport))]
 [JsonSerializable(typeof(PreregFile))]
 [JsonSerializable(typeof(ExtractMeta))]
 [JsonSerializable(typeof(WorkerJob))]

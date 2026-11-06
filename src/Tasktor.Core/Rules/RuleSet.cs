@@ -57,4 +57,7 @@ public sealed class RuleSet
     public IReadOnlySet<string> Disabled { get; init; } = new HashSet<string>(StringComparer.Ordinal);
 
     public bool IsOn(string id) => !Disabled.Contains(id);
+
+    /// <summary>The rules switched off, as written (for Settings → Rules; they are not evaluated).</summary>
+    public IReadOnlyList<CompiledRule> OffRules { get; init; } = [];
 }

@@ -420,6 +420,80 @@ public sealed partial class MainWindow : Window
         }
 
         PageContent.Children.Add(list);
+
+        DrawRules();
+    }
+
+    private Contracts.Rules.RulesReport? _rules;
+    private bool _pullingRules;
+
+    /// <summary>Settings → Rules: each rule with its switch, where it comes from and when it last fired; load errors on top.</summary>
+    private void DrawRules()
+    {
+        if (_rules is null && !_pullingRules)
+        {
+            _pullingRules = true;
+            _ = PullRulesAsync();
+        }
+
+        PageContent.Children.Add(new TextBlock { Text = "Rules", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 16, 0, 0) });
+        foreach (var error in _rules?.Errors ?? [])
+        {
+            PageContent.Children.Add(Text("Not loaded: " + error, "TasktorInkBrush"));
+        }
+
+        var list = new StackPanel();
+        foreach (var row in SettingsPage.Rules(_rules, TimeZoneInfo.Local))
+        {
+            var grid = new Grid { MinHeight = 56 };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = row.Title, TextWrapping = TextWrapping.Wrap, Style = StyleOf("TasktorBodyTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+            text.Children.Add(new TextBlock { Text = row.Note, Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush("TasktorInk3Brush") });
+            grid.Children.Add(text);
+            var toggle = new ToggleSwitch { IsOn = row.On, OnContent = "On", OffContent = "Off", VerticalAlignment = VerticalAlignment.Center };
+            AutomationProperties.SetName(toggle, row.Title);
+            toggle.Toggled += async (_, _) =>
+            {
+                if (toggle.IsOn == row.On)
+                {
+                    return;
+                }
+
+                await RunAsync(SettingsPage.SwitchRule(row, toggle.IsOn)); // a failure (e.g. rules.json unreadable) is shown
+                _rules = null; // re-read: the agent reloaded its rules
+                Draw(_snapshot.Mirror.Cards);
+            };
+            Grid.SetColumn(toggle, 1);
+            grid.Children.Add(toggle);
+            list.Children.Add(grid);
+            list.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
+        }
+
+        PageContent.Children.Add(list);
+    }
+
+    private async Task PullRulesAsync()
+    {
+        try
+        {
+            var node = await _snapshot.PullAsync("rules");
+            _rules = node is null ? null : System.Text.Json.JsonSerializer.Deserialize(node, Contracts.ContractsJsonContext.Default.RulesReport);
+        }
+        catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            // the list stays empty until the agent answers
+        }
+        finally
+        {
+            _pullingRules = false;
+        }
+
+        if (_page == "settings" && _rules is not null)
+        {
+            Draw(_snapshot.Mirror.Cards);
+        }
     }
 
     private async Task ToggleModuleAsync(ModuleRow row, ToggleSwitch toggle)
