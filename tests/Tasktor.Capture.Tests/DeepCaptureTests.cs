@@ -103,10 +103,10 @@ public sealed class KeyRunTests
     public KeyRunTests()
     {
         var actors = new ActorAttributor(() => ["claude.exe", "codex.exe"]) { ActiveAgent = () => _activeAgent };
-        _runs = new KeyRunBuilder(new KeyDecoder(), actors, new SecretRedactor(), new Suppressor(_blocks).Check);
+        _runs = new KeyRunBuilder(new KeyDecoder(), actors, new SecretRedactor(), new Suppressor(_blocks).Check, ms => DateTimeOffset.UnixEpoch.AddMilliseconds(ms));
     }
 
-    private static FocusTarget Field(string app = "notepad.exe", string view = "w1", string el = "e1") => new(view, el, app);
+    private static FocusTarget Field(string app = "notepad.exe", string view = "w1", string el = "e1") => new(view, el, app) { IsPassword = false };
 
     private void Feed(IEnumerable<RawInput> keys)
     {
@@ -424,3 +424,6 @@ public sealed class CaptureNetTests
         Assert.DoesNotContain(refs, r => r.StartsWith("System.Net", StringComparison.Ordinal));
     }
 }
+
+
+
