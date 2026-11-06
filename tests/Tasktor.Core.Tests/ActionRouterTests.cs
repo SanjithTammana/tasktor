@@ -230,7 +230,16 @@ public sealed class ActionRouterTests
     public void Handlers_run_off_loop_and_report_back_on_the_loop()
     {
         var loop = new LogicLoop(_clock);
-        var router = new ActionRouter(loop, new OriginPolicy(), GuardChain.Default(), _ => null);
+
+        // A dedicated thread, not the shared pool: under a parallel test run the pool can take seconds to start work.
+        static Task<ActionResult> OwnThread(Func<ActionResult> work)
+        {
+            var tcs = new TaskCompletionSource<ActionResult>();
+            new Thread(() => tcs.SetResult(work())) { IsBackground = true }.Start();
+            return tcs.Task;
+        }
+
+        var router = new ActionRouter(loop, new OriginPolicy(), GuardChain.Default(), _ => null, offLoop: OwnThread);
         var offLoopThread = -1;
         var doneOnLoop = false;
         router.Register("refits.pause", _ => new PreparedAction
@@ -244,7 +253,8 @@ public sealed class ActionRouterTests
             Done = _ => doneOnLoop = true,
         });
         var task = router.Submit(new ActionRequest { Action = "refits.pause", Origin = Origin.Flyout });
-        Assert.True(SpinWait.SpinUntil(() => offLoopThread != -1, 5000));
+        Assert.True(SpinWait.SpinUntil(() => Volatile.Read(ref offLoopThread) != -1, 5000));
+        Assert.NotEqual(Environment.CurrentManagedThreadId, offLoopThread); // the loop is this test's thread
         Assert.False(doneOnLoop); // not until the loop runs
         LoopPump.Run(loop, task);
         Assert.True(doneOnLoop);

@@ -8,7 +8,7 @@ namespace Tasktor.Core.Features;
 /// capture: a kill-on-close Job Object, so capture never outlives the agent) only while the Capture Module is on and its
 /// consent exists, restarts a crashed host at most <see cref="MaxRestartsPerHour"/> times an hour with backoff, then stops
 /// and reports <see cref="Failure"/> for the error card. A deliberate exit (code 0: another instance or a clean stop;
-/// <see cref="ExitNoConsent"/>) is never restarted. Loop-only, except the wait, which runs off the loop and posts back.
+/// <see cref="ExitNoConsent"/>) is never restarted. Loop-only; the exit arrives as a task continuation posted to the loop.
 /// </summary>
 public sealed class CaptureSupervisor : IDisposable
 {
@@ -123,20 +123,22 @@ public sealed class CaptureSupervisor : IDisposable
         Failure = null;
         _context.Log.Info("capture.started", Logging.LogField.Of("starts", Starts));
         Changed?.Invoke();
-        _context.OffLoop(() =>
+        // No thread waits for the host's lifetime: the exit completes a task and the continuation posts it to the loop.
+        Task<WorkerExit> wait;
+        try
         {
-            WorkerExit? exit;
-            try
-            {
-                exit = pc.WaitWorker(handle, CancellationToken.None).GetAwaiter().GetResult();
-            }
-            catch (Exception e) when (e is InvalidOperationException or IOException or OperationCanceledException)
-            {
-                exit = null;
-            }
+            wait = pc.WaitWorker(handle, CancellationToken.None);
+        }
+        catch (InvalidOperationException)
+        {
+            wait = Task.FromException<WorkerExit>(new InvalidOperationException("unknown worker"));
+        }
 
-            _context.Loop.Post(() => Exited(handle, exit?.ExitCode));
-        });
+        wait.ContinueWith(
+            t => _context.Loop.Post(() => Exited(handle, t.IsCompletedSuccessfully ? t.Result.ExitCode : null)),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
     }
 
     private void Exited(WorkerHandle handle, int? code)

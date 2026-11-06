@@ -30,7 +30,7 @@ public sealed class CaptureSupervisorTests : IDisposable
             State = c.State,
             RegisterPull = c.RegisterPull,
             Processes = _workers,
-            OffLoop = _offLoop.Add, // the wait runs when the test lets it
+            OffLoop = _offLoop.Add, // the supervisor must not use it: nothing runs these
         };
     }
 
@@ -56,7 +56,7 @@ public sealed class CaptureSupervisorTests : IDisposable
 
             Started.Add(spec);
             var h = new WorkerHandle("w" + Started.Count, new ProcKey(1000 + (uint)Started.Count, 1), spec.Kind);
-            _running[h.Id] = new TaskCompletionSource<WorkerExit>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _running[h.Id] = new TaskCompletionSource<WorkerExit>(); // the supervisor's continuation runs inline on Exit
             return h;
         }
 
@@ -82,13 +82,7 @@ public sealed class CaptureSupervisorTests : IDisposable
 
     private void Settle()
     {
-        while (_offLoop.Count > 0)
-        {
-            var w = _offLoop[0];
-            _offLoop.RemoveAt(0);
-            w();
-        }
-
+        Assert.Empty(_offLoop); // no pool thread is parked on the host's lifetime
         _rig.Pump();
     }
 
