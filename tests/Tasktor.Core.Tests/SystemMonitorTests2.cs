@@ -154,40 +154,11 @@ public sealed class DiskGuardTests : IDisposable
         Directory.CreateDirectory(Path.Combine(root, "a", "b"));
         File.WriteAllBytes(Path.Combine(root, "a", "one.bin"), new byte[1000]);
         File.WriteAllBytes(Path.Combine(root, "a", "b", "two.bin"), new byte[500]);
-        LinkDirectory(Path.Combine(root, "a", "b", "loop"), root);
+        Links.Directory(Path.Combine(root, "a", "b", "loop"), root);
         var node = new FolderScanner().Scan(root, CancellationToken.None);
         Assert.Equal(1500, node.Bytes);
         Assert.Equal(2, node.Files);
         Assert.Equal("a", Assert.Single(node.Children).Name);
-    }
-
-    /// <summary>
-    /// A directory link back to <paramref name="target"/>: a symbolic link where the account may create one (Linux, or
-    /// Windows with Developer Mode or admin), else an NTFS junction, which any Windows account can make and which is
-    /// the loop users actually meet. Either way the scanner must not follow it.
-    /// </summary>
-    private static void LinkDirectory(string link, string target)
-    {
-        try
-        {
-            Directory.CreateSymbolicLink(link, target);
-            return;
-        }
-        catch (Exception e) when (OperatingSystem.IsWindows() && e is IOException or UnauthorizedAccessException)
-        {
-            // ERROR_PRIVILEGE_NOT_HELD (1314): fall through to a junction.
-        }
-
-        using var mklink = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe")
-        {
-            ArgumentList = { "/c", "mklink", "/J", link, target },
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            CreateNoWindow = true,
-        })!;
-        mklink.WaitForExit();
-        Assert.True(mklink.ExitCode == 0 && Directory.Exists(link), "could not create a junction for the loop");
-        Assert.True((new DirectoryInfo(link).Attributes & FileAttributes.ReparsePoint) != 0);
     }
 
     [Fact]

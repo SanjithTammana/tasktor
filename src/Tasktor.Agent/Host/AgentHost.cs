@@ -1,3 +1,5 @@
+using System.Text.Json;
+using Tasktor.Contracts;
 using Tasktor.Contracts.Actions;
 using Tasktor.Contracts.Platform;
 using Tasktor.Contracts.Snapshot;
@@ -293,6 +295,39 @@ public sealed class AgentHost : IAsyncDisposable
 
     public void Own(IDisposable disposable) => _owned.Add(disposable);
 
+    /// <summary>The last "Your data" scan (loop-only); null until the first scan finishes.</summary>
+    internal Contracts.Export.DataReport? DataReport => _dataReport;
+
+    private Contracts.Export.DataReport? _dataReport;
+    private bool _scanningData;
+
+    /// <summary>Start a "Your data" scan off the loop unless one is running; its result is posted back to the loop.</summary>
+    internal void RescanData()
+    {
+        if (_scanningData)
+        {
+            return;
+        }
+
+        _scanningData = true;
+        _ = Task.Run(() =>
+        {
+            Contracts.Export.DataReport? report = null;
+            try
+            {
+                report = DataInventory.Scan(Store, Forgetter);
+            }
+            finally
+            {
+                Loop.Post(() =>
+                {
+                    _dataReport = report ?? _dataReport;
+                    _scanningData = false;
+                });
+            }
+        });
+    }
+
     public async ValueTask DisposeAsync()
     {
         await Pipe.DisposeAsync().ConfigureAwait(false);
@@ -437,6 +472,12 @@ public sealed class AgentHost : IAsyncDisposable
 
     private void RegisterStorageHandlers()
     {
+        // "Your data": the last scan, and a fresh one off the loop (a directory walk is I/O; the loop only takes the result).
+        Pipe.RegisterPull("data", _ =>
+        {
+            RescanData();
+            return _dataReport is null ? null : JsonSerializer.SerializeToNode(_dataReport, ContractsJsonContext.Default.DataReport);
+        });
         Router.Register("forget", req =>
         {
             var what = req.Target?.GetValueOrDefault("what");
