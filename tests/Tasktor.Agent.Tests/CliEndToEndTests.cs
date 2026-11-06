@@ -159,6 +159,9 @@ public sealed class CliEndToEndTests : IAsyncLifetime
     [Fact]
     public async Task Snapshot_file_is_written_atomically()
     {
+        // The fixture's snapshot already holds CPU 34; the file is written by the async store writer, so wait for it to
+        // drain rather than for wall-clock time (a loaded CI runner took longer than 5 s).
+        await _agent.Host.FlushWritesAsync();
         AgentFixture.WaitFor(() => File.Exists(_agent.Store.Layout.Snapshot));
         AgentFixture.WaitFor(() =>
         {
@@ -172,7 +175,6 @@ public sealed class CliEndToEndTests : IAsyncLifetime
             }
         });
         Assert.False(File.Exists(_agent.Store.Layout.Snapshot + ".tmp"));
-        await Task.CompletedTask;
     }
 
     [Fact]
