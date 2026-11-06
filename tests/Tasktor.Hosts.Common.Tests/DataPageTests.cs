@@ -66,7 +66,7 @@ public sealed class DataPageTests
     {
         var plain = DataPage.Export(includeRaw: false, includeCapture: false);
         Assert.Equal(("export.data", "Export my data"), (plain.Action, plain.Label));
-        Assert.Null(plain.Args); // the agent's defaults: no raw titles, no capture, CSV + JSONL, Documents\Tasktor export
+        Assert.Null(plain.Args); // the agent's defaults: no raw titles, no capture, CSV + JSONL, a new folder under Documents
         var all = DataPage.Export(includeRaw: true, includeCapture: true);
         Assert.Equal(("true", "true"), (all.Args!["include_raw"], all.Args["include_capture"])); // these two make the agent ask first
         Assert.False(DataPage.Export(includeRaw: true, includeCapture: false).Args!.ContainsKey("include_capture"));
