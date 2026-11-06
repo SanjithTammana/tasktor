@@ -128,6 +128,18 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (_page == "focus")
+        {
+            DrawFocus();
+            return;
+        }
+
+        if (_page == "windows")
+        {
+            DrawWindows();
+            return;
+        }
+
         var shown = DeepPages.CardsFor(_page, cards);
         if (shown.Count == 0 && _page != "data")
         {
@@ -204,6 +216,100 @@ public sealed partial class MainWindow : Window
         }
 
         if (_page == "learned")
+        {
+            Draw(_snapshot.Mirror.Cards);
+        }
+    }
+
+    private System.Text.Json.Nodes.JsonNode? _focusPull;
+    private DateTimeOffset _focusAt = DateTimeOffset.MinValue;
+    private bool _pullingFocus;
+
+    /// <summary>Focus: the running block from the snapshot (redrawn on every change), presets and recent blocks from the focus pull (every 30 s, and after any action here).</summary>
+    private void DrawFocus()
+    {
+        if (DateTimeOffset.Now - _focusAt > TimeSpan.FromSeconds(30) && !_pullingFocus)
+        {
+            _pullingFocus = true;
+            _ = PullFocusAsync();
+        }
+
+        var focus = _snapshot.Mirror.Root?["state"]?["focus"];
+        foreach (var section in FocusPage.Sections(focus, _focusPull, DateTimeOffset.Now))
+        {
+            PageContent.Children.Add(Section(section));
+        }
+
+        if (_focusPull is null)
+        {
+            PageContent.Children.Add(Text(_snapshot.Connected ? "Reading your presets…" : "Tasktor is not running.", "TasktorInk2Brush"));
+        }
+    }
+
+    private async Task PullFocusAsync()
+    {
+        try
+        {
+            _focusPull = await _snapshot.PullAsync("focus");
+        }
+        catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+            // keeps what it had; tried again in 30 s
+        }
+        finally
+        {
+            _pullingFocus = false;
+            _focusAt = DateTimeOffset.Now;
+        }
+
+        if (_page == "focus")
+        {
+            Draw(_snapshot.Mirror.Cards);
+        }
+    }
+
+    private System.Text.Json.Nodes.JsonNode? _windowsPull;
+    private DateTimeOffset _windowsAt = DateTimeOffset.MinValue;
+    private bool _pullingWindows;
+
+    /// <summary>Windows: the presets pull as sections with Arrange, Apply and Undo; pulled again every 15 s and after any action here (an undo appears once an arrange has run).</summary>
+    private void DrawWindows()
+    {
+        if (DateTimeOffset.Now - _windowsAt > TimeSpan.FromSeconds(15) && !_pullingWindows)
+        {
+            _pullingWindows = true;
+            _ = PullWindowsAsync();
+        }
+
+        if (_windowsPull is null)
+        {
+            PageContent.Children.Add(Text(_snapshot.Connected ? "Reading your presets…" : "Tasktor is not running.", "TasktorInk2Brush"));
+            return;
+        }
+
+        foreach (var section in WindowsPage.Sections(_windowsPull))
+        {
+            PageContent.Children.Add(Section(section));
+        }
+    }
+
+    private async Task PullWindowsAsync()
+    {
+        try
+        {
+            _windowsPull = await _snapshot.PullAsync("presets");
+        }
+        catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+            // keeps what it had; tried again in 15 s
+        }
+        finally
+        {
+            _pullingWindows = false;
+            _windowsAt = DateTimeOffset.Now;
+        }
+
+        if (_page == "windows")
         {
             Draw(_snapshot.Mirror.Cards);
         }
@@ -694,6 +800,13 @@ public sealed partial class MainWindow : Window
         if (_page == "learned")
         {
             _learned = null; // relearn / forget / learning on-off: read it again
+            Draw(_snapshot.Mirror.Cards);
+        }
+
+        if (_page is "focus" or "windows")
+        {
+            _focusAt = DateTimeOffset.MinValue; // a block started, a preset arranged: read both pulls again
+            _windowsAt = DateTimeOffset.MinValue;
             Draw(_snapshot.Mirror.Cards);
         }
 
