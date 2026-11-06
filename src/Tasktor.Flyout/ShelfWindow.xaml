@@ -40,6 +40,9 @@
                                  Click="OnDeepLink" />
             </Grid>
 
+            <!-- The hour as rows, alerts written on it, the lead row carried past "now" (dotted). -->
+            <Canvas x:Name="Strip" Height="0" AutomationProperties.Name="The last hour" />
+
             <StackPanel x:Name="ActionsRow" Orientation="Horizontal" Spacing="24" Visibility="Collapsed"
                         AutomationProperties.Name="Actions">
                 <TextBlock x:Name="ActionsLabel" VerticalAlignment="Center" Style="{StaticResource TasktorBodyTextStyle}"
