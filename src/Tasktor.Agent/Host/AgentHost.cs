@@ -72,7 +72,7 @@ public sealed class AgentHost : IAsyncDisposable
         Store = options.Store;
         Directory.CreateDirectory(Store.Root);
         Log = new LogSink(options.Clock, options.LogWriter ?? new FileLogWriter(Store.LogDir));
-        Loop = new LogicLoop(options.Clock, ex => Log.Error("loop.error", LogField.Of("type", ex.GetType().Name)));
+        Loop = new LogicLoop(options.Clock, ex => Log.Error("loop.error", LogField.Of("type", ex.GetType().Name), LogField.Of("at", ErrorWhere.Of(ex))));
         Scheduler = new Scheduler(options.Clock);
         State = new StateTracker();
         Cards = new CardTemplates();
@@ -199,7 +199,18 @@ public sealed class AgentHost : IAsyncDisposable
         Persist = (path, bytes) => _writer.Enqueue(path, bytes),
         RulesDirty = Rules.MarkDirty,
         RuleEnabled = id => Rules.Engine.Rules.IsOn(id),
-        OffLoop = Options.OffLoopReads ?? (work => Task.Run(work)),
+        // Off-loop reads used to lose their exceptions inside Task.Run; now they are logged with where they came from.
+        OffLoop = Options.OffLoopReads ?? (work => Task.Run(() =>
+        {
+            try
+            {
+                work();
+            }
+            catch (Exception ex)
+            {
+                Log.Error("offloop.error", LogField.Of("type", ex.GetType().Name), LogField.Of("at", ErrorWhere.Of(ex)));
+            }
+        })),
         RegisterExport = Exporter.Register,
     };
 
