@@ -92,5 +92,29 @@ public sealed class RowRendererTests
         var r = Render(card);
         Assert.Equal((Severity.Critical, "CI watch", "as of 9:55"), (r.Severity, r.Source, r.AsOf));
         Assert.Equal(["End…", "Open"], r.Actions.Select(a => a.Label));
+        Assert.Empty(r.RowActions);
+    }
+
+    [Fact]
+    public void Actions_on_a_row_are_split_from_the_cards_own()
+    {
+        var row = new Dictionary<string, string> { ["app"] = "{row}" };
+        var card = new Card
+        {
+            Id = "core.apps",
+            Title = "Apps",
+            Blocks = [new BadgeBlock { Text = Value.Literal("x") }],
+            Actions =
+            [
+                new CardAction { Id = "open", Label = "Open", Action = "open" },
+                new CardAction { Id = "lower", Label = "Lower", Action = "priority.set", Target = row, Priority = 2 },
+                new CardAction { Id = "end", Label = "End", Action = "app.end", Target = row, Destructive = true, Priority = 3 },
+            ],
+        };
+        var r = Render(card);
+        Assert.Equal(["Open"], r.Actions.Select(a => a.Label));
+        Assert.Equal(["Lower", "End…"], r.RowActions.Select(a => a.Label));
+        Assert.True(RowRenderer.NeedsRow(card.Actions![1]));
+        Assert.False(RowRenderer.NeedsRow(new CardAction { Id = "p", Label = "Plugin", Target = row })); // plugin actions are sent by their host
     }
 }
