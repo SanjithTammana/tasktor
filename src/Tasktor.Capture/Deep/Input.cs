@@ -1,17 +1,44 @@
 namespace Tasktor.Capture.Deep;
 
-/// <summary>One low-level input as the hook copies it (D-C19): five numbers, no text. The ring holds these.</summary>
-public readonly record struct RawInput(ushort Vk, ushort Scan, uint Flags, long TimeMs, bool KeyUp)
+/// <summary>Native event type; default and unknown values are never interpreted as keyboard input.</summary>
+public enum RawInputKind : byte
 {
-    public const uint Injected = 0x10;          // LLKHF_INJECTED
-    public const uint LowerIlInjected = 0x02;   // LLKHF_LOWER_IL_INJECTED
-    public const uint Extended = 0x01;          // LLKHF_EXTENDED
-
-    public bool IsInjected => (Flags & Injected) != 0;
-
-    public bool IsLowerIlInjected => (Flags & LowerIlInjected) != 0;
+    Unknown = 0,
+    Keyboard = 1,
+    Mouse = 2,
 }
 
+/// <summary>One low-level input copied into the ring; flags retain their device-specific native meaning.</summary>
+public readonly record struct RawInput(ushort Vk, ushort Scan, uint Flags, long TimeMs, bool KeyUp,
+    RawInputKind Kind = RawInputKind.Keyboard, int MouseX = 0, int MouseY = 0, uint MouseMessage = 0, uint MouseData = 0, bool NativeTick32 = false)
+{
+    /// <summary>Extend a native 32-bit tick to the nearest epoch of the logic thread's monotonic clock.</summary>
+    public RawInput ExtendTick(long nowMs)
+    {
+        if (!NativeTick32) return this;
+        var delta = unchecked((int)((uint)TimeMs - (uint)nowMs));
+        return this with { TimeMs = nowMs + delta, NativeTick32 = false };
+    }
+    public const uint Injected = 0x10; // LLKHF_INJECTED
+    public const uint LowerIlInjected = 0x02; // LLKHF_LOWER_IL_INJECTED
+    public const uint Extended = 0x01; // LLKHF_EXTENDED
+    public const uint MouseInjected = 0x01; // LLMHF_INJECTED
+    public const uint MouseLowerIlInjected = 0x02; // LLMHF_LOWER_IL_INJECTED
+
+    public bool IsInjected => Kind switch
+    {
+        RawInputKind.Keyboard => (Flags & Injected) != 0,
+        RawInputKind.Mouse => (Flags & MouseInjected) != 0,
+        _ => false,
+    };
+
+    public bool IsLowerIlInjected => Kind switch
+    {
+        RawInputKind.Keyboard => (Flags & LowerIlInjected) != 0,
+        RawInputKind.Mouse => (Flags & MouseLowerIlInjected) != 0,
+        _ => false,
+    };
+}
 /// <summary>What one decoded key does to the run.</summary>
 public enum KeyAction : byte
 {
@@ -115,3 +142,5 @@ public sealed record KeyRun
 
     public IReadOnlyDictionary<string, int> Redactions { get; init; } = new Dictionary<string, int>();
 }
+
+

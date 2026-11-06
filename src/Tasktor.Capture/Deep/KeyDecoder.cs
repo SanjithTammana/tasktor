@@ -18,7 +18,7 @@ public sealed class KeyDecoder
 
     private bool _shiftL, _shiftR, _ctrlL, _ctrlR, _altL, _altR, _winL, _winR, _caps;
 
-    /// <summary>Layout hook: (vk, scan, shift, caps, altGr) → text, or null to use the built-in US table.</summary>
+    /// <summary>Layout hook: (vk, scan, shift, caps, altGr) → text, or null if the key produces no text; the US table is used only when no layout is supplied.</summary>
     public Func<ushort, ushort, bool, bool, bool, string?>? Layout { get; init; }
 
     public bool Shift => _shiftL || _shiftR;
@@ -31,6 +31,8 @@ public sealed class KeyDecoder
 
     public DecodedKey Decode(RawInput k)
     {
+        if (k.Kind != RawInputKind.Keyboard) return new DecodedKey(KeyAction.None, null, k.TimeMs, false, false);
+
         if (Modifier(k) || k.KeyUp)
         {
             return new DecodedKey(KeyAction.None, null, k.TimeMs, k.IsInjected, k.IsLowerIlInjected);
@@ -83,7 +85,7 @@ public sealed class KeyDecoder
             return new DecodedKey(action, null, k.TimeMs, k.IsInjected, k.IsLowerIlInjected);
         }
 
-        var text = Layout?.Invoke(k.Vk, k.Scan, Shift, _caps, altGr) ?? Us(k.Vk, Shift, _caps);
+        var text = Layout is null ? Us(k.Vk, Shift, _caps) : Layout(k.Vk, k.Scan, Shift, _caps, altGr);
         return text is null
             ? new DecodedKey(KeyAction.None, null, k.TimeMs, k.IsInjected, k.IsLowerIlInjected)
             : new DecodedKey(KeyAction.Text, text, k.TimeMs, k.IsInjected, k.IsLowerIlInjected);
@@ -195,3 +197,5 @@ public sealed class KeyDecoder
         _ => Us(vk, false, false)?.ToUpperInvariant(),
     };
 }
+
+
