@@ -10,6 +10,9 @@ public sealed record ModuleRow(ModuleInfo Info, bool On, string? Note, bool CanT
 /// <summary>Settings → Rules: one rule with its switch; <see cref="Note"/> says where it comes from and when it last fired.</summary>
 public sealed record RuleRow(string Id, string Title, string Note, bool On);
 
+/// <summary>Settings → Plugins: one plugin folder; <see cref="On"/> while it has the user's consent (running or failing).</summary>
+public sealed record PluginRow(string Id, string Title, string Note, bool On, Contracts.Plugins.PluginInfo Info);
+
 /// <summary>Settings → General: the command line's shortcut, and a note when Windows refused it.</summary>
 public sealed record HotkeyRow(string Keys, string? Note);
 
@@ -56,6 +59,52 @@ public static class SettingsPage
 
     /// <summary>Opens the user's rules.json in an editor (created with a short guide if missing); a save reloads the rules.</summary>
     public static CardAction EditRules { get; } = new() { Id = "edit-rules", Label = "Edit rules.json", Action = "rules.edit" };
+
+    /// <summary>Settings → Plugins (U1 D-H7): a new or changed folder is "Found, off" until the user consents.</summary>
+    public static IReadOnlyList<PluginRow> Plugins(Contracts.Plugins.PluginsReport? report) =>
+    [
+        .. (report?.Plugins ?? []).Select(p => new PluginRow(
+            p.Id,
+            p.Name,
+            p.State switch
+            {
+                Contracts.Snapshot.PluginState.Found => "Found, off",
+                Contracts.Snapshot.PluginState.Error => "Error: " + (p.Error ?? "it did not run"),
+                Contracts.Snapshot.PluginState.Off => "Paused",
+                _ => "On",
+            },
+            p.State != Contracts.Snapshot.PluginState.Found,
+            p)),
+    ];
+
+    /// <summary>
+    /// The consent dialog's body (U1 D-H7): name, author, what it reads, what it contacts, its actions and the exact
+    /// command line, then the two limits said plainly.
+    /// </summary>
+    public static string PluginConsent(Contracts.Plugins.PluginInfo p)
+    {
+        ArgumentNullException.ThrowIfNull(p);
+        static string List(IReadOnlyList<string> items) => items.Count == 0 ? "nothing" : string.Join(", ", items);
+        return (p.Author is { Length: > 0 } a ? "From: " + a + "\n\n" : string.Empty)
+            + "What it reads: " + List(p.Reads)
+            + "\n\n" + (p.Network.Count == 0 ? "It declares no network use." : "What it contacts: " + List(p.Network) + ".")
+            + "\n\nIts actions: " + List(p.Actions)
+            + "\n\nIt runs: " + (p.CommandLine ?? "(unknown)")
+            + "\n\nTasktor cannot block a plugin's network use (that needs admin firewall rules), and a plugin runs with your rights, like any program you run. If its files change, Tasktor asks again.";
+    }
+
+    /// <summary>A plugin's switch: on records the consent (hashes pinned); off drops it, so turning it on again asks again.</summary>
+    public static CardAction SwitchPlugin(PluginRow row, bool on)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        return new CardAction
+        {
+            Id = "plugin",
+            Label = row.Title,
+            Action = on ? "plugin.enable" : "plugin.disable",
+            Target = new Dictionary<string, string>(StringComparer.Ordinal) { ["plugin"] = row.Id },
+        };
+    }
 
     /// <summary>A rule's switch: written into rules.json by the agent as a toggle (the user's text is kept).</summary>
     public static CardAction SwitchRule(RuleRow row, bool on)
