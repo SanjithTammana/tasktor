@@ -217,6 +217,17 @@ public sealed class GlanceTextTests
     }
 
     [Fact]
+    public void Worst_severity_resolves_bindings_across_cards()
+    {
+        var state = JsonNode.Parse("""{ "sev": "critical" }""")!.AsObject();
+        Card C(string id, Value? sev) => new() { Id = id, Title = id, Severity = sev, Blocks = [] };
+        Assert.Equal(Severity.Normal, GlanceText.WorstSeverity([], state));
+        Assert.Equal(Severity.Warn, GlanceText.WorstSeverity([C("a", null), C("b", Value.Literal("warn"))], state));
+        Assert.Equal(Severity.Critical, GlanceText.WorstSeverity([C("a", Value.Literal("warn")), C("b", Value.Binding("/state/sev"))], state));
+        Assert.Equal(Severity.Normal, GlanceText.WorstSeverity([C("a", Value.Literal("bogus")), C("b", Value.Binding("/state/nope"))], state));
+    }
+
+    [Fact]
     public void Missing_binding_renders_a_dash()
     {
         var card = new Card { Id = "core.system", Title = "S", Blocks = [new MetricBlock { Label = "CPU", Value = Value.Binding("/state/nope"), Unit = "%" }] };

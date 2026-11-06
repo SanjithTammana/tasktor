@@ -91,6 +91,26 @@ public sealed class SystemTotalsTests : IDisposable
     }
 
     [Fact]
+    public void Each_tick_stores_the_minutes_worst_severity_beside_the_load()
+    {
+        _rig.Advance(TimeSpan.FromMinutes(2), TimeSpan.FromSeconds(30));
+        _totals.ObserveSeverity(Severity.Critical); // a short critical spell between two samples still marks its minute
+        _rig.Advance(TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(10));
+        _totals.ObserveSeverity(Severity.Warn); // and a warn that then lasts with no further publish carries on
+        _rig.Advance(TimeSpan.FromMinutes(3), TimeSpan.FromSeconds(30));
+        _totals.ObserveSeverity(Severity.Normal);
+        _rig.Advance(TimeSpan.FromMinutes(2), TimeSpan.FromSeconds(30));
+
+        var series = _rig.Pulls["series"](new Contracts.Pipe.PullMessage { Table = "series", Args = new Dictionary<string, string> { ["id"] = "system.cpu_pct" } })!;
+        var sev = series["severity"]!.AsArray().Select(n => n!.GetValue<int>()).ToList();
+        Assert.Equal(_totals.HourRing["system.cpu_pct"].Count, sev.Count);
+        Assert.Single(sev, 2);
+        Assert.True(sev.Count(v => v == 1) >= 2, string.Join(",", sev)); // the warn carried over quiet minutes
+        Assert.Equal(0, sev[^1]);
+        Assert.True(sev.IndexOf(2) < sev.IndexOf(1), string.Join(",", sev));
+    }
+
+    [Fact]
     public void Ram_used_percent_leads_and_commit_is_a_percent_of_the_limit()
     {
         _src.Machine(cpu: 34, ramUsedPct: 71, commitPct: 64);

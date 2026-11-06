@@ -73,6 +73,21 @@ public static class GlanceText
         return text.Length <= MaxLength ? text : text[..(MaxLength - 1)] + "…";
     }
 
+    /// <summary>The worst severity any card has against <paramref name="state"/> (the edge's bright stretch, U4 amended D-G10).</summary>
+    public static Severity WorstSeverity(IReadOnlyList<Card> cards, JsonObject state)
+    {
+        ArgumentNullException.ThrowIfNull(cards);
+        ArgumentNullException.ThrowIfNull(state);
+        var root = new JsonObject { ["state"] = state.DeepClone() };
+        var worst = 0;
+        foreach (var c in cards)
+        {
+            worst = Math.Max(worst, SeverityRank(Resolve(c.Severity, root)));
+        }
+
+        return worst switch { 2 => Severity.Critical, 1 => Severity.Warn, _ => Severity.Normal };
+    }
+
     internal static JsonNode? Resolve(Value? value, JsonNode root)
     {
         if (value is null)

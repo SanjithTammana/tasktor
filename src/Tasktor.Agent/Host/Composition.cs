@@ -92,6 +92,7 @@ internal static class Composition
         var apps = new Apps(ctx, table, identity, name => host.Rules.Engine.Rules.Groups.GetValueOrDefault(name));
         host.AddFeature(apps);
         totals.Verdict = apps.Verdict;
+        host.Publisher.Published += p => totals.ObserveSeverity(Tasktor.Core.State.GlanceText.WorstSeverity(p.Snapshot.Cards ?? [], host.State.ToJson()));
         host.RulesReloaded += set => identity.SetRules(set.Grouping);
         var disk = new DiskGuard(ctx, totals, host.InternalTasks);
         host.AddFeature(disk);
