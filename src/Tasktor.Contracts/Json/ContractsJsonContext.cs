@@ -31,6 +31,7 @@ namespace Tasktor.Contracts;
     Converters = [typeof(UtcTimestampConverter)])]
 [JsonSerializable(typeof(SnapshotRecord))]
 [JsonSerializable(typeof(DataReport))]
+[JsonSerializable(typeof(Tasktor.Contracts.Config.ModulesReport))]
 [JsonSerializable(typeof(PreregFile))]
 [JsonSerializable(typeof(ExtractMeta))]
 [JsonSerializable(typeof(WorkerJob))]

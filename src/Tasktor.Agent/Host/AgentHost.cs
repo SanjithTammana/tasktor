@@ -93,6 +93,7 @@ public sealed class AgentHost : IAsyncDisposable
         }
 
         _cliAllowDestructive = Settings.AllowDestructiveCli;
+        _modulesAtStart = [.. Contracts.Config.ModuleCatalog.All.Where(m => Settings.ModuleOn(m.Id)).Select(m => m.Id)];
         Consents = new ConsentStore(Store, (path, bytes) => _writer.Enqueue(path, bytes));
         Consents.Load();
         SelfUse = new SelfUseCounter(Store, (path, bytes) => _writer.Enqueue(path, bytes));
@@ -124,6 +125,7 @@ public sealed class AgentHost : IAsyncDisposable
         RegisterCoreHandlers();
         RegisterStorageHandlers();
         RegisterPluginHandlers();
+        RegisterModuleHandlers();
         RegisterExportTables();
     }
 
@@ -656,6 +658,67 @@ public sealed class AgentHost : IAsyncDisposable
                 OnPluginsChanged();
             });
         }
+    }
+
+    /// <summary>
+    /// The Modules composed at start (Composition reads config.json once); a change made later applies at the next
+    /// start, and the <c>modules</c> pull says which ones wait for it.
+    /// </summary>
+    private readonly HashSet<string> _modulesAtStart;
+
+    /// <summary>
+    /// <c>module.enable</c> / <c>module.disable</c> (user only): turning a Module on records its consent (U1 H1) and sets
+    /// config.json; the <c>modules</c> pull lists each Module with its state now and after a restart.
+    /// </summary>
+    private void RegisterModuleHandlers()
+    {
+        PreparedAction Set(ActionRequest req, bool on)
+        {
+            if (Contracts.Config.ModuleCatalog.Find(req.Target?.GetValueOrDefault("module")) is not { } info)
+            {
+                return new PreparedAction { Summary = "module", Refusal = "No such Module" };
+            }
+
+            // Capture asks through its own consent screen (D-C22), which sends screen=capture; the generic Module dialog
+            // cannot turn it on.
+            if (on && info.Id == "capture" && req.Args?.GetValueOrDefault("screen") != "capture")
+            {
+                return new PreparedAction { Summary = "Turn on Capture", Refusal = "Capture is turned on from its own consent screen" };
+            }
+
+            var restart = on != _modulesAtStart.Contains(info.Id);
+            var message = (on ? "Turned on " : "Turned off ") + info.Name + (restart ? ". Restart Tasktor to apply it." : ".");
+            return new PreparedAction
+            {
+                Summary = (on ? "Turn on " : "Turn off ") + info.Name,
+                Immediate = new ActionResult { Action = req.Action, Status = ActionStatus.Ok, Message = message },
+                Done = _ =>
+                {
+                    if (on)
+                    {
+                        Consents.GiveModule(info.Id, Loop.Clock.UtcNow);
+                    }
+
+                    Settings.Update(c => c with { Modules = new Dictionary<string, bool>(c.Modules ?? new Dictionary<string, bool>(), StringComparer.Ordinal) { [info.Id] = on } });
+                    Log.Info("module", LogField.Of("id", info.Id), LogField.Of("on", on ? "true" : "false"));
+                },
+            };
+        }
+
+        Router.Register("module.enable", req => Set(req, on: true));
+        Router.Register("module.disable", req => Set(req, on: false));
+        Pipe.RegisterPull("modules", _ => JsonSerializer.SerializeToNode(
+            new Contracts.Config.ModulesReport
+            {
+                Modules = [.. Contracts.Config.ModuleCatalog.All.Select(m => new Contracts.Config.ModuleState
+                {
+                    Id = m.Id,
+                    On = Settings.ModuleOn(m.Id),
+                    Running = _modulesAtStart.Contains(m.Id),
+                    Consented = Consents.HasModule(m.Id),
+                })],
+            },
+            ContractsJsonContext.Default.ModulesReport));
     }
 
     private void RegisterPluginHandlers()

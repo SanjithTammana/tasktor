@@ -39,7 +39,7 @@ public sealed partial class MainWindow : Window
         _invoker = new ActionInvoker(ActAsync, Origin.Flyout);
         SystemBackdrop = new MicaBackdrop();
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1100, 760));
-        snapshot.Changed += _ => DispatcherQueue.TryEnqueue(Refresh);
+        snapshot.Changed += _ => DispatcherQueue.TryEnqueue(() => Refresh(fromSnapshot: true));
         OpenPage(page);
     }
 
@@ -47,14 +47,18 @@ public sealed partial class MainWindow : Window
     public void OpenPage(string? pageId)
     {
         _page = DeepPages.Normalize(pageId);
-        Refresh();
+        Refresh(fromSnapshot: false);
         Activate();
     }
 
     private Task<ActionResult> ActAsync(ActionRequest request, CancellationToken ct) =>
         _snapshot.Client is { } client ? client.ActAsync(request, ct) : Task.FromException<ActionResult>(new IOException("not connected"));
 
-    private void Refresh()
+    /// <summary>
+    /// Pages drawn from their own pull (Settings, Your data) are not rebuilt on every snapshot change: a rebuild a second
+    /// would take keyboard focus off a switch while the user is on it.
+    /// </summary>
+    private void Refresh(bool fromSnapshot)
     {
         var cards = _snapshot.Mirror.Cards;
         var visible = DeepPages.Visible(cards);
@@ -75,6 +79,11 @@ public sealed partial class MainWindow : Window
         }
 
         Nav.SelectedItem = Nav.MenuItems.OfType<NavigationViewItem>().FirstOrDefault(i => (string)i.Tag == _page);
+        if (fromSnapshot && _page is "settings" or "data")
+        {
+            return;
+        }
+
         Draw(cards);
     }
 
@@ -101,6 +110,12 @@ public sealed partial class MainWindow : Window
         if (_page == "data")
         {
             DrawData();
+        }
+
+        if (_page == "settings")
+        {
+            DrawSettings();
+            return;
         }
 
         var shown = DeepPages.CardsFor(_page, cards);
@@ -136,6 +151,107 @@ public sealed partial class MainWindow : Window
         foreach (var section in DataPage.Sections(_data, TimeZoneInfo.Local))
         {
             PageContent.Children.Add(Section(section));
+        }
+    }
+
+    private Contracts.Config.ModulesReport? _modules;
+    private bool _pullingModules;
+
+    /// <summary>Settings → Modules: a switch per Module; on asks first (what it reads, where it is kept, what it contacts).</summary>
+    private void DrawSettings()
+    {
+        if (_modules is null && !_pullingModules)
+        {
+            _pullingModules = true;
+            _ = PullModulesAsync();
+        }
+
+        PageContent.Children.Add(new TextBlock { Text = "Modules", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+        var list = new StackPanel();
+        foreach (var row in SettingsPage.Modules(_modules))
+        {
+            var grid = new Grid { MinHeight = 56 };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = row.Info.Name, Style = StyleOf("TasktorBodyTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+            text.Children.Add(new TextBlock { Text = row.Note ?? row.Info.Reads, TextWrapping = TextWrapping.Wrap, Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush("TasktorInk3Brush") });
+            grid.Children.Add(text);
+            var toggle = new ToggleSwitch { IsOn = row.On, IsEnabled = _modules is not null, OnContent = "On", OffContent = "Off", VerticalAlignment = VerticalAlignment.Center };
+            AutomationProperties.SetName(toggle, row.Info.Name);
+            toggle.Toggled += async (_, _) => await ToggleModuleAsync(row, toggle);
+            Grid.SetColumn(toggle, 1);
+            grid.Children.Add(toggle);
+            list.Children.Add(grid);
+            list.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
+        }
+
+        PageContent.Children.Add(list);
+    }
+
+    private async Task ToggleModuleAsync(ModuleRow row, ToggleSwitch toggle)
+    {
+        if (toggle.IsOn == row.On)
+        {
+            return;
+        }
+
+        if (toggle.IsOn)
+        {
+            if (!row.CanTurnOnHere)
+            {
+                toggle.IsOn = false;
+                await InformAsync("Capture has its own consent screen, which is not in this build yet.");
+                return;
+            }
+
+            var dialog = new ContentDialog
+            {
+                Title = "Turn on " + row.Info.Name + "?",
+                Content = new TextBlock { Text = SettingsPage.Consent(row.Info), TextWrapping = TextWrapping.Wrap },
+                PrimaryButtonText = "Turn on",
+                CloseButtonText = "Not now",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = Content.XamlRoot,
+            };
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            {
+                toggle.IsOn = false;
+                return;
+            }
+        }
+
+        var action = new CardAction
+        {
+            Id = "module",
+            Label = row.Info.Name,
+            Action = toggle.IsOn ? "module.enable" : "module.disable",
+            Target = new Dictionary<string, string> { ["module"] = row.Info.Id },
+        };
+        await RunAsync(action);
+        _modules = null; // re-read: the row now says whether a restart is needed
+        Draw(_snapshot.Mirror.Cards);
+    }
+
+    private async Task PullModulesAsync()
+    {
+        try
+        {
+            var node = await _snapshot.PullAsync("modules");
+            _modules = node is null ? null : System.Text.Json.JsonSerializer.Deserialize(node, Contracts.ContractsJsonContext.Default.ModulesReport);
+        }
+        catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            // the switches stay disabled until the agent answers
+        }
+        finally
+        {
+            _pullingModules = false;
+        }
+
+        if (_page == "settings" && _modules is not null)
+        {
+            Draw(_snapshot.Mirror.Cards);
         }
     }
 
