@@ -28,12 +28,8 @@ public static class CommandIndex
     public const int PerSection = 4;
     public const int MaxApps = 2;
 
-    /// <summary>D-G13's pages, in the deep window's order.</summary>
-    public static IReadOnlyList<(string Id, string Name)> Pages { get; } =
-    [
-        ("home", "Home"), ("system", "System"), ("jobs", "Jobs"), ("activity", "Activity"), ("learned", "What Tasktor learned"),
-        ("focus", "Focus"), ("windows", "Windows"), ("data", "Your data"), ("settings", "Settings"),
-    ];
+    /// <summary>D-G13's pages, in the deep window's order (<see cref="Deep.DeepPages"/>).</summary>
+    public static IReadOnlyList<(string Id, string Name)> Pages { get; } = [.. Deep.DeepPages.All.Select(p => (p.Id, p.Name))];
 
     public static CommandView Query(string? query, IReadOnlyList<Card> cards, BindingResolver resolver)
     {

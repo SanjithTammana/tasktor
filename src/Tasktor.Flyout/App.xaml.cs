@@ -1,5 +1,6 @@
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Tasktor.Hosts.Common.Deep;
 using Tasktor.Hosts.Common.Pipe;
 
 namespace Tasktor.Flyout;
@@ -24,7 +25,8 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        var wanted = ViewerSignal.ForArgs(Environment.GetCommandLineArgs());
+        var launchArgs = Environment.GetCommandLineArgs();
+        var wanted = ViewerSignal.ForArgs(launchArgs);
         _instance = new Mutex(true, ViewerSignal.Instance, out var first);
         if (!first)
         {
@@ -42,10 +44,10 @@ public partial class App : Application
         _snapshot.Start();
         _shelf = new ShelfWindow(_snapshot);
         _shelf.Hidden += StartExitCountdown;
-        _shelf.DeepRequested += OpenDeep;
+        _shelf.DeepRequested += () => OpenDeep(DeepPages.Home);
         _command = new CommandWindow(_snapshot);
         _command.Hidden += StartExitCountdown;
-        _command.DeepRequested += _ => OpenDeep(); // the page itself is opened once the deep window has pages
+        _command.DeepRequested += OpenDeep;
 
         _exit = ui.CreateTimer();
         _exit.Interval = ExitAfterHidden;
@@ -59,12 +61,12 @@ public partial class App : Application
         };
 
         Listen(ViewerSignal.ShowShelf, ui, () => _shelf.ShowShelf());
-        Listen(ViewerSignal.OpenDeep, ui, OpenDeep);
+        Listen(ViewerSignal.OpenDeep, ui, () => OpenDeep(DeepPages.Home));
         Listen(ViewerSignal.ShowCommand, ui, () => _command.ShowCommand());
         switch (wanted)
         {
             case ViewerSignal.OpenDeep:
-                OpenDeep();
+                OpenDeep(DeepPages.FromArgs(launchArgs));
                 break;
             case ViewerSignal.ShowCommand:
                 _command.ShowCommand();
@@ -75,19 +77,21 @@ public partial class App : Application
         }
     }
 
-    private void OpenDeep()
+    private void OpenDeep(string page)
     {
         _exit?.Stop();
-        if (_deep is null)
+        if (_deep is not null)
         {
-            _deep = new MainWindow();
-            _deep.Closed += (_, _) =>
-            {
-                _deep = null;
-                StartExitCountdown();
-            };
+            _deep.OpenPage(page);
+            return;
         }
 
+        _deep = new MainWindow(_snapshot!, page);
+        _deep.Closed += (_, _) =>
+        {
+            _deep = null;
+            StartExitCountdown();
+        };
         _deep.Activate();
     }
 
