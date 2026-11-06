@@ -24,3 +24,41 @@ test('secure field markers', () => {
   assert.equal(isSecure(field('text', '', true)), true);
   assert.equal(isSecure(field('text', 'name')), false);
 });
+
+import { safeUrl, safeTitle, textLines, sameLines, mediaDue, MAX_LINE, MAX_LINES, MAX_CHARS, MEDIA_EVERY_MS, SKIP_SELECTOR } from './logic.js';
+
+test('the full address keeps path and query but never credentials, and only for http(s)', () => {
+  assert.equal(safeUrl('https://user:pw@Example.com/a/b?q=1#top'), 'https://example.com/a/b?q=1#top');
+  assert.equal(safeUrl('file:///c:/secret.txt'), null);
+  assert.equal(safeUrl('chrome://settings'), null);
+  assert.equal(safeUrl('https://example.com/' + 'x'.repeat(3000)), null);
+  assert.equal(safeTitle('  Inbox\n (3) '), 'Inbox (3)');
+  assert.equal(safeTitle(''), null);
+});
+test('page text is normalised and capped, readable part first', () => {
+  assert.deepEqual(textLines(['  Heading ', '', 'a\n\n b', null]), ['Heading', 'a b']);
+  assert.equal(textLines(['x'.repeat(MAX_LINE + 50)])[0].length, MAX_LINE);
+  assert.equal(textLines(Array(MAX_LINES + 10).fill('y')).length, MAX_LINES);
+  const big = textLines(Array(40).fill('z'.repeat(400)));
+  assert.ok(big.reduce((n, l) => n + l.length, 0) <= MAX_CHARS);
+  assert.ok(sameLines(['a', 'b'], ['a', 'b']));
+  assert.ok(!sameLines(['a'], ['a', 'b']));
+});
+test('video changes report at once, playing reports at most every 10 s', () => {
+  assert.ok(mediaDue(null, 0, true));
+  assert.ok(!mediaDue({ playing: true, at: 0 }, MEDIA_EVERY_MS - 1, true));
+  assert.ok(mediaDue({ playing: true, at: 0 }, MEDIA_EVERY_MS, true));
+  assert.ok(mediaDue({ playing: true, at: 0 }, 1, false));
+  assert.ok(!mediaDue({ playing: false, at: 0 }, 60_000, false));
+});
+test('the never-read list covers form values and secure fields', () => {
+  for (const s of ['textarea', 'input', '[type="password"]', '[autocomplete^="cc-"]', 'one-time-code', 'current-password', 'new-password', 'contenteditable']) {
+    assert.ok(SKIP_SELECTOR.includes(s), s);
+  }
+});
+test('the content script carries the same never-read list (it cannot import modules)', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { SKIP_SELECTOR } = await import('./logic.js');
+  const src = await readFile(new URL('./content.js', import.meta.url), 'utf8');
+  assert.ok(src.includes(`const SKIP = '${SKIP_SELECTOR}';`));
+});

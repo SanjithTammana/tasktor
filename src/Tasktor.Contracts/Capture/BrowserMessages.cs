@@ -8,6 +8,8 @@ namespace Tasktor.Contracts.Capture;
 [JsonDerivedType(typeof(BrowserFocus), "focus")]
 [JsonDerivedType(typeof(BrowserVisibility), "visibility")]
 [JsonDerivedType(typeof(BrowserTabClosed), "tab_closed")]
+[JsonDerivedType(typeof(BrowserText), "text")]
+[JsonDerivedType(typeof(BrowserMedia), "media")]
 [JsonDerivedType(typeof(BrowserBlockRequest), "block_request")]
 [JsonDerivedType(typeof(BrowserWelcome), "welcome")]
 [JsonDerivedType(typeof(BrowserBlocks), "blocks")]
@@ -38,6 +40,38 @@ public sealed record BrowserTab : BrowserMessage
     }
     public required bool Active { get; init; }
     public required bool Audible { get; init; }
+
+    /// <summary>C D-C22 T1: the full address (http / https only), unless the host is excluded. Personal data.</summary>
+    public string? Url { get; init; }
+
+    /// <summary>The tab's title. Personal data.</summary>
+    public string? Title { get; init; }
+}
+
+/// <summary>
+/// C18 / §5.5: the visible text of the tab's page (readable content + viewport text), sent on load + 2 s dwell and then at
+/// most every 2 s while visible and changed. Never input values, password or card fields. The capture host diffs it with
+/// the same differ as UIA views. Personal data.
+/// </summary>
+public sealed record BrowserText : BrowserMessage
+{
+    public const int MaxLines = 400;
+    public const int MaxLine = 500;
+    public const int MaxChars = 8192;
+
+    public required int Tab { get; init; }
+
+    public required IReadOnlyList<string> Lines { get; init; }
+}
+
+/// <summary>C20.2: a tab's video is playing or paused, and where (throttled to one message per 10 s while playing).</summary>
+public sealed record BrowserMedia : BrowserMessage
+{
+    public required int Tab { get; init; }
+
+    public required bool Playing { get; init; }
+
+    public double? PositionS { get; init; }
 }
 
 public sealed record BrowserFocus : BrowserMessage
