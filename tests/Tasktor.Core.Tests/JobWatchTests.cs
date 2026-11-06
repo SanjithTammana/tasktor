@@ -521,6 +521,50 @@ public sealed class ProgressFileTests : IDisposable
 
         Assert.Equal(1, src.Overflows);
     }
+
+    [Fact]
+    public void A_vanished_or_unusable_folder_never_throws_and_the_watch_recovers()
+    {
+        // The watcher's error callback runs on a pool thread: an exception there ends the process. Deleting the folder
+        // under the watch (uninstall, a cleaned temp store) must be survived, and the folder recreated when possible.
+        var dir = Path.Combine(_store.Root, "jobs");
+        var got = new List<ProgressRow>();
+        var src = new JobProgressSource(dir, () => DateTimeOffset.UtcNow);
+        src.Start((rows, _) =>
+        {
+            lock (got)
+            {
+                got.AddRange(rows);
+            }
+        });
+
+        Directory.Delete(dir, recursive: true);
+        File.WriteAllText(dir, "not a folder"); // the folder cannot be recreated for now
+        Assert.False(src.Rescan(overflow: true));
+        src.Tick(); // the timer retries; still blocked, still no throw
+
+        File.Delete(dir);
+        src.Tick(); // recreated and watched again
+        Assert.True(Directory.Exists(dir));
+        File.WriteAllText(Path.Combine(dir, "j.json"), """{"schema":1,"id":"j","updated":"2026-11-04T14:02:11Z"}""");
+        Assert.True(src.Rescan(overflow: false));
+        lock (got)
+        {
+            Assert.Contains(got, r => r.Id == "j");
+        }
+
+        src.Dispose();
+        Directory.Delete(dir, recursive: true);
+        File.WriteAllText(dir, "gone");
+        Assert.False(src.Rescan(overflow: true)); // after Dispose: nothing runs, nothing is posted
+        src.Tick();
+        lock (got)
+        {
+            Assert.Single(got);
+        }
+
+        File.Delete(dir);
+    }
 }
 
 /// <summary>B3.7 crash-safe freeze: intent before the first suspend, threads as they happen, cleared last, thawed at start.</summary>

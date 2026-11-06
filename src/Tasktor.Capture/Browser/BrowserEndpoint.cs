@@ -7,7 +7,7 @@ namespace Tasktor.Capture.Browser;
 
 /// <summary>What capture may use about one tab right now. <see cref="Secure"/> is true until an explicit focus says otherwise.</summary>
 /// <remarks><see cref="Url"/> and <see cref="Title"/> come with T1 (C D-C22); <see cref="PageRef"/> is a hash of host + path that keys the page's view.</remarks>
-public sealed record TabContext(Sensitive<string>? Host, bool Secure, bool Visible, bool Active, Sensitive<string>? Url = null, Sensitive<string>? Title = null, ulong PageRef = 0);
+public sealed record TabContext(Sensitive<string>? Host, bool Secure, bool Visible, bool Active, Sensitive<string>? Url = null, Sensitive<string>? Title = null, ulong PageRef = 0, bool Private = false);
 
 /// <summary>
 /// The capture host's side of <c>tasktor.browser/1</c> (D-C18): one session per connected browser. Contract check on
@@ -26,6 +26,7 @@ public sealed class BrowserEndpoint
     private readonly Func<DateTimeOffset> _now;
     private readonly Lock _gate = new();
     private readonly Dictionary<string, string> _sessions = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _private = new(StringComparer.Ordinal); // sessions whose hello opted in to private windows
     private readonly Dictionary<(string Browser, int Tab), TabContext> _tabs = [];
 
     public BrowserEndpoint(CaptureBlocks blocks, Func<DateTimeOffset> now)
@@ -64,6 +65,25 @@ public sealed class BrowserEndpoint
         }
     }
 
+    /// <summary>The browsers with an open, accepted session (the extension is installed and connected), sorted.</summary>
+    public IReadOnlyList<string> Connected()
+    {
+        lock (_gate)
+        {
+            return [.. _sessions.Values.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
+        }
+    }
+
+    /// <summary>A session's connection closed (the browser exited or the extension was removed).</summary>
+    public void Closed(string session)
+    {
+        lock (_gate)
+        {
+            _sessions.Remove(session);
+            _private.Remove(session);
+        }
+    }
+
     /// <summary>Handle one message from a session; returns the replies (in order). Unknown or invalid input is counted.</summary>
     public List<BrowserMessage> Handle(string session, BrowserMessage message)
     {
@@ -87,6 +107,19 @@ public sealed class BrowserEndpoint
                 }
 
                 _sessions[session] = hello.Browser;
+                if (hello.Incognito)
+                {
+                    _private.Add(session);
+                }
+                else
+                {
+                    _private.Remove(session); // fail closed: any hello without the opt-in ends this browser's private tabs
+                    foreach (var k in _tabs.Where(kv => kv.Key.Browser == hello.Browser && kv.Value.Private).Select(kv => kv.Key).ToList())
+                    {
+                        _tabs.Remove(k); // private windows turned off: forget their tabs at once
+                    }
+                }
+
                 foreach (var k in _tabs.Keys.Where(k => k.Browser == hello.Browser).ToList())
                 {
                     _tabs[k] = _tabs[k] with { Secure = true }; // a reconnect: secure until focus arrives again
@@ -105,6 +138,9 @@ public sealed class BrowserEndpoint
 
             switch (message)
             {
+                case BrowserTab { Incognito: true } when !_private.Contains(session):
+                    Rejected++;
+                    return replies; // a private tab without the profile's opt-in: nothing is kept
                 case BrowserTab t:
                     var key = (browser, t.Tab);
                     var host = t.Host is null ? (Sensitive<string>?)null : Sensitive.Of(t.Host);
@@ -112,7 +148,7 @@ public sealed class BrowserEndpoint
                     var sameHost = known && prev!.Host == host;
                     var url = t.Url is null || t.Host is null ? (Sensitive<string>?)null : Sensitive.Of(t.Url);
                     var title = t.Title is null ? (Sensitive<string>?)null : Sensitive.Of(t.Title);
-                    _tabs[key] = new TabContext(host, !sameHost || prev!.Secure, known ? prev!.Visible : t.Active, t.Active, url, title, PageRef(t.Host, t.Url));
+                    _tabs[key] = new TabContext(host, !sameHost || prev!.Secure, known ? prev!.Visible : t.Active, t.Active, url, title, PageRef(t.Host, t.Url), t.Incognito);
                     context = (browser, t.Tab, _tabs[key]);
                     break;
                 case BrowserFocus f when f.Field is "none" or "text" or "secure":

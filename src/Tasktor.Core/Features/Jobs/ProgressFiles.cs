@@ -118,6 +118,8 @@ public sealed class JobProgressSource : IDisposable
     private FileSystemWatcher? _watcher;
     private Action<IReadOnlyList<ProgressRow>, IReadOnlyList<string>>? _post;
     private Timer? _timer;
+    private volatile bool _disposed;
+    private volatile bool _broken;
 
     public JobProgressSource(string dir, Func<DateTimeOffset> now)
     {
@@ -133,44 +135,138 @@ public sealed class JobProgressSource : IDisposable
     public void Start(Action<IReadOnlyList<ProgressRow>, IReadOnlyList<string>> post)
     {
         _post = post;
-        Directory.CreateDirectory(_dir);
-        _watcher = new FileSystemWatcher(_dir, "*.json") { NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size, InternalBufferSize = 8192 };
-        _watcher.Changed += (_, e) => Touch(e.Name);
-        _watcher.Created += (_, e) => Touch(e.Name);
-        _watcher.Renamed += (_, e) => Touch(e.Name);
-        _watcher.Deleted += (_, e) => Touch(e.Name);
-        _watcher.Error += (_, _) => Rescan(overflow: true);
-        _watcher.EnableRaisingEvents = true;
-        _timer = new Timer(_ => Flush(), null, Debounce, Debounce);
-        Rescan(overflow: false);
+        _timer = new Timer(_ => Tick(), null, Debounce, Debounce);
+        Rearm();
     }
 
     public void Dispose()
     {
-        _watcher?.Dispose();
-        _timer?.Dispose();
+        _disposed = true; // callbacks already queued see this and do nothing
+        lock (_gate)
+        {
+            _watcher?.Dispose();
+            _watcher = null;
+        }
+
+        if (_timer is { } timer)
+        {
+            using var done = new ManualResetEvent(false);
+            if (timer.Dispose(done))
+            {
+                done.WaitOne(TimeSpan.FromSeconds(5)); // a running tick finishes before the folder may go
+            }
+        }
     }
 
-    /// <summary>Re-read every file (start, and after a watch overflow).</summary>
-    public void Rescan(bool overflow)
+    /// <summary>
+    /// The timer: retry a folder that could not be watched (deleted, or blocked for now), then read what is due. Never
+    /// throws: it runs on a pool thread, where an exception would end the process.
+    /// </summary>
+    public void Tick()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (_broken)
+        {
+            Rearm();
+        }
+
+        Flush();
+    }
+
+    /// <summary>
+    /// Re-read every file (start, after a watch overflow, after the folder came back). False when the folder cannot be
+    /// listed now (deleted under the watch, or not creatable): the timer retries; nothing is thrown.
+    /// </summary>
+    public bool Rescan(bool overflow)
+    {
+        if (_disposed)
+        {
+            return false;
+        }
+
         if (overflow)
         {
             Overflows++;
         }
 
-        Directory.CreateDirectory(_dir);
-        lock (_gate)
+        try
         {
-            foreach (var f in Directory.GetFiles(_dir, "*.json"))
+            Directory.CreateDirectory(_dir); // the folder is recreated if deleted
+            var files = Directory.GetFiles(_dir, "*.json");
+            lock (_gate)
             {
-                _pending.Add(Path.GetFileName(f));
-            }
+                foreach (var f in files)
+                {
+                    _pending.Add(Path.GetFileName(f));
+                }
 
-            _lastRead.Clear();
+                _lastRead.Clear();
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _broken = true; // e.g. deleted between create and list; the next tick re-arms the watch and rescans
+            return false;
         }
 
         Flush();
+        return true;
+    }
+
+    /// <summary>The watch's own error (overflow, or its folder gone): rescan; re-arm on the next tick if that failed.</summary>
+    private void OnError()
+    {
+        if (!_disposed && !Rescan(overflow: true))
+        {
+            _broken = true;
+        }
+    }
+
+    /// <summary>(Re)create the folder and its watch, then rescan. A watch whose folder was deleted reports nothing more.</summary>
+    private void Rearm()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(_dir);
+            var watcher = new FileSystemWatcher(_dir, "*.json") { NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size, InternalBufferSize = 8192 };
+            watcher.Changed += (_, e) => Touch(e.Name);
+            watcher.Created += (_, e) => Touch(e.Name);
+            watcher.Renamed += (_, e) => Touch(e.Name);
+            watcher.Deleted += (_, e) => Touch(e.Name);
+            watcher.Error += (_, _) => OnError();
+            watcher.EnableRaisingEvents = true;
+            FileSystemWatcher? old;
+            lock (_gate)
+            {
+                if (_disposed)
+                {
+                    watcher.Dispose();
+                    return;
+                }
+
+                old = _watcher;
+                _watcher = watcher;
+            }
+
+            old?.Dispose();
+            _broken = false;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            _broken = true; // FileSystemWatcher throws ArgumentException for a missing folder
+            return;
+        }
+
+        Rescan(overflow: false);
     }
 
     private void Touch(string? name)
@@ -189,6 +285,11 @@ public sealed class JobProgressSource : IDisposable
     /// <summary>Read pending files whose debounce has passed (called by the timer; tests call it directly).</summary>
     public void Flush()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         var now = _now();
         List<string> due;
         lock (_gate)

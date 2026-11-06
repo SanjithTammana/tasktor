@@ -24,7 +24,7 @@ public sealed class BrowserEndpointTests : IDisposable
     {
         var blocks = new CaptureBlocks(Path.Combine(_dir, "blocks.json"));
         var ep = new BrowserEndpoint(blocks, () => _now);
-        var ctl = new CaptureControl(blocks, () => _now) { ResolveTab = ep.ResolveTab, ForgetSince = since => (long)(_now - since).TotalMinutes };
+        var ctl = new CaptureControl(blocks, () => _now) { ResolveTab = ep.ResolveTab, Extensions = ep.Connected, ForgetSince = since => (long)(_now - since).TotalMinutes };
         ctl.Changed += ep.NotifyBlocksChanged;
         return (blocks, ep, ctl);
     }
@@ -36,6 +36,47 @@ public sealed class BrowserEndpointTests : IDisposable
     private static BrowserTab Page(int id, string host, string url, string? title = null) => new() { At = T0, Tab = id, Window = 1, Host = host, Active = true, Audible = false, Url = url, Title = title };
 
     private static BrowserText Text(int tab, params string[] lines) => new() { At = T0, Tab = tab, Lines = lines };
+
+    [Fact]
+    public void Private_tabs_are_dropped_unless_the_sessions_hello_opted_in()
+    {
+        var (_, ep, _) = World();
+        var contexts = new List<(int Tab, TabContext Ctx)>();
+        var texts = 0;
+        ep.ContextChanged += (_, tab, ctx) => contexts.Add((tab, ctx));
+        ep.TextSeen += (_, _, _, _) => texts++;
+        ep.Handle("s1", Hello());
+        ep.Handle("s1", Tab(7, "example.com") with { Incognito = true });
+        ep.Handle("s1", Text(7, "secret page"));
+        Assert.Empty(contexts);
+        Assert.Equal(0, texts);
+        Assert.Equal(2, ep.Rejected);
+
+        ep.Handle("s1", Hello() with { Incognito = true }); // the user turned private windows on for this profile
+        ep.Handle("s1", Tab(7, "example.com") with { Incognito = true });
+        ep.Handle("s1", Text(7, "page"));
+        Assert.True(contexts.Single().Ctx.Private);
+        Assert.Equal(1, texts);
+
+        ep.Handle("s1", Hello()); // and off again: the private tab is forgotten, its text dropped
+        Assert.Null(ep.Context("chrome", 7));
+        ep.Handle("s1", Text(7, "page"));
+        Assert.Equal(1, texts);
+    }
+
+    [Fact]
+    public void Connected_lists_browsers_with_an_open_session_only()
+    {
+        var (_, ep, ctl) = World();
+        Assert.Empty(ep.Connected());
+        ep.Handle("s1", Hello("edge"));
+        ep.Handle("s2", Hello("chrome", contract: 9)); // refused
+        ep.Handle("s3", Hello("chrome"));
+        Assert.Equal(["chrome", "edge"], ep.Connected());
+        ep.Closed("s3");
+        Assert.Equal(["edge"], ep.Connected());
+        Assert.Equal(["edge"], ctl.Status().Extensions!); // what the agent's card reads
+    }
 
     [Fact]
     public void Page_text_becomes_a_walk_with_stable_refs_in_the_pages_view()

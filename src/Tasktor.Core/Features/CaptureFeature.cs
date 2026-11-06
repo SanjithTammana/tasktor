@@ -36,6 +36,18 @@ public sealed class CaptureFeature : Feature
 
     public CaptureStatus? Status { get; private set; }
 
+    /// <summary>
+    /// Sets up the companion for a browser (<c>chrome</c> / <c>edge</c>): registers the native host for this user, opens the
+    /// extension folder and the browser's extensions page. Runs off the loop; false = it could not. Null = not on this PC.
+    /// </summary>
+    public Func<string, bool>? SetupExtension { get; set; }
+
+    /// <summary>The browser offered the extension (C §5.5: in front for 60 s with no connection), until it connects.</summary>
+    public string? ExtensionOffer { get; private set; }
+
+    private static readonly TimeSpan OfferAfter = TimeSpan.FromSeconds(60);
+    private (string Browser, DateTimeOffset Since)? _browserInFront;
+
     /// <summary>Starts and restarts the capture host while this Module is on (D-H9); null = started elsewhere (tests, dev).</summary>
     public CaptureSupervisor? Supervisor
     {
@@ -68,6 +80,7 @@ public sealed class CaptureFeature : Feature
         Context.Router.Register("capture.unexclude", Unexclude);
         Context.Router.Register("capture.tab_pause", TabPause);
         Context.Router.Register("capture.forget", Forget);
+        Context.Router.Register("capture.extension_setup", Setup);
         _supervisor?.Start();
         Refresh();
         _refresh = Context.Loop.Every(TimeSpan.FromMinutes(1), Refresh); // pauses expire host-side; one cheap call a minute
@@ -111,6 +124,74 @@ public sealed class CaptureFeature : Feature
         };
         Context.UpdateState(s => s with { Capture = state });
         Context.RulesDirty();
+        WatchExtension(status);
+    }
+
+    /// <summary>
+    /// C §5.5 failure table: a Chromium browser in front for 60 s while its extension is not connected → the card offers
+    /// to set it up (the browser keeps T0's hostname meanwhile). Sampled on each status (the 1-min refresh; no timer of its
+    /// own). The offer stays until that browser connects.
+    /// </summary>
+    private void WatchExtension(CaptureStatus? status)
+    {
+        if (status is not { On: true, Extensions: { } connected })
+        {
+            _browserInFront = null;
+            return; // capture not running, or a host that does not report extensions
+        }
+
+        if (ExtensionOffer is { } offered && connected.Contains(offered))
+        {
+            ExtensionOffer = null;
+        }
+
+        var browser = BrowserOf(ForegroundApp());
+        var now = Context.Clock.UtcNow;
+        if (browser is null || connected.Contains(browser))
+        {
+            _browserInFront = null;
+            return;
+        }
+
+        if (_browserInFront is not { } front || front.Browser != browser)
+        {
+            _browserInFront = (browser, now);
+        }
+        else if (now - front.Since >= OfferAfter)
+        {
+            ExtensionOffer = browser;
+        }
+    }
+
+    private static string? BrowserOf(string? exe) => exe?.ToLowerInvariant() switch
+    {
+        "chrome.exe" => "chrome",
+        "msedge.exe" => "edge",
+        _ => null,
+    };
+
+    private static string BrowserName(string browser) => browser == "edge" ? "Edge" : "Chrome";
+
+    private PreparedAction Setup(ActionRequest req)
+    {
+        var browser = req.Args?.GetValueOrDefault("browser");
+        if (browser is not ("chrome" or "edge"))
+        {
+            return new PreparedAction { Summary = "Set up the browser extension", Refusal = "Which browser: chrome or edge?" };
+        }
+
+        if (SetupExtension is not { } setup)
+        {
+            return new PreparedAction { Summary = "Set up the browser extension", Refusal = "Not available on this PC" };
+        }
+
+        return new PreparedAction
+        {
+            Summary = "Set up the " + BrowserName(browser) + " extension",
+            Run = _ => setup(browser)
+                ? new ActionResult { Action = req.Action, Status = ActionStatus.Ok, Message = "Turn on Developer mode, choose Load unpacked and pick the folder that opened" }
+                : new ActionResult { Action = req.Action, Status = ActionStatus.Failed, Message = "Could not set up the extension" },
+        };
     }
 
     private static bool ByUser(ActionRequest req) => req.Origin != Origin.Rule;
@@ -301,6 +382,11 @@ public sealed class CaptureFeature : Feature
             blocks.Insert(1, new ListBlock { Label = "Active blocks", Items = Value.Binding("/state/capture/blocks"), Max = 4, Priority = 2 });
         }
 
+        if (ExtensionOffer is { } offer)
+        {
+            blocks.Insert(1, new AlertBlock { Text = Value.Literal("Page text in " + BrowserName(offer) + " needs the Tasktor companion extension"), Severity = Value.Literal("normal"), Priority = 2 });
+        }
+
         var paused = s is { PausedIndefinitely: true } or { PausedUntil: not null };
         return
         [
@@ -318,6 +404,9 @@ public sealed class CaptureFeature : Feature
                         : new CardAction { Id = "pause", Label = "Pause 1 h", Action = "capture.pause", Args = CardKit.Target("for", "1h"), Priority = 1 },
                     new CardAction { Id = "exclude", Label = "Don't capture this app", Action = "capture.exclude", Target = CardKit.Target("app", Foreground), Priority = 2 },
                     new CardAction { Id = "forget", Label = "Forget last hour", Action = "capture.forget", Args = CardKit.Target("since", "1h"), Priority = 3, Destructive = true },
+                    .. ExtensionOffer is { } b
+                        ? new[] { new CardAction { Id = "extension", Label = "Set up the extension", Action = "capture.extension_setup", Args = CardKit.Target("browser", b), Priority = 2 } }
+                        : [],
                 ],
             },
         ];
