@@ -26,7 +26,7 @@ internal static class Program
         }
 
         var quit = new TaskCompletionSource();
-        await using var host = Composition.Create(store);
+        await using var host = Composition.Create(store, tray: true);
         host.QuitRequested += () => quit.TrySetResult();
         Console.CancelKeyPress += (_, e) =>
         {
