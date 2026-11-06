@@ -302,20 +302,15 @@ internal static class Composition
             host.AddFeature(tracking);
         });
 
-        // Focus and Projects are wired to the tracking that runs when they are built; turning tracking on or off rebuilds them.
-        WorkflowTracking? Tracking() => host.ModuleRunning("tracking") ? tracking : null;
-        host.RegisterModule("focus", ["tracking"], () =>
+        // Focus reads whichever tracking runs at the moment it asks, so turning tracking on or off never rebuilds it (a block
+        // in progress survives). Projects subscribes to one tracking instance's events, so it is rebuilt when tracking toggles.
+        WorkflowTracking? Tracking() => host.ModuleRunning("tracking") && tracking is { Enabled: true } t ? t : null;
+        host.RegisterModule("focus", () => host.AddFeature(new FocusTimer(ctx, eventMode, new NotesStore(host.Store.NotesDir))
         {
-            var t = Tracking();
-            var focus = new FocusTimer(ctx, eventMode, new NotesStore(host.Store.NotesDir)) { TrackingOn = () => settings.ModuleOn("tracking") && t is { Enabled: true } };
-            if (t is not null)
-            {
-                focus.Measure = t.Measure;
-                focus.CurrentWorkflow = () => t.Current?.Shown?.Id;
-            }
-
-            host.AddFeature(focus);
-        });
+            TrackingOn = () => settings.ModuleOn("tracking") && Tracking() is not null,
+            Measure = (from, to, intended) => Tracking()?.Measure(from, to, intended),
+            CurrentWorkflow = () => Tracking()?.Current?.Shown?.Id,
+        }));
 
         host.RegisterModule("projects", ["tracking"], () =>
         {

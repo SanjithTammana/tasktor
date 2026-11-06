@@ -88,13 +88,17 @@ public sealed class AllModulesTests
         Assert.Contains("module.focus", await CardIds());
         Assert.True(await host.Loop.InvokeAsync(() => host.ModuleRunning("focus")));
 
-        await Act("module.enable", "tracking");
+        await Act("module.enable", "projects");
         var focusBefore = await Find("focus");
-        await Act("module.disable", "tracking"); // Focus is wired to tracking: it is rebuilt without it
-        var focusAfter = await Find("focus");
-        Assert.NotNull(focusAfter);
-        Assert.NotSame(focusBefore, focusAfter);
-        Assert.False(focusBefore!.Enabled);
+        var projectsBefore = await Find("projects");
+        await Act("module.enable", "tracking");
+        Assert.Same(focusBefore, await Find("focus")); // Focus asks for tracking when it needs it: a running block survives
+        var projectsAfter = await Find("projects");
+        Assert.NotNull(projectsAfter);
+        Assert.NotSame(projectsBefore, projectsAfter); // Projects subscribes to tracking's events: rebuilt onto the new one
+        Assert.False(projectsBefore!.Enabled);
+        await Act("module.disable", "tracking");
+        Assert.Same(focusBefore, await Find("focus"));
 
         Assert.Equal("Turned off Focus.", (await Act("module.disable", "focus")).Message);
         Assert.DoesNotContain("focus", await Ids());
