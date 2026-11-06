@@ -74,6 +74,7 @@ public sealed class AgentHost : IAsyncDisposable
         Log = new LogSink(options.Clock, options.LogWriter ?? new FileLogWriter(Store.LogDir));
         Loop = new LogicLoop(options.Clock, ex => Log.Error("loop.error", LogField.Of("type", ex.GetType().Name), LogField.Of("at", ErrorWhere.Of(ex))));
         Scheduler = new Scheduler(options.Clock);
+        _schedulerDriver = new SchedulerDriver(Loop, Scheduler); // without it no sampler ever runs
         State = new StateTracker();
         Cards = new CardTemplates();
         Publisher = new SnapshotPublisher(Loop, State, Cards, AgentInfo, options.WriteSnapshotFile ? bytes => _writer.Enqueue(Store.Snapshot, bytes) : null);
@@ -111,6 +112,7 @@ public sealed class AgentHost : IAsyncDisposable
             }
         };
         _owned.Add(Loop.Every(TimeSpan.FromMinutes(1), SelfUse.Flush));
+        _owned.Add(_schedulerDriver);
         Processes = options.ProcessControl ?? new PortableProcessControl(new ChildProcessRunner(options.InstallDir));
         var bundledPython = Path.Combine(options.InstallDir, "worker", "python", OperatingSystem.IsWindows() ? "python.exe" : "bin/python3");
         Plugins = new PluginHost(Store, Consents, Processes, Loop.Post, Log)
@@ -138,6 +140,8 @@ public sealed class AgentHost : IAsyncDisposable
     public LogicLoop Loop { get; }
 
     public Scheduler Scheduler { get; }
+
+    private readonly SchedulerDriver _schedulerDriver;
 
     public StateTracker State { get; }
 
