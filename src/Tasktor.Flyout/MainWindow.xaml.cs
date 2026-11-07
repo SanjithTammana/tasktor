@@ -705,6 +705,52 @@ public sealed partial class MainWindow : Window
 
         PageContent.Children.Add(list);
         DrawPackRules();
+        DrawArrangeRequests();
+    }
+
+    /// <summary>U3 OQ-W2: rules that would arrange windows wait here for their one-time consent.</summary>
+    private void DrawArrangeRequests()
+    {
+        var rows = SettingsPage.ArrangeRequests(_rules);
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        PageContent.Children.Add(new TextBlock { Text = "Waiting for your consent", Style = StyleOf("TasktorBodyStrongTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 12, 0, 0) });
+        foreach (var row in rows)
+        {
+            var grid = new Grid { MinHeight = 56 };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = row.Title, TextWrapping = TextWrapping.Wrap, Style = StyleOf("TasktorBodyTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+            text.Children.Add(new TextBlock { Text = "Wants to arrange windows", Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush("TasktorInk3Brush") });
+            grid.Children.Add(text);
+            var allow = new Button { Content = "Allow…", VerticalAlignment = VerticalAlignment.Center };
+            AutomationProperties.SetName(allow, "Allow " + row.Title + " to arrange windows");
+            allow.Click += async (_, _) =>
+            {
+                var dialog = new ContentDialog
+                {
+                    Title = "Let this rule arrange windows?",
+                    Content = new TextBlock { Text = row.Consent, TextWrapping = TextWrapping.Wrap },
+                    PrimaryButtonText = "Allow",
+                    CloseButtonText = "Not now",
+                    DefaultButton = ContentDialogButton.Close,
+                    XamlRoot = Content.XamlRoot,
+                };
+                if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+                {
+                    await RunAsync(SettingsPage.AllowArrange(row));
+                    _rules = null;
+                    Draw(_snapshot.Mirror.Cards);
+                }
+            };
+            Grid.SetColumn(allow, 1);
+            grid.Children.Add(allow);
+            PageContent.Children.Add(grid);
+        }
     }
 
     /// <summary>Settings → Rules, from plugin packs: every rule of a pack that is on, each off until ticked.</summary>
@@ -1241,10 +1287,19 @@ public sealed partial class MainWindow : Window
 
     private async Task<bool> ConfirmAsync(string summary)
     {
+        // A summary with lines (a settings diff, a list) keeps its lines: monospace, scrollable, selectable.
+        object content = summary.Contains('\n', StringComparison.Ordinal)
+            ? new ScrollViewer
+            {
+                MaxHeight = 360,
+                Content = new TextBlock { Text = summary, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Mono, Consolas"), IsTextSelectionEnabled = true, TextWrapping = TextWrapping.NoWrap },
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            }
+            : summary;
         var dialog = new ContentDialog
         {
             Title = "Are you sure?",
-            Content = summary,
+            Content = content,
             PrimaryButtonText = "Yes, do it",
             CloseButtonText = "Keep it",
             DefaultButton = ContentDialogButton.Close, // the safe choice is the default

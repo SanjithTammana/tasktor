@@ -46,7 +46,6 @@ public sealed class RulesLoaderTests
         { """{ "id": "a", "when": { "state": "on_battery" }, "then": [ { "cap_cores": { "max": 0 }, "target": "group:builds" } ] }""", "at least 1" },
         { """{ "id": "a", "when": { "state": "on_battery" }, "then": [ { "use_fallback": "silent" } ] }""", "built-in rules only" },
         { """{ "id": "a", "builtin": true, "when": { "state": "on_battery" }, "then": [ { "pause": "refits" } ] }""", "reserved for shipped" },
-        { """{ "id": "a", "when": { "state": "on_battery" }, "then": [ { "arrange": "Writing" } ] }""", "one-time consent" },
         { """{ "id": "a", "when": { "learned": { "stat": "silence", "key": "job.kind", "fallback": "10m", "clamp": ["60m", "2m"] } }, "then": [ { "pause": "refits" } ] }""", "clamp" },
         { """{ "id": "a", "when": { "process": "python.exe" }, "then": [ { "pause": "refits" } ] }""", "cpu_above" },
         { """{ "id": "a", "when": "nope", "then": [] }""", "JSON value could not be converted" },
@@ -64,10 +63,17 @@ public sealed class RulesLoaderTests
     }
 
     [Fact]
-    public void Arrange_loads_after_the_one_time_consent()
+    public void Arrange_waits_for_the_one_time_consent_and_loads_after_it()
     {
-        var set = User("""{ "id": "focus-layout", "when": { "state": "event_mode" }, "then": [ { "arrange": "Writing" } ], "undo": true }""", id => id == "focus-layout");
+        const string rule = """{ "id": "focus-layout", "when": { "state": "event_mode" }, "then": [ { "arrange": "Writing" } ], "undo": true }""";
+        var waiting = User(rule);
+        Assert.Empty(waiting.Rules); // never evaluated without the consent
+        Assert.Equal("focus-layout", Assert.Single(waiting.AwaitingArrangeConsent).Id);
+        Assert.Empty(waiting.Errors); // a consent to ask for, not an error (U3 OQ-W2)
+
+        var set = User(rule, id => id == "focus-layout");
         Assert.Single(set.Rules);
+        Assert.Empty(set.AwaitingArrangeConsent);
     }
 
     [Fact]

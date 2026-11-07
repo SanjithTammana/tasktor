@@ -128,6 +128,9 @@ public sealed class AgentWatchTests : IDisposable
         Assert.Equal("proj", rows[0].Folder);
         Assert.Equal("Codex", rows[1].Agent);
         Assert.Equal("1", _agents.Cards()[0].Blocks[0] is Contracts.Cards.MetricBlock m ? m.Value.ToString() : "");
+        var actions = _agents.Cards()[0].Actions!;
+        Assert.Contains(actions, x => x.Action == "agent.hooks.install" && x.Destructive == true); // two-step: the confirm shows the diff
+        Assert.Contains(actions, x => x.Action == "agent.hooks.remove" && x.Destructive == true);
     }
 
     [Fact]

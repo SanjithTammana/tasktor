@@ -60,4 +60,7 @@ public sealed class RuleSet
 
     /// <summary>The rules switched off, as written (for Settings → Rules; they are not evaluated).</summary>
     public IReadOnlyList<CompiledRule> OffRules { get; init; } = [];
+
+    /// <summary>Valid rules that call <c>arrange</c> and wait for the user's one-time consent (U3 OQ-W2); not evaluated.</summary>
+    public IReadOnlyList<CompiledRule> AwaitingArrangeConsent { get; init; } = [];
 }

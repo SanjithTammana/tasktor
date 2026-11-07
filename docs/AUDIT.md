@@ -78,7 +78,7 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 | Row | Feature | Status | Missing |
 |---|---|---|---|
 | G1 | Widgets-board widget | **Not started** | `Tasktor.Widget` is a stub; needs MSIX (H8) |
-| G2 | Flyout → shelf, command line, deep window | Built, mostly | the command line's **dimmed desktop**; dialogs: **hook-setup diff (I1), preset review (I5), arrange rule consent**; Settings → **Windows** (waits for F2) |
+| G2 | Flyout → shelf, command line, deep window | Built, mostly | the command line's **dimmed desktop**; dialogs: **preset review (I5)**; Settings → **Windows** (waits for F2) |
 | G3, G4 | Taskbar button, overlay bar | Later (spec) | — |
 | G6 | Tray icon, glance tooltip, menu | Built | — |
 | — | Toasts | Partial | tray balloons (the D-G7 fallback); real toasts with buttons need an app identity (MSIX) |
@@ -87,9 +87,9 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 
 | Row | Feature | Status | Missing |
 |---|---|---|---|
-| I1 | AI agent watch | Partial | the hook-setup **diff dialog** (the install / remove actions exist) |
+| I1 | AI agent watch | Built | hook setup / removal from the card, diff shown in the confirm |
 | I2–I4 | Overlap, meeting, power guards | Built | — |
-| I5 | Workflow presets | Partial | **preset review / Edit screen**; the arrange-consent dialog |
+| I5 | Workflow presets | Partial | **preset review / Edit screen** (arrange consent is done) |
 | I6, I7, I11, I14 | Projects, space report, window watch, connectivity | Built | I11's picker UI |
 | I13 | Event mode | Built | live on / off without a restart (deliberately left, see Interpretations) |
 

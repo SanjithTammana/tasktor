@@ -9,7 +9,20 @@ public sealed record RulesReport
     public required IReadOnlyList<string> Errors { get; init; }
 
     /// <summary>The rules of packs that are on (U5: each starts off until the user ticks it).</summary>
-    public IReadOnlyList<PackRuleInfo> PackRules { get; init; } = [];
+    public IReadOnlyList<PackRuleInfo> PackRules { get; set; } = [];
+
+    /// <summary>Rules that would arrange windows and wait for the user's one-time consent (U3 OQ-W2).</summary>
+    public IReadOnlyList<ArrangeRuleInfo> AwaitingArrange { get; set; } = [];
+}
+
+public sealed record ArrangeRuleInfo
+{
+    public required string Id { get; init; }
+
+    public string? Description { get; init; }
+
+    /// <summary>The presets it would arrange.</summary>
+    public required IReadOnlyList<string> Presets { get; init; }
 }
 
 public sealed record PackRuleInfo

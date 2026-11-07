@@ -402,6 +402,12 @@ public sealed class AgentHost : IAsyncDisposable
         {
             Rules = [.. set.Rules.Select(r => Info(r, true)), .. set.OffRules.Select(r => Info(r, false))],
             Errors = [.. set.Errors.Select(e => e.ToString())],
+            AwaitingArrange = [.. set.AwaitingArrangeConsent.Select(r => new Contracts.Rules.ArrangeRuleInfo
+            {
+                Id = r.Id,
+                Description = r.Rule.Description,
+                Presets = [.. r.Rule.Then.Select(t => t.Arrange).OfType<string>().Distinct(StringComparer.Ordinal)],
+            })],
             PackRules = [.. Plugins.OfferedPackRules().Select(x => new Contracts.Rules.PackRuleInfo
             {
                 Pack = x.Pack.Id,
@@ -676,6 +682,26 @@ public sealed class AgentHost : IAsyncDisposable
                     return Options.Launch("edit:" + path)
                         ? new ActionResult { Action = "rules.edit", Status = ActionStatus.Ok, Message = "Opened rules.json; changes apply when you save" }
                         : new ActionResult { Action = "rules.edit", Status = ActionStatus.Failed, Message = "No editor opened " + path };
+                },
+            };
+        });
+        Router.Register("rule.allow_arrange", req =>
+        {
+            // U3 OQ-W2: the one-time consent that lets this rule call arrange (reversible; it never launches anything).
+            var id = req.Target?.GetValueOrDefault("rule");
+            if (id is null || !Rules.Engine.Rules.AwaitingArrangeConsent.Any(r => r.Id == id))
+            {
+                return new PreparedAction { Summary = "Let a rule arrange windows", Refusal = "No rule is waiting for that consent" };
+            }
+
+            return new PreparedAction
+            {
+                Summary = "Let " + id + " arrange windows",
+                Immediate = new ActionResult { Action = req.Action, Status = ActionStatus.Ok, Message = id + " may now arrange windows" },
+                Done = _ =>
+                {
+                    Consents.GiveArrange(id, Loop.Clock.UtcNow);
+                    ReloadRules();
                 },
             };
         });
