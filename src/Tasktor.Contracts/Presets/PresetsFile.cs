@@ -105,3 +105,32 @@ public sealed record FancyZonesLayout
 
     public required string Layout { get; init; }
 }
+
+/// <summary>
+/// U4 preset review (U3 I5): the windows open now, for "Save open windows as a preset". Personal data (titles, paths,
+/// launch arguments) shown to the user in their own window over the current-user pipe (approved by the owner); never logged.
+/// </summary>
+public sealed record OpenWindowsReport
+{
+    public IReadOnlyList<OpenWindow> Windows { get; set; } = [];
+}
+
+public sealed record OpenWindow
+{
+    /// <summary>The window handle, as text: what <c>preset.save</c> ticks.</summary>
+    public required string Id { get; init; }
+
+    public required string App { get; init; }
+
+    public string? Title { get; init; }
+
+    /// <summary>1-based monitor number in the order Windows lists them, and the window's size in pixels.</summary>
+    public int Monitor { get; init; }
+
+    public int Width { get; init; }
+
+    public int Height { get; init; }
+
+    /// <summary>What "open it if it is not running" would run: exactly this program and these arguments. Null if unknown.</summary>
+    public PresetLaunch? Launch { get; init; }
+}

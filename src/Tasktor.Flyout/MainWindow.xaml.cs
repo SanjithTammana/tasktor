@@ -434,6 +434,77 @@ public sealed partial class MainWindow : Window
         {
             PageContent.Children.Add(Section(section));
         }
+
+        var save = new Button { Content = "Save open windows as a preset…", Margin = new Thickness(0, 12, 0, 0) };
+        save.Click += async (_, _) => await SavePresetAsync();
+        PageContent.Children.Add(save);
+    }
+
+    /// <summary>
+    /// U4 preset review (U3 I5): tick the open windows to keep and, per window, whether to open its app when it is missing;
+    /// the exact program and arguments are shown before saving. The agent re-reads the windows and launches on save.
+    /// </summary>
+    private async Task SavePresetAsync()
+    {
+        Contracts.Presets.OpenWindowsReport? report = null;
+        try
+        {
+            var node = await _snapshot.PullAsync("open_windows");
+            report = node is null ? null : System.Text.Json.JsonSerializer.Deserialize(node, Contracts.ContractsJsonContext.Default.OpenWindowsReport);
+        }
+        catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+        }
+
+        var candidates = WindowsPage.SaveCandidates(report);
+        if (candidates.Count == 0)
+        {
+            await InformAsync("No open windows to save (the Windows module may be off).");
+            return;
+        }
+
+        var name = new TextBox { Header = "Name", MaxLength = 60, PlaceholderText = "e.g. Writing" };
+        var body = new StackPanel { Spacing = 8 };
+        body.Children.Add(name);
+        var picks = new List<(SaveCandidate Row, CheckBox Keep, CheckBox? Launch)>();
+        foreach (var row in candidates)
+        {
+            var keep = new CheckBox { Content = row.Label, IsChecked = true };
+            var item = new StackPanel();
+            item.Children.Add(keep);
+            item.Children.Add(new TextBlock { Text = row.Detail, Margin = new Thickness(28, 0, 0, 0), Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush("TasktorInk3Brush") });
+            CheckBox? launch = null;
+            if (row.LaunchText is { } launchText)
+            {
+                // The exact command, shown before saving; off by default: launching is opt-in per window.
+                launch = new CheckBox { Content = new TextBlock { Text = launchText, TextWrapping = TextWrapping.Wrap, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Mono, Consolas") }, IsChecked = false, Margin = new Thickness(28, 0, 0, 0) };
+                keep.Checked += (_, _) => launch.IsEnabled = true;
+                keep.Unchecked += (_, _) => launch.IsEnabled = false;
+                item.Children.Add(launch);
+            }
+
+            body.Children.Add(item);
+            picks.Add((row, keep, launch));
+        }
+
+        var dialog = new ContentDialog
+        {
+            Title = "Save open windows as a preset",
+            Content = new ScrollViewer { Content = body, MaxHeight = 480 },
+            PrimaryButtonText = "Save",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = Content.XamlRoot,
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
+        var kept = picks.Where(p => p.Keep.IsChecked == true).ToList();
+        await RunAsync(WindowsPage.Save(name.Text, kept.Select(p => p.Row.Id), kept.Where(p => p.Launch?.IsChecked == true).Select(p => p.Row.Id)));
+        _windowsAt = DateTimeOffset.MinValue; // re-read the presets
+        Draw(_snapshot.Mirror.Cards);
     }
 
     private async Task PullWindowsAsync()

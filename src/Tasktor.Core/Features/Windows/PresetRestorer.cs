@@ -91,6 +91,9 @@ public sealed class PresetRestorer(FeatureContext context) : Feature(context)
 
     public Func<long> Timestamp { get; set; } = () => Environment.TickCount64;
 
+    /// <summary>A process's command line, for the launch a saved slot may use ("open it if it is not running").</summary>
+    public Func<uint, string?> CommandLine { get; set; } = _ => null;
+
     public Func<uint, bool> IsFrozen { get; set; } = _ => false;
 
     protected override void OnEnable()
@@ -99,6 +102,8 @@ public sealed class PresetRestorer(FeatureContext context) : Feature(context)
         Context.Router.Register("preset.apply", Apply);
         Context.Router.Register("preset.undo", Undo);
         Context.RegisterPull("presets", _ => PullPresets());
+        Context.RegisterPull("open_windows", _ => JsonSerializer.SerializeToNode(OpenWindows(), ContractsJsonContext.Default.OpenWindowsReport));
+        Context.Router.Register("preset.save", Save);
         Events?.Start(e =>
         {
             _interventions.On(e); // on the source thread: a drag is visible to an in-flight restore at once
@@ -214,6 +219,81 @@ public sealed class PresetRestorer(FeatureContext context) : Feature(context)
     /// The deep window's Windows page (U4 D-G3): each preset's name, slot and launch counts, hotkey and whether an undo is
     /// waiting for it. Never an app path, argument, window title or match pattern.
     /// </summary>
+    /// <summary>
+    /// The windows open now for "Save open windows as a preset" (U4 preset review): app, title, monitor, size, and the
+    /// exact launch each would use. Personal data for the user's own window (owner-approved); never logged.
+    /// </summary>
+    public OpenWindowsReport OpenWindows()
+    {
+        var monitors = Monitors();
+        var map = new MonitorMap(monitors);
+        var list = monitors.ToList();
+        return new OpenWindowsReport
+        {
+            Windows =
+            [
+                .. Windows().Where(w => !IsFrozen(w.Pid)).Select(w => new OpenWindow
+                {
+                    Id = w.Hwnd.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    App = w.AppId,
+                    Title = w.Title.Reveal() is { Length: > 0 } t ? t : null,
+                    Monitor = list.Count == 0 ? 0 : list.FindIndex(m => m.DevicePath == map.Of(w.FramePx).DevicePath) + 1,
+                    Width = w.FramePx.W,
+                    Height = w.FramePx.H,
+                    Launch = LaunchOf(w),
+                }),
+            ],
+        };
+    }
+
+    private PresetLaunch? LaunchOf(WindowInfo w)
+    {
+        if (CommandLine(w.Pid) is not { Length: > 0 } line || CommandLineArgs.Split(line) is not { Count: > 0 } argv)
+        {
+            return null;
+        }
+
+        return new PresetLaunch { Exe = w.Exe ?? argv[0], Args = argv.Count > 1 ? [.. argv.Skip(1)] : null };
+    }
+
+    /// <summary>
+    /// <c>preset.save name=… windows=id,id launch=id,…</c> (people only): the ticked windows as a preset; a slot whose id is
+    /// in <c>launch</c> opens its app if it is missing, with the command line its process runs now (re-read here, never
+    /// taken from the request). A preset with the same name is replaced.
+    /// </summary>
+    private PreparedAction Save(ActionRequest req)
+    {
+        var name = req.Args?.GetValueOrDefault("name")?.Trim();
+        static HashSet<long> Ids(string? csv) => [.. (csv ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(x => long.TryParse(x, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0).Where(v => v != 0)];
+        var ticked = Ids(req.Args?.GetValueOrDefault("windows"));
+        var launch = Ids(req.Args?.GetValueOrDefault("launch"));
+        if (name is not { Length: > 0 and <= 60 })
+        {
+            return new PreparedAction { Summary = "Save as preset", Refusal = "A preset name has 1–60 characters" };
+        }
+
+        var windows = Windows().Where(w => !IsFrozen(w.Pid)).ToList();
+        var chosen = windows.Where(w => ticked.Contains(w.Hwnd)).ToList();
+        if (chosen.Count == 0)
+        {
+            return new PreparedAction { Summary = "Save as preset", Refusal = "Tick at least one open window" };
+        }
+
+        return new PreparedAction
+        {
+            Summary = "Save " + name,
+            Immediate = new ActionResult { Action = req.Action, Status = ActionStatus.Ok, Message = "Saved " + name + ": " + chosen.Count + (chosen.Count == 1 ? " window" : " windows") + (chosen.Count(w => launch.Contains(w.Hwnd) && LaunchOf(w) is not null) is var n and > 0 ? ", " + n + " opens if missing" : string.Empty) },
+            Done = _ =>
+            {
+                var preset = PresetBuilder.FromOpen(name, windows, ticked, new MonitorMap(Monitors()));
+                var slots = preset.Slots.Zip(chosen, (slot, w) => launch.Contains(w.Hwnd) && LaunchOf(w) is { } l ? slot with { Launch = l } : slot).ToList();
+                var file = _store.Current;
+                _store.Save(file with { Presets = [.. file.Presets.Where(p => !string.Equals(p.Name, preset.Name, StringComparison.OrdinalIgnoreCase)), preset with { Slots = slots }] });
+                Context.UpdateState(s => s);
+            },
+        };
+    }
+
     private JsonNode PullPresets()
     {
         var now = Context.Clock.UtcNow;
