@@ -60,14 +60,22 @@ internal sealed class CaptureLifetime : IDisposable
             // Step 6: one logic loop for DeepCapture; the browser's page text and video are posted to it. The secure-desktop
             // and session checks fail closed. The keyboard hook is not attached yet (layout decoding awaits the real-PC check).
             var sessions = new Security.WtsSessionSnapshot(new Security.Win32WtsSessionQuery());
-            _session = new Host.CaptureSession(recorder, endpoint, Core.Time.SystemClock.Instance, new Security.Win32DesktopProbe(), sessions.Read);
+            // C21: the content index exists only encrypted (OQ-C22: SQLCipher). With an engine that cannot encrypt, OpenEncrypted
+            // returns null and nothing is indexed: no plain-text index of what was on screen is ever written.
+            var index = Index.ContentIndex.OpenEncrypted(Path.Combine(store.CaptureDir, "index.db"), key.EncryptionKey("capture-index"));
+            _session = new Host.CaptureSession(recorder, endpoint, Core.Time.SystemClock.Instance, new Security.Win32DesktopProbe(), sessions.Read) { Index = index, Vault = vault };
             _session.Start();
             var control = new CaptureControl(blocks, now)
             {
                 ResolveTab = endpoint.ResolveTab,
                 RecordsToday = () => recorder.RecordsToday,
                 Extensions = endpoint.Connected,
-                ForgetSince = recorder.ForgetSince,
+                ForgetSince = since =>
+                {
+                    var n = recorder.ForgetSince(since);
+                    _session?.ForgetIndex(since); // C21.4: vault and index forget together
+                    return n;
+                },
             };
             control.Changed += endpoint.NotifyBlocksChanged;
 

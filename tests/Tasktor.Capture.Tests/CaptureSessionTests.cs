@@ -2,6 +2,8 @@ using System.Text;
 using Tasktor.Capture.Browser;
 using Tasktor.Capture.Deep;
 using Tasktor.Capture.Host;
+using Tasktor.Capture.Index;
+using Tasktor.Core.Storage;
 using Tasktor.Capture.Recording;
 using Tasktor.Capture.Security;
 using Tasktor.Contracts.Capture;
@@ -19,6 +21,7 @@ public sealed class CaptureSessionTests : IDisposable
     private readonly BrowserEndpoint _endpoint;
     private readonly CaptureSession _session;
     private readonly Probe _probe = new();
+    private readonly ContentIndex _index;
 
     public CaptureSessionTests()
     {
@@ -27,7 +30,8 @@ public sealed class CaptureSessionTests : IDisposable
         _vault = new RawVault(Path.Combine(_dir, "raw"), new byte[32]);
         var recorder = new CaptureRecorder(_vault, blocks, () => _clock.UtcNow);
         _endpoint = new BrowserEndpoint(blocks, () => _clock.UtcNow);
-        _session = new CaptureSession(recorder, _endpoint, _clock, _probe, () => SessionAvailability.UnlockedConnected);
+        _index = ContentIndex.Open(SqliteDb.Open(":memory:"));
+        _session = new CaptureSession(recorder, _endpoint, _clock, _probe, () => SessionAvailability.UnlockedConnected) { Index = _index, Vault = _vault };
     }
 
     public void Dispose()
@@ -114,5 +118,17 @@ public sealed class CaptureSessionTests : IDisposable
         _endpoint.Handle("s1", new BrowserText { At = T0, Tab = 4, Lines = ["late"] });
         _session.Loop.RunPending();
         Assert.Equal(before, Records().Count);
+    }
+
+    [Fact]
+    public void Closed_activities_are_indexed_and_forget_clears_the_index_too()
+    {
+        Browse();
+        _endpoint.Handle("s1", new BrowserText { At = T0, Tab = 4, Lines = ["Quarterly revenue review"] });
+        _session.Loop.RunPending();
+        _session.Stop(); // closes the activity and runs a last ingest
+        Assert.Single(_index.Search("revenue"));
+        Assert.Equal(1, _session.ForgetIndex(T0.AddHours(-1)));
+        Assert.Empty(_index.Search("revenue"));
     }
 }
