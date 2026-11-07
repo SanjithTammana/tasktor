@@ -98,7 +98,7 @@ public sealed class DeepCapture
 
         _runs.Focus(target, ms);
         _focus = target;
-        Field.Hold(target.IsPassword || target.SecureField ? null : value);
+        Field.Hold(target.IsPassword != false || target.SecureField ? null : value);
     }
 
     /// <summary>A walk of a view (UIA or the extension): diff, redact, record, and add the accepted text to its track.</summary>
@@ -220,5 +220,6 @@ public sealed class DeepCapture
 
     private string? Clean(string? text) => text is null ? null : _redactor.Scrub(text).Text;
 }
+
 
 
