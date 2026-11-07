@@ -131,4 +131,19 @@ public sealed class CaptureSessionTests : IDisposable
         Assert.Equal(1, _session.ForgetIndex(T0.AddHours(-1)));
         Assert.Empty(_index.Search("revenue"));
     }
+
+    [Fact]
+    public void A_persons_search_goes_through_the_control_and_finds_the_activity()
+    {
+        Browse();
+        _endpoint.Handle("s1", new BrowserText { At = T0, Tab = 4, Lines = ["Quarterly revenue review"] });
+        _session.Loop.RunPending();
+        _session.Stop();
+        var control = new CaptureControl(new CaptureBlocks(Path.Combine(_dir, "b2.json"), TimeZoneInfo.Utc), () => T0) { Search = _session.Search };
+        var found = control.Handle(new CaptureCommand { Verb = CaptureVerb.Search, ByUser = true, Query = "revenue" });
+        Assert.Null(found.Refusal);
+        Assert.Contains("[revenue]", Assert.Single(found.Hits!).Snippet, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("invalid", control.Handle(new CaptureCommand { Verb = CaptureVerb.Search, ByUser = false, Query = "revenue" }).Refusal); // never a rule
+        Assert.Equal("no_index", new CaptureControl(new CaptureBlocks(Path.Combine(_dir, "b3.json"), TimeZoneInfo.Utc), () => T0).Handle(new CaptureCommand { Verb = CaptureVerb.Search, ByUser = true, Query = "x" }).Refusal);
+    }
 }

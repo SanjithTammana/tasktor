@@ -45,7 +45,7 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 | C18 | Screen text: UIA snapshots + browser text | Partial | browser text wired and recorded; **UIA source** uncommitted on the Codex machine |
 | C19 | Pointer: path, clicks with target, scroll, dwell, visible windows | Partial | the ring carries mouse events and the visibility logic exists; **no pointer pipeline** (clicks, dwell, scroll) and nothing drains mouse events |
 | C20 | Media: SMTC + audio sessions, side tracks | Partial | browser video wired; **SMTC / WASAPI source** uncommitted on the Codex machine |
-| C21 | Content index (FTS5 + embeddings), "Search my activity" | Partial | index + search logic built; **off on disk until SQLCipher is approved**; the search box, reopen links and embeddings |
+| C21 | Content index (FTS5 + embeddings), "Search my activity" | Built, mostly | encrypted index (SQLCipher) + search in the command line; missing: reopen links, forget by app / host, embeddings (G8) |
 | C22 | CLI command log (PSReadLine, OSC 133, shell children) | **Not started** | everything |
 
 ## D. CLI

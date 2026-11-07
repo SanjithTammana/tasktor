@@ -71,6 +71,36 @@
         "null"
       ]
     },
+    "hits": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "track": {
+            "type": "integer"
+          },
+          "snippet": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "snippet"
+        ]
+      }
+    },
     "refusal": {
       "type": [
         "string",

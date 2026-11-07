@@ -127,4 +127,46 @@ public sealed class CommandControllerTests
         c.Update([new Card { Id = "x", Title = "X", Blocks = [] }], Resolver);
         Assert.Equal(label, c.Highlighted!.Label);
     }
+
+    [Fact]
+    public async Task Typing_searches_your_activity_after_a_pause_and_shows_the_hits_last()
+    {
+        var asked = new List<string>();
+        var c = new CommandController(new ActionInvoker((r, _) => Task.FromResult(new ActionResult { Action = r.Action, Status = ActionStatus.Ok }), Origin.Command))
+        {
+            SearchActivity = (q, _) =>
+            {
+                lock (asked)
+                {
+                    asked.Add(q);
+                }
+
+                IReadOnlyList<Contracts.Capture.ActivityHit> hits = q == "revenue"
+                    ? [new() { Start = new DateTimeOffset(2026, 11, 6, 14, 5, 0, TimeSpan.Zero), End = new DateTimeOffset(2026, 11, 6, 14, 20, 0, TimeSpan.Zero), Snippet = "Quarterly [revenue] review" }]
+                    : [];
+                return Task.FromResult<IReadOnlyList<Contracts.Capture.ActivityHit>?>(hits);
+            },
+            SearchDelay = TimeSpan.FromMilliseconds(50),
+            Zone = TimeZoneInfo.Utc,
+        };
+        c.Update([], Resolver);
+        c.Type("re");
+        c.Type("revenue");
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!c.View.Sections.Any(s => s.Heading == "Your activity") && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(20);
+        }
+
+        var section = c.View.Sections.Last();
+        Assert.Equal("Your activity", section.Heading);
+        Assert.Equal("Fri 14:05 · Quarterly [revenue] review", section.Items.Single().Label);
+        lock (asked)
+        {
+            Assert.Equal(["revenue"], asked); // "re" is too short, and the pause means one search per settled query
+        }
+
+        c.Type("revenues");
+        Assert.DoesNotContain(c.View.Sections, s => s.Heading == "Your activity"); // stale hits never show under new text
+    }
 }

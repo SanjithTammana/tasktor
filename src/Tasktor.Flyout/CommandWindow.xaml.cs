@@ -42,7 +42,10 @@ public sealed partial class CommandWindow : Window
             {
                 ui.TryEnqueue(() => a());
             }
-        });
+        })
+        {
+            SearchActivity = SearchActivityAsync, // C21: the agent relays to the capture host's encrypted index
+        };
         _command.Changed += Render;
         _command.Done += HideCommand;
         _command.OpenPage += page =>
@@ -112,6 +115,13 @@ public sealed partial class CommandWindow : Window
 
     private Task<ActionResult> ActAsync(ActionRequest request, CancellationToken ct) =>
         _snapshot.Client is { } client ? client.ActAsync(request, ct) : Task.FromException<ActionResult>(new IOException("not connected"));
+
+    /// <summary>"Search my activity": the agent's <c>activity</c> pull; null when capture is off or has no index.</summary>
+    private async Task<IReadOnlyList<Contracts.Capture.ActivityHit>?> SearchActivityAsync(string query, CancellationToken ct)
+    {
+        var node = await _snapshot.PullAsync("activity", new Dictionary<string, string> { ["q"] = query }, ct: ct);
+        return node is null ? null : System.Text.Json.JsonSerializer.Deserialize(node, Contracts.ContractsJsonContext.Default.IReadOnlyListActivityHit);
+    }
 
     private void Refresh() => _command.Update(_snapshot.Mirror.Cards, new BindingResolver(_snapshot.Mirror.Root));
 
