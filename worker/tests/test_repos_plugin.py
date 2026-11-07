@@ -80,3 +80,35 @@ def test_without_git_the_card_says_so():
 def test_manifest_validates():
     schema = json.loads((ROOT / "schemas" / "tasktor.plugin-1.json").read_text())
     jsonschema.Draft202012Validator(schema).validate(json.loads((ROOT / "plugins-builtin" / "tasktor.repos" / "plugin.json").read_text()))
+
+
+def test_a_git_call_that_times_out_is_skipped_not_fatal(tmp_path):
+    code = make_repos(tmp_path)
+
+    def slow(argv, **kw):
+        raise subprocess.TimeoutExpired(argv, kw.get("timeout"))
+
+    out = plugin.run({"call": "render", "settings": {"folders": str(code)}}, runner=slow)
+    jsonschema.Draft202012Validator(OUTPUT).validate(out)
+    assert out["cards"][0]["blocks"][0]["value"] == 0
+
+
+def test_the_scan_stops_at_its_budget_and_starts_next_run_where_it_stopped(tmp_path):
+    code = make_repos(tmp_path)
+    data = tmp_path / "data"
+    data.mkdir()
+    ticks = iter([0, 0, plugin.BUDGET_S + 1, plugin.BUDGET_S + 1, plugin.BUDGET_S + 1])
+    seen = []
+
+    def runner(argv, **kw):
+        seen.append(kw["cwd"])
+        return subprocess.run(argv, **kw)
+
+    request = {"call": "render", "settings": {"folders": str(code)}, "data_dir": str(data)}
+    out = plugin.run(request, runner=runner, clock=lambda: next(ticks))
+    badges = [b["text"] for b in out["cards"][0]["blocks"] if b["kind"] == "Badge"]
+    assert "Checked 1 of 2 repositories in the time limit; the rest next run" in badges
+    first = seen[0]
+    seen.clear()
+    plugin.run(request, runner=runner, clock=lambda: 0)
+    assert seen[0] != first  # the next run starts with the one it did not reach

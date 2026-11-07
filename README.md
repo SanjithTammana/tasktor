@@ -44,6 +44,10 @@ blocks with literal values. The manifest declares what it reads, which network h
 shows that in a consent dialog, and the consent is pinned to the files' hashes. See `examples/plugins/todo-count/`, and the
 first-party plugins in `plugins-builtin/` (`tasktor.calendar`, `tasktor.repos`).
 
+Writing one: [`docs/plugins.md`](docs/plugins.md). `tasktor plugin new <id>` starts a working plugin, and
+`tasktor plugin check <folder> --run` runs the agent's own checks on it without installing anything. Contributions:
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## Rules and data
 
 - Rules (`%LOCALAPPDATA%\Tasktor\rules.json`, JSON with comments) override the shipped ones by `id`: see `docs/rules.md`.

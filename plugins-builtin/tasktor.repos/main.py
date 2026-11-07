@@ -10,10 +10,13 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import time
 
 MAX_DEPTH = 3
 MAX_REPOS = 200
-GIT_TIMEOUT_S = 20
+GIT_TIMEOUT_S = 15
+# The whole scan stays inside the plugin's 60 s timeout (U1 D-H7); repos not reached are checked first next run.
+BUDGET_S = 45
 SKIP = {"node_modules", ".venv", "venv", "__pycache__", ".tox", "target", "build", "dist", ".cache"}
 
 
@@ -57,12 +60,30 @@ def parse_status(text):
 
 
 def git(args, cwd, runner=subprocess.run):
-    r = runner(["git", *args], cwd=str(cwd), capture_output=True, text=True, timeout=GIT_TIMEOUT_S,
-               env={**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"})
+    try:
+        r = runner(["git", *args], cwd=str(cwd), capture_output=True, text=True, timeout=GIT_TIMEOUT_S,
+                   env={**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"})
+    except (subprocess.TimeoutExpired, OSError):
+        return None  # a slow or broken repo is skipped this run, never fatal
     return r.stdout if r.returncode == 0 else None
 
 
-def run(request, runner=subprocess.run, which=shutil.which):
+def load_offset(data_dir):
+    try:
+        return int(json.loads((pathlib.Path(data_dir) / "scan.json").read_text())["next"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return 0
+
+
+def save_offset(data_dir, value):
+    if data_dir:
+        try:
+            (pathlib.Path(data_dir) / "scan.json").write_text(json.dumps({"next": value}))
+        except OSError:
+            pass
+
+
+def run(request, runner=subprocess.run, which=shutil.which, clock=time.monotonic):
     settings = request.get("settings", {})
     if request.get("call") == "action" and request.get("action") == "open":
         target = (request.get("args") or {}).get("repo")
@@ -75,7 +96,16 @@ def run(request, runner=subprocess.run, which=shutil.which):
         return card([{"kind": "Badge", "priority": 1, "text": "Choose folders to look for repositories in Settings"}])
     fetch = str(settings.get("check_remotes", "false")).lower() in ("true", "1", "yes")
     rows = []
-    for repo in find_repos(folders):
+    repos = find_repos(folders)
+    data_dir = request.get("data_dir")
+    start = load_offset(data_dir) % len(repos) if repos and data_dir else 0
+    order = repos[start:] + repos[:start]
+    began = clock()
+    checked = 0
+    for repo in order:
+        if clock() - began > BUDGET_S:
+            break
+        checked += 1
         if fetch:
             git(["fetch", "--quiet", "--no-tags"], repo, runner)
         out = git(["status", "--porcelain=v2", "--branch"], repo, runner)
@@ -93,6 +123,9 @@ def run(request, runner=subprocess.run, which=shutil.which):
                      {"key": "unpushed", "label": "Unpushed"}, {"key": "behind", "label": "Behind"}],
          "rows": [{k: r[k] for k in ("repo", "path", "dirty", "unpushed", "behind")} for r in attention]},
     ]
+    save_offset(data_dir, (start + checked) % len(repos) if repos and checked < len(repos) else 0)
+    if checked < len(repos):
+        blocks.append({"kind": "Badge", "priority": 2, "text": f"Checked {checked} of {len(repos)} repositories in the time limit; the rest next run"})
     if not fetch:
         blocks.append({"kind": "Badge", "priority": 3, "text": "Behind counts are as of your last fetch"})
     out = card(blocks, "warn" if attention else "normal")

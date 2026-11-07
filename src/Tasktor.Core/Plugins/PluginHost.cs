@@ -343,6 +343,12 @@ public sealed class PluginHost : ICardProvider
     }).ToList();
 
     /// <summary>A pack's rules, only the ticked ones, as a rules file text for the loader (every entry is off until ticked).</summary>
+    /// <summary>The packs that are on (any of their plugins consented) with their rules, ticked or not.</summary>
+    public IEnumerable<(PackEntry Pack, Rule Rule)> OfferedPackRules() =>
+        _packs.Values.Where(p => p.Rules is not null && _plugins.Values.Any(x => x.Pack == p.Id && x.State != PluginLifecycle.Found))
+            .OrderBy(p => p.Id, StringComparer.Ordinal)
+            .SelectMany(p => (p.Rules!.Rules ?? []).Select(r => (p, r)));
+
     public string? TickedPackRules(Func<string, string, bool> isTicked)
     {
         ArgumentNullException.ThrowIfNull(isTicked);
@@ -591,18 +597,8 @@ public sealed class PluginHost : ICardProvider
         }
     }
 
-    /// <summary>The command with <c>{python}</c> substituted; relative paths stay relative to the plugin dir (its working directory).</summary>
-    private List<string> ResolveCommand(PluginManifest m, string dir)
-    {
-        var list = m.Command.Select(c => c == "{python}" ? PythonPath ?? s_pathPython.Value : c).ToList();
-        var first = Path.Combine(dir, list[0]);
-        if (!Path.IsPathRooted(list[0]) && File.Exists(first))
-        {
-            list[0] = first;
-        }
-
-        return list;
-    }
+    /// <summary>The command as authors see it in <c>tasktor plugin check</c> (one resolver: <see cref="PluginCheck"/>).</summary>
+    private List<string> ResolveCommand(PluginManifest m, string dir) => PluginCheck.ResolveCommand(m, dir, PythonPath ?? PluginCheck.PathPython);
 
     /// <summary>SHA-256 of the command's target file: the first command part that is a file inside the plugin dir.</summary>
     private string CommandHash(PluginManifest m, string dir)
@@ -619,24 +615,6 @@ public sealed class PluginHost : ICardProvider
 
         return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\u0000", m.Command))));
     }
-
-    private static readonly Lazy<string> s_pathPython = new(() =>
-    {
-        // No bundled runtime (development, Linux): the first python on PATH.
-        foreach (var name in OperatingSystem.IsWindows() ? new[] { "python.exe", "py.exe" } : ["python3", "python"])
-        {
-            foreach (var dir in (Environment.GetEnvironmentVariable("PATH") ?? string.Empty).Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
-            {
-                var p = Path.Combine(dir, name);
-                if (File.Exists(p))
-                {
-                    return p;
-                }
-            }
-        }
-
-        return "python";
-    });
 
     private static string Quote(string s) => s.Contains(' ', StringComparison.Ordinal) ? "\"" + s + "\"" : s;
 }

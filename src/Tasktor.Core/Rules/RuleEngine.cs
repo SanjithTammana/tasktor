@@ -50,6 +50,10 @@ public sealed class RuleEngine
         return outputs;
     }
 
+    /// <summary>When a rule last fired for any subject (since the agent started), or null.</summary>
+    public DateTimeOffset? LastFired(string ruleId) =>
+        _states.Where(kv => kv.Key.Rule == ruleId).Select(kv => kv.Value.Cooldown.LastFired).Max();
+
     /// <summary>Active (fired, not yet cleared) rule subjects: for the guards card and "Undo".</summary>
     public IEnumerable<(string Rule, string Subject, DateTimeOffset Since)> Active =>
         _states.Where(kv => kv.Value.Active && !kv.Value.Overridden).Select(kv => (kv.Key.Rule, kv.Key.Subject, kv.Value.FiredAt));
