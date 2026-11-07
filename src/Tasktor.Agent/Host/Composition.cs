@@ -417,6 +417,7 @@ internal static class Composition
             Windows = windows ? () => Windows.Shell.Win32Windows.Enumerate(Frozen) : () => [],
             Monitors = windows ? Windows.Shell.Win32Windows.Monitors : () => [],
             IsFrozen = windows ? Frozen : _ => false,
+            CommandLine = windows ? pid => ProcessInfo.CommandLine(new ProcKey(pid, 0)) : _ => null, // a slot's launch, shown before saving
             Move = windows ? move => Windows.Shell.Win32Windows.Place(move.Hwnd, move.Rect, move.Show, Frozen) : _ => false,
             Launch = windows ? exe => Launch(new Contracts.Presets.PresetLaunch { Exe = exe }) : _ => false,
             LaunchWithArgs = windows ? Launch : null,

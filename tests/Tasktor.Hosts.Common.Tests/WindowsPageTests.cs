@@ -61,4 +61,23 @@ public sealed class WindowsPageTests
         var s = WindowsPage.Sections(JsonNode.Parse("""{ "presets": [ { "slots": 2 }, { "name": "Ok", "slots": 1 } ] }"""));
         Assert.Equal(["Ok"], s.Select(x => x.Title));
     }
+
+    [Fact]
+    public void Saving_open_windows_shows_each_window_and_the_exact_launch_before_saving()
+    {
+        var report = new Contracts.Presets.OpenWindowsReport
+        {
+            Windows =
+            [
+                new() { Id = "11", App = "code.exe", Title = "thesis - Code", Monitor = 1, Width = 1280, Height = 800, Launch = new() { Exe = "C:\\Apps\\code.exe", Args = ["--reuse-window", "D:\\my work"] } },
+                new() { Id = "12", App = "chrome.exe", Monitor = 2, Width = 900, Height = 700 },
+            ],
+        };
+        var rows = WindowsPage.SaveCandidates(report);
+        Assert.Equal(("code.exe · thesis - Code", "Monitor 1 · 1280 × 800"), (rows[0].Label, rows[0].Detail));
+        Assert.Equal("Open it if it is not running: C:\\Apps\\code.exe --reuse-window \"D:\\my work\"", rows[0].LaunchText);
+        Assert.Equal(("chrome.exe", null), (rows[1].Label, rows[1].LaunchText)); // no title, no known launch
+        var save = WindowsPage.Save(" Writing ", ["11", "12"], ["11"]);
+        Assert.Equal(("preset.save", "Writing", "11,12", "11"), (save.Action, save.Args!["name"], save.Args["windows"], save.Args["launch"]));
+    }
 }

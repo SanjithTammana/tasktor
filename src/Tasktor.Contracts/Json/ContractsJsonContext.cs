@@ -62,6 +62,7 @@ namespace Tasktor.Contracts;
 [JsonSerializable(typeof(CalendarFile))]
 [JsonSerializable(typeof(ExportManifest))]
 [JsonSerializable(typeof(PresetsFile))]
+[JsonSerializable(typeof(OpenWindowsReport))]
 [JsonSerializable(typeof(PipeMessage))]
 [JsonSerializable(typeof(Tasktor.Contracts.Capture.BrowserMessage))]
 [JsonSerializable(typeof(WorkerSpec))]

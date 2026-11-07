@@ -128,6 +128,7 @@ public static class ActionCatalog
         new("event_mode.stop", ActionClass.Reversible, "Stop event mode", Surface.Flyout | Surface.Tray | Surface.Cli),
         new("preset.arrange", ActionClass.Reversible, "Arrange", Surface.Flyout | Surface.Tray | Surface.Cli, Undo: "preset.undo"),
         new("preset.undo", ActionClass.Reversible, "Undo", Surface.Flyout | Surface.Toast),
+        new("preset.save", ActionClass.Reversible, "Save as preset", Surface.Flyout | Surface.Cli, UserOnly: true),
         new("preset.apply", ActionClass.Reversible, "Apply", Surface.Flyout | Surface.Tray | Surface.Cli, UserOnly: true),
         new("learned.use_fallback", ActionClass.Reversible, "Use default", Surface.None, BuiltinRulesOnly: true),
         new("learned.relearn", ActionClass.Reversible, "Relearn", Surface.Flyout | Surface.Cli, BuiltinRulesOnly: true),
