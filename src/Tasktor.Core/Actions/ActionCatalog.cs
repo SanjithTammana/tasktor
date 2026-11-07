@@ -44,6 +44,8 @@ public static class ActionCatalog
         new("open", ActionClass.Read, "Open", Surface.All),
         new("export.data", ActionClass.Read, "Export my data", Surface.Flyout | Surface.Cli, ConfirmArgs: ["include_raw", "include_capture"]),
         new("settings.export", ActionClass.Read, "Export settings", Surface.Flyout | Surface.Cli),
+        new("settings.page", ActionClass.Reversible, "Show or hide a page", Surface.Flyout, UserOnly: true),
+        new("settings.hotkey", ActionClass.Reversible, "Set the command line's hotkey", Surface.Flyout | Surface.Cli, UserOnly: true),
         new("log.bundle", ActionClass.Read, "Log bundle", Surface.Flyout | Surface.Cli),
         new("proc.open_location", ActionClass.Read, "Open file location", Surface.Flyout | Surface.Widget, ProcessTargets: true),
         new("proc.open_taskmgr", ActionClass.Read, "Open Task Manager", Surface.Flyout | Surface.Widget),
@@ -85,6 +87,8 @@ public static class ActionCatalog
         new("plugin.resume", ActionClass.Reversible, "Resume plugin", Surface.Flyout | Surface.Cli),
         new("plugin.action", ActionClass.Reversible, "Plugin action", Surface.Flyout | Surface.Widget | Surface.Toast),
         new("plugin.enable", ActionClass.Reversible, "Enable plugin", Surface.Flyout, UserOnly: true),
+        new("pack.rule", ActionClass.Reversible, "Tick a pack rule", Surface.Flyout, UserOnly: true),
+        new("plugin.enable_pack", ActionClass.Reversible, "Enable plugin pack", Surface.Flyout, UserOnly: true),
         // Turning a Module on records its consent (U1 H1); both are the user's call, never a rule's.
         new("module.enable", ActionClass.Reversible, "Turn on", Surface.Flyout, UserOnly: true),
         new("module.disable", ActionClass.Reversible, "Turn off", Surface.Flyout | Surface.Cli, UserOnly: true),
@@ -101,6 +105,9 @@ public static class ActionCatalog
         // reversible: alerts, cards, rules, focus, presets, learned
         new("alert.snooze", ActionClass.Reversible, "Snooze", Surface.Flyout | Surface.Toast | Surface.Tray),
         new("alerts.snooze_all", ActionClass.Reversible, "Snooze alerts for 1 hour", Surface.Tray | Surface.Flyout),
+        new("rules.edit", ActionClass.Read, "Edit rules.json", Surface.Flyout | Surface.Cli),
+        new("rule.enable", ActionClass.Reversible, "Turn rule on", Surface.Flyout | Surface.Cli, Undo: "rule.disable", UserOnly: true),
+        new("rule.disable", ActionClass.Reversible, "Turn rule off", Surface.Flyout | Surface.Cli, Undo: "rule.enable", UserOnly: true),
         new("rule.its_fine", ActionClass.Reversible, "It's fine", Surface.Toast | Surface.Flyout),
         new("rule.undo", ActionClass.Reversible, "Undo", Surface.Flyout | Surface.Toast | Surface.Widget),
         new("card.pin", ActionClass.Reversible, "Pin", Surface.Flyout, Undo: "card.unpin"),

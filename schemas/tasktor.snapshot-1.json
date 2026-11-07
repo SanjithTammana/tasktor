@@ -841,6 +841,41 @@
             ]
           }
         },
+        "hotkey": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "keys": {
+              "type": "string"
+            },
+            "registered": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "keys"
+          ]
+        },
+        "hidden_pages": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "pinned": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
         "focus": {
           "type": [
             "object",

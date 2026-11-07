@@ -290,6 +290,18 @@ public sealed class PluginHostTests : IDisposable
         Assert.Equal(Rules.RuleOrigin.Pack, set.Rules[0].Origin);
     }
 
+    [Theory]
+    [InlineData("plugins-builtin/tasktor.calendar")]
+    [InlineData("plugins-builtin/tasktor.repos")]
+    [InlineData("examples/plugins/todo-count")]
+    public void Every_shipped_plugin_passes_the_agents_own_manifest_check(string folder)
+    {
+        // The schema alone missed a 120 s timeout the agent refuses (max 60 s); this is the check the agent runs.
+        var r = PluginCheck.Manifest(Path.Combine(RepoPaths.Root, folder), new Version(1, 0));
+        Assert.True(r.Problem is null, folder + ": " + r.Problem);
+        Assert.Contains(r.Consent, line => line.StartsWith("Runs: ", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void The_example_plugin_works_through_the_host()
     {

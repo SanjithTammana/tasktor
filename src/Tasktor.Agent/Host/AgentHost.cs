@@ -12,6 +12,7 @@ using Tasktor.Core.Loop;
 using Tasktor.Core.State;
 using Tasktor.Core.Storage;
 using Tasktor.Core.Time;
+using Tasktor.Core.Windows;
 
 namespace Tasktor.Agent.Host;
 
@@ -105,6 +106,7 @@ public sealed class AgentHost : IAsyncDisposable
         Archive = new SettingsArchive(Store);
         LoadPause();
         History.Changed += () => UpdateState(s => s with { RecentActions = History.Items.Count == 0 ? null : [.. History.Items] });
+        UpdateState(s => s with { Pinned = Settings.Current.Flyout?.PinnedCards, HiddenPages = Settings.Current.Flyout?.HiddenPages is { Count: > 0 } h ? h : null });
         Router.Finished += (req, result, summary) => History.Record(req, result, summary, Loop.Clock.UtcNow);
         _owned.Add(Loop.Every(TimeSpan.FromMinutes(1), () => History.Prune(Loop.Clock.UtcNow)));
         Router.Completed += (req, result) =>
@@ -228,6 +230,11 @@ public sealed class AgentHost : IAsyncDisposable
     public void AddFeature(Feature feature)
     {
         ArgumentNullException.ThrowIfNull(feature);
+        if (_building is { } module)
+        {
+            _moduleFeatures[module].Add(feature); // built for that Module: removed when it is turned off
+        }
+
         _features.Add(feature);
         Cards.Add(feature);
         feature.Enable();
@@ -240,7 +247,7 @@ public sealed class AgentHost : IAsyncDisposable
         var defaultsPath = Path.Combine(Options.InstallDir, "rules.default.json");
         var defaults = File.Exists(defaultsPath) ? File.ReadAllText(defaultsPath) : null;
         var user = File.Exists(Store.Rules) ? File.ReadAllText(Store.Rules) : null;
-        var pack = Plugins.TickedPackRules((packId, ruleId) => Consents.Current.Modules.ContainsKey("pack:" + packId + ":" + ruleId));
+        var pack = Plugins.TickedPackRules((packId, ruleId) => Consents.Current.Modules.ContainsKey(PackRuleKey(packId, ruleId)));
         var set = RulesLoader.Load(defaults, user, Consents.HasArrangeConsent, pack is null ? null : [pack]);
         Rules.SetRules(set);
         RulesReloaded?.Invoke(set);
@@ -297,12 +304,167 @@ public sealed class AgentHost : IAsyncDisposable
         Publisher.MarkChanged();
     }
 
+    /// <summary>
+    /// Registers the command line's hotkey (the tray's thread owns it), replacing the previous one; false when another
+    /// program holds the combination. Null when there is no tray (tests, headless): the setting is still kept.
+    /// </summary>
+    public Func<Hotkey, bool>? ApplyHotkey { get; set; }
+
+    /// <summary>The configured hotkey at start (after Composition set <see cref="ApplyHotkey"/>).</summary>
+    private void InitHotkey()
+    {
+        if (ApplyHotkey is not { } apply)
+        {
+            return;
+        }
+
+        var h = Hotkey.FromSetting(Settings.Current.Flyout?.Hotkey);
+        var ok = apply(h);
+        UpdateState(s => s with { Hotkey = new Contracts.Snapshot.HotkeyState { Keys = h.ToString(), Registered = ok } });
+    }
+
+    /// <summary><c>settings.hotkey keys=…</c> (people only): register it now and keep it; a taken one keeps the old.</summary>
+    private PreparedAction SetHotkey(ActionRequest req)
+    {
+        if (Hotkey.Parse(req.Args?.GetValueOrDefault("keys"), out var why) is not { } h)
+        {
+            return new PreparedAction { Summary = "Set the hotkey", Refusal = why };
+        }
+
+        var old = Hotkey.FromSetting(Settings.Current.Flyout?.Hotkey);
+        var apply = ApplyHotkey;
+        bool ok = true, oldOk = true;
+        return new PreparedAction
+        {
+            Summary = "Command line hotkey " + h,
+            Run = _ =>
+            {
+                if (apply is not null && !(ok = apply(h)))
+                {
+                    oldOk = apply(old); // put the old one back
+                }
+
+                return ok
+                    ? new ActionResult { Action = req.Action, Status = ActionStatus.Ok, Message = "Command line: " + h }
+                    : new ActionResult { Action = req.Action, Status = ActionStatus.Failed, Message = h + " is used by another program; kept " + old };
+            },
+            Done = _ =>
+            {
+                if (ok)
+                {
+                    Settings.Update(c => c with { Flyout = (c.Flyout ?? new Contracts.Config.FlyoutSettings()) with { Hotkey = h.ToString() } });
+                }
+
+                if (apply is not null)
+                {
+                    UpdateState(s => s with { Hotkey = new Contracts.Snapshot.HotkeyState { Keys = (ok ? h : old).ToString(), Registered = ok || oldOk } });
+                }
+            },
+        };
+    }
+
+    private IDisposable? _rulesReload;
+
+    /// <summary>
+    /// U1 hot reload: rules.json is re-read and validated on every change (an editor's save, a switch, a restore), 300 ms
+    /// after the last write so a save in several steps loads once. Errors go to the error card as at start.
+    /// </summary>
+    private void WatchRules()
+    {
+        _owned.Add(new FileWatch([Store.Rules], () => Loop.Post(() =>
+        {
+            _rulesReload?.Dispose();
+            _rulesReload = Loop.At(Loop.Clock.UtcNow + TimeSpan.FromMilliseconds(300), () =>
+            {
+                _rulesReload = null;
+                ReloadRules();
+            });
+        })));
+    }
+
+    /// <summary>Where a pack rule's tick is kept: the consent store, as <c>pack:&lt;pack&gt;:&lt;rule&gt;</c>.</summary>
+    private static string PackRuleKey(string pack, string rule) => "pack:" + pack + ":" + rule;
+
+    /// <summary>U4 D-G3 Settings → Rules: every rule (on and off), its source and last firing, and the load errors. Loop only.</summary>
+    public Contracts.Rules.RulesReport RulesReport()
+    {
+        var set = Rules.Engine.Rules;
+        static string Source(RuleOrigin o) => o switch { RuleOrigin.Default => "default", RuleOrigin.Pack => "pack", _ => "user" };
+        Contracts.Rules.RuleInfo Info(CompiledRule r, bool on) => new()
+        {
+            Id = r.Id,
+            Description = r.Rule.Description,
+            Source = Source(r.Origin),
+            On = on,
+            LastFired = on ? Rules.Engine.LastFired(r.Id) : null,
+        };
+        return new Contracts.Rules.RulesReport
+        {
+            Rules = [.. set.Rules.Select(r => Info(r, true)), .. set.OffRules.Select(r => Info(r, false))],
+            Errors = [.. set.Errors.Select(e => e.ToString())],
+            PackRules = [.. Plugins.OfferedPackRules().Select(x => new Contracts.Rules.PackRuleInfo
+            {
+                Pack = x.Pack.Id,
+                PackName = x.Pack.Manifest.Name,
+                Id = x.Rule.Id,
+                Description = x.Rule.Description,
+                Ticked = Consents.HasModule(PackRuleKey(x.Pack.Id, x.Rule.Id)),
+            })],
+        };
+    }
+
+    /// <summary>
+    /// <c>rule.enable</c> / <c>rule.disable</c> (people only): a toggle written into rules.json as text (the user's comments
+    /// stay; <see cref="RulesToggle"/>), then the rules reload. A rules.json that is not valid JSON is never overwritten.
+    /// </summary>
+    private PreparedAction SwitchRule(ActionRequest req, bool on)
+    {
+        var id = req.Target?.GetValueOrDefault("rule");
+        var set = Rules.Engine.Rules;
+        if (id is null || (set.Find(id) is null && !set.OffRules.Any(r => r.Id == id)))
+        {
+            return new PreparedAction { Summary = on ? "Turn rule on" : "Turn rule off", Refusal = "No such rule" };
+        }
+
+        var path = Store.Rules;
+        var ok = false;
+        return new PreparedAction
+        {
+            Summary = (on ? "Turn on " : "Turn off ") + id,
+            Run = _ =>
+            {
+                try
+                {
+                    var text = RulesToggle.Apply(File.Exists(path) ? File.ReadAllText(path) : null, id, on);
+                    var tmp = path + ".tmp";
+                    File.WriteAllText(tmp, text);
+                    File.Move(tmp, path, overwrite: true);
+                    ok = true;
+                    return new ActionResult { Action = req.Action, Status = ActionStatus.Ok, Message = (on ? "Turned on " : "Turned off ") + id };
+                }
+                catch (Exception ex) when (ex is FormatException or IOException or UnauthorizedAccessException)
+                {
+                    return new ActionResult { Action = req.Action, Status = ActionStatus.Failed, Message = ex is FormatException f ? f.Message : "Could not write rules.json" };
+                }
+            },
+            Done = _ =>
+            {
+                if (ok)
+                {
+                    ReloadRules();
+                }
+            },
+        };
+    }
+
     /// <summary>Start the loop thread and the pipe; publish the first snapshot (D-H10: start to first snapshot &lt; 1 s).</summary>
     public void Start()
     {
         Loop.Start();
+        Loop.Post(InitHotkey);
         Loop.Post(() => Plugins.Discover(Loop.Clock.UtcNow));
         Loop.Post(() => ReloadRules());
+        Loop.Post(WatchRules);
         Loop.Post(() => Publisher.Publish(force: true));
         Pipe.Start();
     }
@@ -420,16 +582,21 @@ public sealed class AgentHost : IAsyncDisposable
         {
             Summary = (pin ? "Pin " : "Unpin ") + card,
             Immediate = new ActionResult { Action = req.Action, Status = ActionStatus.Ok },
-            Done = _ => Settings.Update(c =>
+            Done = _ =>
             {
-                var list = (c.Flyout?.PinnedCards ?? []).Where(x => x != card).ToList();
-                if (pin)
+                Settings.Update(c =>
                 {
-                    list.Add(card);
-                }
+                    // From the defaults while none were chosen, so the first pin adds to them and unpinning one keeps the rest.
+                    var list = (c.Flyout?.PinnedCards ?? Hosts.Common.Deep.DeepPages.DefaultPinned).Where(x => x != card).ToList();
+                    if (pin)
+                    {
+                        list.Add(card);
+                    }
 
-                return c with { Flyout = (c.Flyout ?? new Contracts.Config.FlyoutSettings()) with { PinnedCards = list.Count == 0 ? null : list } };
-            }),
+                    return c with { Flyout = (c.Flyout ?? new Contracts.Config.FlyoutSettings()) with { PinnedCards = list } }; // empty = nothing pinned
+                });
+                UpdateState(s => s with { Pinned = Settings.Current.Flyout?.PinnedCards }); // the viewer's Home reads it
+            },
         };
     }
 
@@ -454,6 +621,97 @@ public sealed class AgentHost : IAsyncDisposable
         Router.Register("refits.resume", _ => Toggle("Refits resumed", p => p with { Refits = false }));
         Router.Register("open", OpenCard);
         Router.Register("card.pin", req => Pin(req, pin: true));
+        Router.Register("settings.hotkey", SetHotkey);
+        Router.Register("settings.page", req =>
+        {
+            // Settings → Appearance: hide or show a deep-window page. Home, Your data and Settings cannot be hidden.
+            var page = req.Args?.GetValueOrDefault("page");
+            var shown = req.Args?.GetValueOrDefault("shown");
+            if (Hosts.Common.Deep.DeepPages.Hideable.FirstOrDefault(p => p.Id == page) is not { } info || shown is not ("true" or "false"))
+            {
+                return new PreparedAction { Summary = "Show or hide a page", Refusal = "That page cannot be hidden" };
+            }
+
+            var show = shown == "true";
+            return new PreparedAction
+            {
+                Summary = (show ? "Show " : "Hide ") + info.Name,
+                Immediate = new ActionResult { Action = req.Action, Status = ActionStatus.Ok, Message = (show ? "Showing " : "Hid ") + info.Name },
+                Done = _ =>
+                {
+                    Settings.Update(c =>
+                    {
+                        var list = (c.Flyout?.HiddenPages ?? []).Where(p => p != info.Id).ToList();
+                        if (!show)
+                        {
+                            list.Add(info.Id);
+                        }
+
+                        return c with { Flyout = (c.Flyout ?? new Contracts.Config.FlyoutSettings()) with { HiddenPages = list.Count == 0 ? null : list } };
+                    });
+                    UpdateState(s => s with { HiddenPages = Settings.Current.Flyout?.HiddenPages });
+                },
+            };
+        });
+        Router.Register("rules.edit", _ =>
+        {
+            var path = Store.Rules;
+            return new PreparedAction
+            {
+                Summary = "Edit rules.json",
+                Run = _ =>
+                {
+                    try
+                    {
+                        if (!File.Exists(path))
+                        {
+                            File.WriteAllText(path, RulesToggle.Starter); // only when missing: the user's file is never rewritten here
+                        }
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        return new ActionResult { Action = "rules.edit", Status = ActionStatus.Failed, Message = "Could not create rules.json" };
+                    }
+
+                    return Options.Launch("edit:" + path)
+                        ? new ActionResult { Action = "rules.edit", Status = ActionStatus.Ok, Message = "Opened rules.json; changes apply when you save" }
+                        : new ActionResult { Action = "rules.edit", Status = ActionStatus.Failed, Message = "No editor opened " + path };
+                },
+            };
+        });
+        Router.Register("pack.rule", req =>
+        {
+            // U5: a pack's rules all start off; ticking one is the user's consent to it, and loads it.
+            var a = req.Args ?? new Dictionary<string, string>();
+            var (pack, rule, on) = (a.GetValueOrDefault("pack"), a.GetValueOrDefault("rule"), a.GetValueOrDefault("on"));
+            if (on is not ("true" or "false") || !Plugins.OfferedPackRules().Any(x => x.Pack.Id == pack && x.Rule.Id == rule))
+            {
+                return new PreparedAction { Summary = "Tick a pack rule", Refusal = "No such rule in a pack that is on" };
+            }
+
+            var tick = on == "true";
+            return new PreparedAction
+            {
+                Summary = (tick ? "Turn on " : "Turn off ") + rule,
+                Immediate = new ActionResult { Action = req.Action, Status = ActionStatus.Ok, Message = (tick ? "Turned on " : "Turned off ") + rule },
+                Done = _ =>
+                {
+                    if (tick)
+                    {
+                        Consents.GiveModule(PackRuleKey(pack!, rule!), Loop.Clock.UtcNow);
+                    }
+                    else
+                    {
+                        Consents.RevokeModule(PackRuleKey(pack!, rule!));
+                    }
+
+                    ReloadRules();
+                },
+            };
+        });
+        Router.Register("rule.enable", req => SwitchRule(req, on: true));
+        Router.Register("rule.disable", req => SwitchRule(req, on: false));
+        Pipe.RegisterPull("rules", _ => JsonSerializer.SerializeToNode(RulesReport(), ContractsJsonContext.Default.RulesReport));
         Router.Register("card.unpin", req => Pin(req, pin: false));
         Router.Register("status", _ => new PreparedAction { Summary = "status", Immediate = new ActionResult { Action = "status", Status = ActionStatus.Ok } });
         Router.Register("quit", _ => new PreparedAction
@@ -562,7 +820,12 @@ public sealed class AgentHost : IAsyncDisposable
             };
             var cloud = DataExporter.IsCloudSynced(folder);
             return OffLoop(
-                "Export my data to " + folder + (cloud ? " (a cloud-synced folder: files will leave this PC)" : string.Empty),
+                // The confirm dialog shows this line: it names what the include flags add (D-S7: explicit flags + confirmation).
+                "Export my data to " + folder
+                    + (options.IncludeRaw && options.IncludeCapture ? ", including window titles and decrypted capture records"
+                        : options.IncludeRaw ? ", including window titles"
+                        : options.IncludeCapture ? ", including decrypted capture records" : string.Empty)
+                    + (cloud ? " (a cloud-synced folder: files will leave this PC)" : string.Empty),
                 () =>
                 {
                     var r = Exporter.Export(options, since);
@@ -682,10 +945,105 @@ public sealed class AgentHost : IAsyncDisposable
     }
 
     /// <summary>
-    /// The Modules composed at start (Composition reads config.json once); a change made later applies at the next
-    /// start, and the <c>modules</c> pull says which ones wait for it.
+    /// The Modules composed at start. A Module registered with <see cref="RegisterModule"/> starts and stops live; any
+    /// other one (threaded through always-on plumbing) applies at the next start, and the <c>modules</c> pull says so.
     /// </summary>
     private readonly HashSet<string> _modulesAtStart;
+
+    private readonly Dictionary<string, (Action Build, string[] DependsOn)> _moduleBuilders = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, List<Feature>> _moduleFeatures = new(StringComparer.Ordinal);
+    private string? _building;
+
+    /// <summary>
+    /// Composition registers a Module: <paramref name="build"/> adds its features (through <see cref="AddFeature"/>) and
+    /// runs now if the Module is on, and again whenever it is turned on. Modules it depends on (the other overload) are
+    /// wired into it at build time, so it is rebuilt when one of them starts or stops. Loop only.
+    /// </summary>
+    public void RegisterModule(string id, Action build) => RegisterModule(id, [], build);
+
+    /// <inheritdoc cref="RegisterModule(string, Action)"/>
+    public void RegisterModule(string id, string[] dependsOn, Action build)
+    {
+        ArgumentNullException.ThrowIfNull(build);
+        _moduleBuilders[id] = (build, dependsOn);
+        if (Settings.ModuleOn(id))
+        {
+            StartModule(id);
+        }
+    }
+
+    /// <summary>Whether a Module's features run now.</summary>
+    public bool ModuleRunning(string id) =>
+        _moduleBuilders.ContainsKey(id) ? _moduleFeatures.ContainsKey(id) : _modulesAtStart.Contains(id);
+
+    private void StartModule(string id)
+    {
+        if (_moduleFeatures.ContainsKey(id) || !_moduleBuilders.TryGetValue(id, out var m))
+        {
+            return;
+        }
+
+        _moduleFeatures[id] = [];
+        _building = id;
+        try
+        {
+            m.Build();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("module.start", LogField.Of("id", id), LogField.Of("type", ex.GetType().Name), LogField.Of("at", ErrorWhere.Of(ex)));
+            StopModule(id); // a Module that failed to build runs nothing
+        }
+        finally
+        {
+            _building = null;
+        }
+    }
+
+    private void StopModule(string id)
+    {
+        if (!_moduleFeatures.Remove(id, out var features))
+        {
+            return;
+        }
+
+        foreach (var f in Enumerable.Reverse(features))
+        {
+            f.Disable();
+            _features.Remove(f);
+            Cards.Remove(f);
+        }
+
+        Publisher.MarkChanged();
+        Rules.MarkDirty();
+    }
+
+    /// <summary>Turn a registered Module on or off now, and rebuild the running Modules wired to it. False: needs a restart.</summary>
+    private bool ApplyModule(string id, bool on)
+    {
+        if (!_moduleBuilders.ContainsKey(id))
+        {
+            return false;
+        }
+
+        if (on)
+        {
+            StartModule(id);
+        }
+        else
+        {
+            StopModule(id);
+        }
+
+        foreach (var dependent in _moduleBuilders.Where(kv => kv.Value.DependsOn.Contains(id) && _moduleFeatures.ContainsKey(kv.Key)).Select(kv => kv.Key).ToList())
+        {
+            StopModule(dependent);
+            StartModule(dependent);
+        }
+
+        Publisher.MarkChanged();
+        return true;
+    }
 
     /// <summary>
     /// <c>module.enable</c> / <c>module.disable</c> (user only): turning a Module on records its consent (U1 H1) and sets
@@ -707,7 +1065,7 @@ public sealed class AgentHost : IAsyncDisposable
                 return new PreparedAction { Summary = "Turn on Capture", Refusal = "Capture is turned on from its own consent screen" };
             }
 
-            var restart = on != _modulesAtStart.Contains(info.Id);
+            var restart = !_moduleBuilders.ContainsKey(info.Id) && on != _modulesAtStart.Contains(info.Id);
             var message = (on ? "Turned on " : "Turned off ") + info.Name + (restart ? ". Restart Tasktor to apply it." : ".");
             return new PreparedAction
             {
@@ -721,6 +1079,7 @@ public sealed class AgentHost : IAsyncDisposable
                     }
 
                     Settings.Update(c => c with { Modules = new Dictionary<string, bool>(c.Modules ?? new Dictionary<string, bool>(), StringComparer.Ordinal) { [info.Id] = on } });
+                    ApplyModule(info.Id, on);
                     Log.Info("module", LogField.Of("id", info.Id), LogField.Of("on", on ? "true" : "false"));
                 },
             };
@@ -735,15 +1094,39 @@ public sealed class AgentHost : IAsyncDisposable
                 {
                     Id = m.Id,
                     On = Settings.ModuleOn(m.Id),
-                    Running = _modulesAtStart.Contains(m.Id),
+                    Running = ModuleRunning(m.Id),
                     Consented = Consents.HasModule(m.Id),
                 })],
             },
             ContractsJsonContext.Default.ModulesReport));
     }
 
+    /// <summary>U4 Settings → Plugins: every plugin folder, its state and its consent facts (U1 D-H7). Loop only.</summary>
+    public Contracts.Plugins.PluginsReport PluginsReport() => new()
+    {
+        Plugins = [.. Plugins.Statuses().Select(st =>
+        {
+            var c = Plugins.ConsentView(st.Id);
+            return new Contracts.Plugins.PluginInfo
+            {
+                Id = st.Id,
+                Name = c?.Name ?? st.Id,
+                Author = c?.Author,
+                State = st.State,
+                Error = st.Error,
+                Reads = c?.Reads ?? [],
+                Network = c?.Network ?? [],
+                Actions = c?.Actions ?? [],
+                CommandLine = c?.CommandLine,
+                Pack = c?.Pack,
+            };
+        })],
+        Packs = [.. Plugins.Packs.Where(p => p.Problem is null).OrderBy(p => p.Id, StringComparer.Ordinal).Select(p => new Contracts.Plugins.PackInfo { Id = p.Id, Name = p.Manifest.Name, Author = p.Manifest.Author })],
+    };
+
     private void RegisterPluginHandlers()
     {
+        Pipe.RegisterPull("plugins", _ => JsonSerializer.SerializeToNode(PluginsReport(), ContractsJsonContext.Default.PluginsReport));
         PreparedAction Plugin(ActionRequest req, Func<string, PreparedAction> make)
         {
             var id = req.Target?.GetValueOrDefault("plugin");
@@ -760,6 +1143,17 @@ public sealed class AgentHost : IAsyncDisposable
         };
 
         Router.Register("plugin.enable", req => Plugin(req, id => Now("Turned on " + id, () => Plugins.Enable(id, Loop.Clock.UtcNow))));
+        Router.Register("plugin.enable_pack", req =>
+        {
+            // D-H7: one consent for every plugin in the pack (the dialog listed each one's facts).
+            var id = req.Target?.GetValueOrDefault("pack");
+            if (Plugins.Packs.FirstOrDefault(p => p.Id == id && p.Problem is null) is not { } pack)
+            {
+                return new PreparedAction { Summary = "plugin pack", Refusal = "No such pack" };
+            }
+
+            return Now("Turned on " + pack.Manifest.Name, () => Plugins.EnablePack(pack.Id, Loop.Clock.UtcNow) > 0);
+        });
         Router.Register("plugin.disable", req => Plugin(req, id => Now("Turned off " + id, () =>
         {
             Plugins.Disable(id);

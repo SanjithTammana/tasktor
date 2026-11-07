@@ -68,4 +68,45 @@ public sealed class AllModulesTests
         Assert.Contains("module.focus", cards);
         Assert.Contains("module.agents", cards);
     }
+
+    [Fact]
+    public async Task Modules_start_and_stop_without_a_restart_and_dependents_are_rebuilt()
+    {
+        using var store = new TempStore();
+        await using var host = Composition.Create(store.Layout);
+        host.Start();
+        async Task<Contracts.Actions.ActionResult> Act(string action, string module) =>
+            await (await host.Loop.InvokeAsync(() => host.Router.Submit(new Contracts.Actions.ActionRequest { Action = action, Origin = Contracts.Actions.Origin.Flyout, Target = new Dictionary<string, string> { ["module"] = module } }))).WaitAsync(TimeSpan.FromSeconds(10));
+        Task<List<string>> Ids() => host.Loop.InvokeAsync(() => host.Features.Select(f => f.Id).ToList()).WaitAsync(TimeSpan.FromSeconds(10));
+        Task<List<string>> CardIds() => host.Loop.InvokeAsync(() => host.Features.SelectMany(f => f.Cards()).Select(c => c.Id).ToList()).WaitAsync(TimeSpan.FromSeconds(10));
+        Task<Core.Features.Feature?> Find(string id) => host.Loop.InvokeAsync(() => host.Features.FirstOrDefault(f => f.Id == id)).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.DoesNotContain("focus", await Ids());
+        var on = await Act("module.enable", "focus");
+        Assert.Equal("Turned on Focus.", on.Message); // no "restart" any more
+        Assert.Contains("focus", await Ids());
+        Assert.Contains("module.focus", await CardIds());
+        Assert.True(await host.Loop.InvokeAsync(() => host.ModuleRunning("focus")));
+
+        await Act("module.enable", "projects");
+        var focusBefore = await Find("focus");
+        var projectsBefore = await Find("projects");
+        await Act("module.enable", "tracking");
+        Assert.Same(focusBefore, await Find("focus")); // Focus asks for tracking when it needs it: a running block survives
+        var projectsAfter = await Find("projects");
+        Assert.NotNull(projectsAfter);
+        Assert.NotSame(projectsBefore, projectsAfter); // Projects subscribes to tracking's events: rebuilt onto the new one
+        Assert.False(projectsBefore!.Enabled);
+        await Act("module.disable", "tracking");
+        Assert.Same(focusBefore, await Find("focus"));
+
+        Assert.Equal("Turned off Focus.", (await Act("module.disable", "focus")).Message);
+        Assert.DoesNotContain("focus", await Ids());
+        Assert.DoesNotContain("module.focus", await CardIds());
+        Assert.False(await host.Loop.InvokeAsync(() => host.ModuleRunning("focus")));
+
+        // Event mode is threaded through always-on plumbing: it still applies at the next start.
+        Assert.Equal("Turned on Event mode. Restart Tasktor to apply it.", (await Act("module.enable", "event_mode")).Message);
+        Assert.False(await host.Loop.InvokeAsync(() => host.ModuleRunning("event_mode")));
+    }
 }

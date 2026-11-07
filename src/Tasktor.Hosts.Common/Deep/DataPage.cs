@@ -71,4 +71,24 @@ public static class DataPage
 
     private static string Day(DateTimeOffset at, TimeZoneInfo zone) =>
         TimeZoneInfo.ConvertTime(at, zone).ToString("d MMM yyyy", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// D-S7 "Your data → Export": the agent writes CSV + JSONL per table and a manifest to a new folder under Documents.
+    /// Window titles (<c>events_raw</c>) and decrypted capture records go in only when ticked, and then the agent asks first.
+    /// </summary>
+    public static CardAction Export(bool includeRaw, bool includeCapture)
+    {
+        var args = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (includeRaw)
+        {
+            args["include_raw"] = "true";
+        }
+
+        if (includeCapture)
+        {
+            args["include_capture"] = "true";
+        }
+
+        return new CardAction { Id = "export", Label = "Export my data", Action = "export.data", Args = args.Count == 0 ? null : args };
+    }
 }

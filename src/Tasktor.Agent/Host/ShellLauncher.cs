@@ -13,6 +13,22 @@ internal static class ShellLauncher
         ArgumentException.ThrowIfNullOrEmpty(target);
         try
         {
+            if (target.StartsWith("edit:", StringComparison.Ordinal))
+            {
+                // The file's "edit" verb; a .json without one opens in Notepad (an editor, never a browser).
+                var file = target[5..];
+                try
+                {
+                    using var edit = Process.Start(new ProcessStartInfo(file) { UseShellExecute = true, Verb = "edit" });
+                    return true;
+                }
+                catch (System.ComponentModel.Win32Exception) when (OperatingSystem.IsWindows())
+                {
+                    using var notepad = Process.Start(new ProcessStartInfo("notepad.exe") { ArgumentList = { file }, UseShellExecute = false });
+                    return notepad is not null;
+                }
+            }
+
             if (target.StartsWith("select:", StringComparison.Ordinal))
             {
                 var path = target[7..];

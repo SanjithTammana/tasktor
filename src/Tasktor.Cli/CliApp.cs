@@ -18,7 +18,7 @@ namespace Tasktor.Cli;
 /// <c>cli</c>; the agent's router decides. Destructive verbs need <c>--yes</c> and <c>cli.allow_destructive</c>.
 /// <c>job set</c> and <c>agent-hook</c> write their files directly and work without the agent.
 /// </summary>
-public static class CliApp
+public static partial class CliApp
 {
     public const string Usage = """
         usage: tasktor <command> [options]
@@ -38,6 +38,10 @@ public static class CliApp
           preset apply|arrange <name>
           log verbose on|off | log bundle [--to PATH]
           agent-hook <working|needs-permission|waiting|ended> [--agent NAME]   (reads the hook JSON on stdin)
+          plugin new <id> [--to DIR]                 a working plugin folder to start from
+          plugin check <folder> [--run] [--set key=value]... [--action ID]
+                                                    the agent's checks and its consent facts, offline;
+                                                    --run runs it once and checks the output
           uninstall --yes
 
         exit codes: 0 ok · 1 error · 2 refused by policy or guard · 3 agent not running · 4 needs confirm
@@ -65,6 +69,7 @@ public static class CliApp
                 "log" => await LogVerb(a, io).ConfigureAwait(false),
                 "agent-hook" => AgentHook(a, io),
                 "uninstall" => await Act(io, a, "uninstall", null).ConfigureAwait(false),
+                "plugin" => await Plugin(a, io).ConfigureAwait(false),
                 "help" or "--help" or "-h" or null => Help(io),
                 _ => Bad(io, "unknown command: " + a.Verb),
             };
@@ -532,8 +537,13 @@ public static class CliApp
     {
         private static readonly HashSet<string> Flags = new(StringComparer.Ordinal)
         {
-            "--json", "--cards", "--yes", "--freeze", "--polite", "--include-raw", "--include-capture", "--include-learned", "--include-notes",
+            "--json", "--cards", "--yes", "--freeze", "--polite", "--include-raw", "--include-capture", "--include-learned", "--include-notes", "--run",
         };
+
+        /// <summary>Options that may repeat (<c>--set a=1 --set b=2</c>).</summary>
+        private static readonly HashSet<string> Repeatable = new(StringComparer.Ordinal) { "--set" };
+
+        private readonly Dictionary<string, List<string>> _many = new(StringComparer.Ordinal);
 
         private readonly List<string> _positional = [];
         private readonly HashSet<string> _flags = new(StringComparer.Ordinal);
@@ -549,6 +559,15 @@ public static class CliApp
                     if (Flags.Contains(x) || i + 1 >= args.Length)
                     {
                         _flags.Add(x);
+                    }
+                    else if (Repeatable.Contains(x))
+                    {
+                        if (!_many.TryGetValue(x, out var list))
+                        {
+                            _many[x] = list = [];
+                        }
+
+                        list.Add(args[++i]);
                     }
                     else
                     {
@@ -573,6 +592,8 @@ public static class CliApp
         public bool Flag(string name) => _flags.Contains(name);
 
         public string? Opt(string name) => _opts.GetValueOrDefault(name);
+
+        public IReadOnlyList<string> Many(string name) => _many.GetValueOrDefault(name) ?? [];
 
         public double? OptDouble(string name) => Opt(name) is { } v ? double.Parse(v, CultureInfo.InvariantCulture) : null;
 

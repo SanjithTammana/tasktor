@@ -86,12 +86,14 @@ public static class RulesLoader
 
         var compiled = new List<CompiledRule>();
         var disabled = new HashSet<string>(StringComparer.Ordinal);
+        var off = new List<CompiledRule>();
         foreach (var id in order)
         {
             var (rule, origin, line) = byId[id];
             if (rule.Enabled == false)
             {
                 disabled.Add(id);
+                off.Add(new CompiledRule(rule, origin, line, TimeSpan.Zero, TimeSpan.Zero));
                 continue;
             }
 
@@ -105,7 +107,7 @@ public static class RulesLoader
             compiled.Add(new CompiledRule(rule, origin, line, Dur(rule.HoldFor), Dur(rule.Cooldown)));
         }
 
-        return new RuleSet(compiled, errors, groups, grouping) { Disabled = disabled };
+        return new RuleSet(compiled, errors, groups, grouping) { Disabled = disabled, OffRules = off };
     }
 
     private sealed record Parsed(RulesFile? File, List<(Rule Rule, RuleOrigin Origin, int Line)> Rules);

@@ -79,6 +79,15 @@ public sealed record SnapshotState
     /// <summary>Undoable actions of the last 30 minutes, newest first (U4 D-G3 Home "Undo"; the shelf's timeline).</summary>
     public IReadOnlyList<RecentAction>? RecentActions { get; init; }
 
+    /// <summary>The command line's hotkey and whether Windows accepted it (another program may hold it). Null without a tray.</summary>
+    public HotkeyState? Hotkey { get; init; }
+
+    /// <summary>Deep-window pages the user hid (Settings → Appearance); null when none.</summary>
+    public IReadOnlyList<string>? HiddenPages { get; init; }
+
+    /// <summary>Cards pinned to Home, in order (U4 D-G3). Null = never chosen: the defaults (System, Jobs, Workflow); empty = none.</summary>
+    public IReadOnlyList<string>? Pinned { get; init; }
+
     public FocusState? Focus { get; init; }
 
     public ConnectivityState? Connectivity { get; init; }
@@ -451,6 +460,14 @@ public sealed record AgentSessionRow
     public DateTimeOffset? Since { get; init; }
 
     public double? CoresNow { get; init; }
+}
+
+public sealed record HotkeyState
+{
+    /// <summary>Canonical text, e.g. <c>Win+Alt+T</c>.</summary>
+    public required string Keys { get; init; }
+
+    public bool Registered { get; init; }
 }
 
 public sealed record CaptureState

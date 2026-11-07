@@ -28,6 +28,18 @@ public sealed class DeepPagesTests
         Assert.Equal(["core.system", "module.ports"], DeepPages.CardsFor("system", cards).Select(c => c.Id));
         Assert.Empty(DeepPages.CardsFor("settings", cards));
         Assert.Empty(DeepPages.CardsFor("nope", cards));
+        Assert.Empty(DeepPages.CardsFor("home", cards, [])); // an empty list is "nothing pinned"; only null means the defaults
+    }
+
+    [Fact]
+    public void Each_card_offers_pin_or_unpin_from_the_current_pins()
+    {
+        var pin = DeepPages.PinAction("module.ports", pinned: null);
+        Assert.Equal(("Pin to Home", "card.pin", "module.ports"), (pin.Label, pin.Action, pin.Target!["card"]));
+        Assert.Equal(("Unpin from Home", "card.unpin"), (DeepPages.PinAction("core.jobs", null).Label, DeepPages.PinAction("core.jobs", null).Action)); // a default
+        Assert.Equal("card.pin", DeepPages.PinAction("core.jobs", []).Action);
+        Assert.Equal(["a", "b"], DeepPages.Pinned(System.Text.Json.Nodes.JsonNode.Parse("""{"state":{"pinned":["a","b",3]}}""")));
+        Assert.Null(DeepPages.Pinned(System.Text.Json.Nodes.JsonNode.Parse("""{"state":{}}""")));
     }
 
     [Fact]
@@ -51,5 +63,20 @@ public sealed class DeepPagesTests
         Assert.Equal("data", DeepPages.Normalize("data"));
         Assert.Equal("home", DeepPages.Normalize(null));
         Assert.Equal("home", DeepPages.Normalize("../etc"));
+    }
+
+    [Fact]
+    public void Hidden_pages_leave_the_rail_but_home_your_data_and_settings_never_do()
+    {
+        Card[] cards = [C("core.system"), C("module.focus")];
+        var shown = DeepPages.Visible(cards, ["jobs", "focus", "data", "settings", "home", "nope"]).Select(p => p.Id).ToList();
+        Assert.DoesNotContain("jobs", shown);
+        Assert.DoesNotContain("focus", shown);
+        Assert.Contains("home", shown);
+        Assert.Contains("data", shown); // forget and export stay reachable (U4)
+        Assert.Contains("settings", shown);
+        Assert.Equal(["system", "jobs", "activity", "learned", "focus", "windows"], DeepPages.Hideable.Select(p => p.Id));
+        Assert.Equal(["a", "b"], DeepPages.HiddenPages(System.Text.Json.Nodes.JsonNode.Parse("""{"state":{"hidden_pages":["a","b"]}}""")));
+        Assert.Empty(DeepPages.HiddenPages(System.Text.Json.Nodes.JsonNode.Parse("""{"state":{}}""")));
     }
 }

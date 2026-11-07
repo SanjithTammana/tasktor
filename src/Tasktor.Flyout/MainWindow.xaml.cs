@@ -61,7 +61,7 @@ public sealed partial class MainWindow : Window
     private void Refresh(bool fromSnapshot)
     {
         var cards = _snapshot.Mirror.Cards;
-        var visible = DeepPages.Visible(cards);
+        var visible = DeepPages.Visible(cards, DeepPages.HiddenPages(_snapshot.Mirror.Root));
         if (!visible.Any(p => p.Id == _page))
         {
             _page = DeepPages.Home; // its Module was turned off
@@ -140,7 +140,8 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        var shown = DeepPages.CardsFor(_page, cards);
+        var pinned = DeepPages.Pinned(_snapshot.Mirror.Root); // null = the defaults
+        var shown = DeepPages.CardsFor(_page, cards, pinned);
         if (shown.Count == 0 && _page != "data")
         {
             PageContent.Children.Add(Text(_snapshot.Connected ? "Nothing to show on this page yet." : "Tasktor is not running.", "TasktorInk2Brush"));
@@ -150,11 +151,17 @@ public sealed partial class MainWindow : Window
         var renderer = new RowRenderer(DateTimeOffset.Now);
         foreach (var card in shown)
         {
-            PageContent.Children.Add(Section(renderer.Render(CardFitter.Fit(card, FitTarget.Flyout, resolver), resolver)));
+            var rows = renderer.Render(CardFitter.Fit(card, FitTarget.Flyout, resolver), resolver);
+            // Pin / Unpin is the window's own control, added after fitting so it never displaces the card's actions.
+            PageContent.Children.Add(Section(rows with { Actions = [.. rows.Actions, DeepPages.PinAction(card.Id, pinned)] }));
         }
     }
 
     /// <summary>"Your data": the agent's scan as sections with a two-step Forget each; re-pulled every 15 s while shown.</summary>
+    private bool _exportRaw;
+    private bool _exportCapture;
+    private bool _exporting;
+
     private void DrawData()
     {
         var fresh = _data is null ? TimeSpan.FromSeconds(2) : TimeSpan.FromSeconds(15);
@@ -174,6 +181,44 @@ public sealed partial class MainWindow : Window
         {
             PageContent.Children.Add(Section(section));
         }
+
+        DrawExport();
+    }
+
+    /// <summary>D-S7 Export: CSV + JSONL per table to a new folder; titles and capture records only when ticked (the agent asks).</summary>
+    private void DrawExport()
+    {
+        PageContent.Children.Add(new TextBlock { Text = "Export", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+        PageContent.Children.Add(Text("A copy of what Tasktor keeps, as CSV and JSONL files with a manifest, in a new folder under Documents. The files are plain text.", "TasktorInk2Brush"));
+        // The page is redrawn after every 15 s re-count: the ticks and the running export live in fields, not in the controls.
+        var raw = new CheckBox { Content = "Include window titles (the last 30 days of raw events)", IsChecked = _exportRaw };
+        raw.Click += (_, _) => _exportRaw = raw.IsChecked == true;
+        var capture = new CheckBox { Content = "Include capture records, decrypted (the last 7 days)", IsChecked = _exportCapture };
+        capture.Click += (_, _) => _exportCapture = capture.IsChecked == true;
+        var go = new Button { Content = _exporting ? "Exporting…" : "Export my data", IsEnabled = !_exporting, Style = StyleOf("AccentButtonStyle"), Margin = new Thickness(0, 8, 0, 0) };
+        go.Click += async (_, _) =>
+        {
+            _exporting = true;
+            go.IsEnabled = false;
+            try
+            {
+                if (await RunAsync(DataPage.Export(_exportRaw, _exportCapture)) is { Ok: true, Result.Message: { } done })
+                {
+                    await OnUi(() => InformAsync(done)); // where the files went
+                }
+            }
+            finally
+            {
+                _exporting = false;
+                if (_page == "data")
+                {
+                    Draw(_snapshot.Mirror.Cards);
+                }
+            }
+        };
+        PageContent.Children.Add(raw);
+        PageContent.Children.Add(capture);
+        PageContent.Children.Add(go);
     }
 
     private System.Text.Json.Nodes.JsonNode? _learned;
@@ -327,6 +372,33 @@ public sealed partial class MainWindow : Window
             _ = PullModulesAsync();
         }
 
+        if (SettingsPage.Hotkey(_snapshot.Mirror.Root) is { } hotkey)
+        {
+            PageContent.Children.Add(new TextBlock { Text = "General", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+            var row = new Grid { MinHeight = 56, ColumnSpacing = 8 };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = "Command line shortcut", Style = StyleOf("TasktorBodyTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+            text.Children.Add(new TextBlock { Text = hotkey.Note ?? "For example Win+Alt+T or Ctrl+Shift+Space", TextWrapping = TextWrapping.Wrap, Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush(hotkey.Note is null ? "TasktorInk3Brush" : "TasktorInkBrush") });
+            row.Children.Add(text);
+            var box = new TextBox { Text = hotkey.Keys, MinWidth = 180, VerticalAlignment = VerticalAlignment.Center };
+            AutomationProperties.SetName(box, "Command line shortcut");
+            Grid.SetColumn(box, 1);
+            row.Children.Add(box);
+            var change = new Button { Content = "Change", VerticalAlignment = VerticalAlignment.Center };
+            change.Click += async (_, _) =>
+            {
+                await RunAsync(SettingsPage.SetHotkey(box.Text)); // the result (or why it was refused) shows as usual
+                Draw(_snapshot.Mirror.Cards);
+            };
+            Grid.SetColumn(change, 2);
+            row.Children.Add(change);
+            PageContent.Children.Add(row);
+            PageContent.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
+        }
+
         PageContent.Children.Add(new TextBlock { Text = "Modules", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
         var list = new StackPanel();
         foreach (var row in SettingsPage.Modules(_modules))
@@ -348,6 +420,257 @@ public sealed partial class MainWindow : Window
         }
 
         PageContent.Children.Add(list);
+
+        DrawRules();
+        DrawPlugins();
+        DrawAppearance();
+    }
+
+    /// <summary>Settings → Appearance (U4): hide pages from the rail; Home, Your data and Settings always stay.</summary>
+    private void DrawAppearance()
+    {
+        PageContent.Children.Add(new TextBlock { Text = "Appearance", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 16, 0, 0) });
+        PageContent.Children.Add(Text("Pages shown in the list on the left. Home, Your data and Settings are always there.", "TasktorInk2Brush"));
+        var hidden = DeepPages.HiddenPages(_snapshot.Mirror.Root);
+        var list = new StackPanel();
+        foreach (var page in DeepPages.Hideable)
+        {
+            var grid = new Grid { MinHeight = 48 };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.Children.Add(new TextBlock { Text = page.Name, VerticalAlignment = VerticalAlignment.Center, Style = StyleOf("TasktorBodyTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+            var on = !hidden.Contains(page.Id);
+            var toggle = new ToggleSwitch { IsOn = on, OnContent = "Shown", OffContent = "Hidden", VerticalAlignment = VerticalAlignment.Center };
+            AutomationProperties.SetName(toggle, page.Name);
+            toggle.Toggled += async (_, _) =>
+            {
+                if (toggle.IsOn != on)
+                {
+                    await RunAsync(SettingsPage.ShowPage(page.Id, toggle.IsOn)); // the rail follows the next snapshot
+                }
+            };
+            Grid.SetColumn(toggle, 1);
+            grid.Children.Add(toggle);
+            list.Children.Add(grid);
+            list.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
+        }
+
+        PageContent.Children.Add(list);
+    }
+
+    private Contracts.Plugins.PluginsReport? _plugins;
+    private bool _pullingPlugins;
+
+    /// <summary>Settings → Plugins (U1 D-H7): each folder; turning one on shows its consent first (what it reads, contacts, runs).</summary>
+    private void DrawPlugins()
+    {
+        if (_plugins is null && !_pullingPlugins)
+        {
+            _pullingPlugins = true;
+            _ = PullPluginsAsync();
+        }
+
+        var rows = SettingsPage.Plugins(_plugins);
+        PageContent.Children.Add(new TextBlock { Text = "Plugins", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 16, 0, 0) });
+        if (_plugins is not null && rows.Count == 0)
+        {
+            PageContent.Children.Add(Text("No plugins. A plugin is a folder with a plugin.json in Tasktor's plugins folder.", "TasktorInk2Brush"));
+        }
+
+        var list = new StackPanel();
+        foreach (var row in rows)
+        {
+            var grid = new Grid { MinHeight = 56 };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = row.Title, Style = StyleOf("TasktorBodyTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+            text.Children.Add(new TextBlock { Text = row.Note, TextWrapping = TextWrapping.Wrap, Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush("TasktorInk3Brush") });
+            grid.Children.Add(text);
+            var toggle = new ToggleSwitch { IsOn = row.On, OnContent = "On", OffContent = "Off", VerticalAlignment = VerticalAlignment.Center };
+            AutomationProperties.SetName(toggle, row.Title);
+            toggle.Toggled += async (_, _) =>
+            {
+                if (toggle.IsOn == row.On)
+                {
+                    return;
+                }
+
+                // D-H7: a plugin from a pack is turned on with its whole pack, through the pack's one dialog.
+                var pack = toggle.IsOn && row.Info.Pack is { } packId ? SettingsPage.PackConsent(_plugins, packId) : null;
+                if (toggle.IsOn)
+                {
+                    var dialog = new ContentDialog
+                    {
+                        Title = "Turn on " + (pack?.Pack.Name ?? row.Title) + "?",
+                        Content = new ScrollViewer { Content = new TextBlock { Text = pack?.Text ?? SettingsPage.PluginConsent(row.Info), TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true } },
+                        PrimaryButtonText = "Turn on",
+                        CloseButtonText = "Not now",
+                        DefaultButton = ContentDialogButton.Close,
+                        XamlRoot = Content.XamlRoot,
+                    };
+                    if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+                    {
+                        toggle.IsOn = false;
+                        return;
+                    }
+                }
+
+                await RunAsync(pack is { } p ? SettingsPage.EnablePack(p.Pack.Id) : SettingsPage.SwitchPlugin(row, toggle.IsOn));
+                _plugins = null; // re-read the states
+                Draw(_snapshot.Mirror.Cards);
+            };
+            Grid.SetColumn(toggle, 1);
+            grid.Children.Add(toggle);
+            list.Children.Add(grid);
+            list.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
+        }
+
+        PageContent.Children.Add(list);
+    }
+
+    private async Task PullPluginsAsync()
+    {
+        try
+        {
+            var node = await _snapshot.PullAsync("plugins");
+            _plugins = node is null ? null : System.Text.Json.JsonSerializer.Deserialize(node, Contracts.ContractsJsonContext.Default.PluginsReport);
+        }
+        catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            // the list stays empty until the agent answers
+        }
+        finally
+        {
+            _pullingPlugins = false;
+        }
+
+        if (_page == "settings" && _plugins is not null)
+        {
+            Draw(_snapshot.Mirror.Cards);
+        }
+    }
+
+    private Contracts.Rules.RulesReport? _rules;
+    private bool _pullingRules;
+
+    /// <summary>Settings → Rules: each rule with its switch, where it comes from and when it last fired; load errors on top.</summary>
+    private void DrawRules()
+    {
+        if (_rules is null && !_pullingRules)
+        {
+            _pullingRules = true;
+            _ = PullRulesAsync();
+        }
+
+        PageContent.Children.Add(new TextBlock { Text = "Rules", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 16, 0, 0) });
+        var editRules = new Button { Content = SettingsPage.EditRules.Label, Margin = new Thickness(0, 4, 0, 8) };
+        editRules.Click += async (_, _) =>
+        {
+            await RunAsync(SettingsPage.EditRules); // a save reloads the rules; re-read the list then
+            _rules = null;
+        };
+        PageContent.Children.Add(editRules);
+        foreach (var error in _rules?.Errors ?? [])
+        {
+            PageContent.Children.Add(Text("Not loaded: " + error, "TasktorInkBrush"));
+        }
+
+        var list = new StackPanel();
+        foreach (var row in SettingsPage.Rules(_rules, TimeZoneInfo.Local))
+        {
+            var grid = new Grid { MinHeight = 56 };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = row.Title, TextWrapping = TextWrapping.Wrap, Style = StyleOf("TasktorBodyTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+            text.Children.Add(new TextBlock { Text = row.Note, Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush("TasktorInk3Brush") });
+            grid.Children.Add(text);
+            var toggle = new ToggleSwitch { IsOn = row.On, OnContent = "On", OffContent = "Off", VerticalAlignment = VerticalAlignment.Center };
+            AutomationProperties.SetName(toggle, row.Title);
+            toggle.Toggled += async (_, _) =>
+            {
+                if (toggle.IsOn == row.On)
+                {
+                    return;
+                }
+
+                await RunAsync(SettingsPage.SwitchRule(row, toggle.IsOn)); // a failure (e.g. rules.json unreadable) is shown
+                _rules = null; // re-read: the agent reloaded its rules
+                Draw(_snapshot.Mirror.Cards);
+            };
+            Grid.SetColumn(toggle, 1);
+            grid.Children.Add(toggle);
+            list.Children.Add(grid);
+            list.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
+        }
+
+        PageContent.Children.Add(list);
+        DrawPackRules();
+    }
+
+    /// <summary>Settings → Rules, from plugin packs: every rule of a pack that is on, each off until ticked.</summary>
+    private void DrawPackRules()
+    {
+        var rows = SettingsPage.PackRules(_rules);
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        PageContent.Children.Add(new TextBlock { Text = "From plugin packs", Style = StyleOf("TasktorBodyStrongTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 12, 0, 0) });
+        var list = new StackPanel();
+        foreach (var row in rows)
+        {
+            var grid = new Grid { MinHeight = 56 };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = row.Title, TextWrapping = TextWrapping.Wrap, Style = StyleOf("TasktorBodyTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+            text.Children.Add(new TextBlock { Text = row.Note, Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush("TasktorInk3Brush") });
+            grid.Children.Add(text);
+            var toggle = new ToggleSwitch { IsOn = row.On, OnContent = "On", OffContent = "Off", VerticalAlignment = VerticalAlignment.Center };
+            AutomationProperties.SetName(toggle, row.Title);
+            toggle.Toggled += async (_, _) =>
+            {
+                if (toggle.IsOn == row.On)
+                {
+                    return;
+                }
+
+                await RunAsync(SettingsPage.TickPackRule(row, toggle.IsOn));
+                _rules = null;
+                Draw(_snapshot.Mirror.Cards);
+            };
+            Grid.SetColumn(toggle, 1);
+            grid.Children.Add(toggle);
+            list.Children.Add(grid);
+            list.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
+        }
+
+        PageContent.Children.Add(list);
+    }
+
+    private async Task PullRulesAsync()
+    {
+        try
+        {
+            var node = await _snapshot.PullAsync("rules");
+            _rules = node is null ? null : System.Text.Json.JsonSerializer.Deserialize(node, Contracts.ContractsJsonContext.Default.RulesReport);
+        }
+        catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            // the list stays empty until the agent answers
+        }
+        finally
+        {
+            _pullingRules = false;
+        }
+
+        if (_page == "settings" && _rules is not null)
+        {
+            Draw(_snapshot.Mirror.Cards);
+        }
     }
 
     private async Task ToggleModuleAsync(ModuleRow row, ToggleSwitch toggle)
@@ -784,7 +1107,7 @@ public sealed partial class MainWindow : Window
         return line;
     }
 
-    private async Task RunAsync(CardAction action, string? rowKey = null)
+    private async Task<ActionOutcome?> RunAsync(CardAction action, string? rowKey = null)
     {
         ActionOutcome outcome;
         try
@@ -793,7 +1116,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException)
         {
-            return; // the agent went away; the page shows "Tasktor is not running." on the next refresh
+            return null; // the agent went away; the page shows "Tasktor is not running." on the next refresh
         }
 
         _dataAt = DateTimeOffset.MinValue; // a forget (or anything) may change what is kept: re-count on the next draw
@@ -814,6 +1137,8 @@ public sealed partial class MainWindow : Window
         {
             await OnUi(() => InformAsync(r.Message ?? "Couldn't do that (" + (r.Reason ?? "failed") + ")."));
         }
+
+        return outcome;
     }
 
     private async Task<bool> ConfirmAsync(string summary)
