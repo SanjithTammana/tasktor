@@ -61,6 +61,8 @@ jobs:
           Copy-Item out/agent/* $root -Recurse
           Copy-Item out/cli/tasktor.exe $root
           Copy-Item out/capture/tasktor-capture.exe $root
+          Copy-Item out/capture/e_sqlcipher.dll $root   # SQLCipher for the encrypted content index (OQ-C22)
+          Copy-Item THIRD-PARTY-NOTICES.md $root
           Copy-Item out/nmh/tasktor-nmh.exe $root
           # The companion extension, loaded unpacked (C §5.5); its tests and package file stay out.
           New-Item -ItemType Directory -Force "$root/extension" | Out-Null

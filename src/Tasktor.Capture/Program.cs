@@ -11,6 +11,8 @@ internal static class Program
 {
     private static async Task<int> Main(string[] args)
     {
+        // OQ-C22: this process's SQLite is SQLCipher (for the encrypted content index); bound before any database opens.
+        SqliteDb.UseEngine("e_sqlcipher");
         string? dataDir = null;
         for (var i = 0; i < args.Length - 1; i++)
         {

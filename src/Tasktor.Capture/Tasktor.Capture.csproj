@@ -13,5 +13,9 @@
     <ProjectReference Include="../Tasktor.Hosts.Common/Tasktor.Hosts.Common.csproj" />
     <ProjectReference Include="../Tasktor.Windows/Tasktor.Windows.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The native SQLCipher engine (e_sqlcipher) for index.db: chosen at start with SqliteDb.UseEngine (OQ-C22). -->
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlcipher" />
+  </ItemGroup>
 </Project>
 

@@ -423,4 +423,14 @@ public sealed class SelfUseAndLogScannerTests : IDisposable
         Assert.False(StoreLayout.IsValidId(".."));
         Assert.True(StoreLayout.IsValidId("embed-2026-11-04"));
     }
+
+    [Fact]
+    public void A_key_on_an_engine_without_encryption_is_refused_before_anything_is_written()
+    {
+        // The system SQLite (and Windows' winsqlite3) has no codec: a store that needs encryption must not land on disk.
+        var path = Path.Combine(Path.GetTempPath(), "tasktor-nokey-" + Guid.NewGuid().ToString("N")[..8] + ".db");
+        Assert.Throws<NotSupportedException>(() => SqliteDb.Open(path, key: new byte[32]));
+        Assert.False(File.Exists(path) && new FileInfo(path).Length > 0);
+        File.Delete(path);
+    }
 }
