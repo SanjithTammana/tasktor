@@ -246,7 +246,7 @@ public sealed class Suppressor
     public Suppressor(CaptureBlocks blocks) => _blocks = blocks;
 
     /// <summary>True while Winlogon / UAC's secure desktop is the input desktop.</summary>
-    public Func<bool> SecureDesktop { get; set; } = () => false;
+    public Func<bool> SecureDesktop { get; set; } = () => true;
 
     public Suppression Check(FocusTarget t, DateTimeOffset now)
     {
@@ -286,6 +286,7 @@ public sealed class Suppressor
         };
     }
 }
+
 
 
 

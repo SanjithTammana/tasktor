@@ -24,7 +24,7 @@ public sealed class KeyRunClockTests
     {
         var blocks = new CaptureBlocks(local: TimeZoneInfo.Utc);
         var builder = new KeyRunBuilder(new KeyDecoder(), new ActorAttributor(() => []), new SecretRedactor(),
-            new Suppressor(blocks).Check, _ => DateTimeOffset.UnixEpoch);
+            (new Suppressor(blocks) { SecureDesktop = () => false }).Check, _ => DateTimeOffset.UnixEpoch);
         builder.Focus(new FocusTarget("view", "field", "example.exe"), 0);
         builder.Key(new RawInput(0x41, 0, 0, 1, false));
         var run = builder.Close(RunEnd.Flush, 2);
@@ -34,5 +34,6 @@ public sealed class KeyRunClockTests
         Assert.Equal(1, run.Keys);
     }
 }
+
 
 

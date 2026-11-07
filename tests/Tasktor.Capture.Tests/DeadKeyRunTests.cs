@@ -84,5 +84,6 @@ public sealed class DeadKeyRunTests
     }
 
     private static KeyRunBuilder Builder(KeyDecoder decoder) => new(decoder, new ActorAttributor(() => []), new SecretRedactor(),
-        new Suppressor(new CaptureBlocks(local: TimeZoneInfo.Utc)).Check, _ => Now);
+        (new Suppressor(new CaptureBlocks(local: TimeZoneInfo.Utc)) { SecureDesktop = () => false }).Check, _ => Now);
 }
+
