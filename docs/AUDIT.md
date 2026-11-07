@@ -35,8 +35,8 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 |---|---|---|---|
 | C1–C4 | Passive capture, browser domain, privacy gate, four levels | Built | C2 is "limited" by design per browser |
 | C5, C6, C8 | Features, HDBSCAN model, gates, adaptive refit | Built | real data on a PC to pass the gates |
-| C7 | Auto-named clusters; rename, merge, "That's wrong" | Partial | **the Learned page's Workflows tab**: the actions exist in the agent, no screen uses them |
-| C9, C10 | Current workflow, time per workflow, switches per day | Built (agent) | shown only on the workflow card, not on the Learned page |
+| C7 | Auto-named clusters; rename, merge, "That's wrong" | Built | Learned page → Workflows: Rename, Merge into |
+| C9, C10 | Current workflow, time per workflow, switches per day | Built | — |
 | C11, C12 | Unusual episode, prediction | Later (spec) | — |
 | C14 | Export + Python loader | Built | — |
 | C15 | Custom models | Later (spec) | — |
@@ -45,7 +45,7 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 | C18 | Screen text: UIA snapshots + browser text | Partial | browser text wired and recorded; **UIA source** uncommitted on the Codex machine |
 | C19 | Pointer: path, clicks with target, scroll, dwell, visible windows | Partial | the ring carries mouse events and the visibility logic exists; **no pointer pipeline** (clicks, dwell, scroll) and nothing drains mouse events |
 | C20 | Media: SMTC + audio sessions, side tracks | Partial | browser video wired; **SMTC / WASAPI source** uncommitted on the Codex machine |
-| C21 | Content index (FTS5 + embeddings), "Search my activity" | **Not started** | everything |
+| C21 | Content index (FTS5 + embeddings), "Search my activity" | Partial | index + search logic built; **off on disk until SQLCipher is approved**; the search box, reopen links and embeddings |
 | C22 | CLI command log (PSReadLine, OSC 133, shell children) | **Not started** | everything |
 
 ## D. CLI

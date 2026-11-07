@@ -301,3 +301,40 @@ public sealed record OverridesFile
 
     public IReadOnlyList<string> HideTerm { get; set; } = [];
 }
+
+/// <summary>
+/// U4 D-G3 "What Tasktor learned", Workflows tab (C7, C9, C10): the current model's workflows with the user's names and
+/// merges, minutes in the last 7 days, and today's switches. Names and numbers only (rule 5b): no titles.
+/// </summary>
+public sealed record WorkflowsReport
+{
+    /// <summary>The model version, or null while nothing is learned yet (activities are shown by app).</summary>
+    public string? Model { get; init; }
+
+    public long SwitchesToday { get; init; }
+
+    public IReadOnlyList<WorkflowEntry> Workflows { get; set; } = [];
+}
+
+public sealed record WorkflowEntry
+{
+    public required string Id { get; init; }
+
+    /// <summary>What Tasktor shows: the user's name if they renamed it, else the model's.</summary>
+    public required string Name { get; init; }
+
+    public required string AutoName { get; init; }
+
+    public bool Renamed { get; init; }
+
+    /// <summary><c>shown</c>, <c>unstable</c> or <c>hidden</c>.</summary>
+    public required string Status { get; init; }
+
+    public double Stability { get; init; }
+
+    public double MinutesWeek { get; init; }
+
+    /// <summary>The workflow this one was merged into (shown as that one until the next refit).</summary>
+    public string? MergedInto { get; init; }
+}
+

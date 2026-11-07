@@ -148,6 +148,7 @@ public sealed class WorkflowTracking : Feature
         Context.Router.Register("workflow.merge", Merge);
         Context.Router.Register("summary", req => new PreparedAction { Summary = "Summary", Immediate = new ActionResult { Action = "summary", Status = ActionStatus.Ok, Message = SummaryNode(req.Args?.GetValueOrDefault("since")).ToJsonString() } });
         Context.RegisterPull("summary", pull => SummaryNode(pull.Args?.GetValueOrDefault("since")));
+        Context.RegisterPull("workflows", _ => JsonSerializer.SerializeToNode(WorkflowsReport(), ContractsJsonContext.Default.WorkflowsReport));
         _overrides = ReadOverrides();
         LoadHistory(stores.Base);
     }
@@ -726,6 +727,41 @@ public sealed class WorkflowTracking : Feature
     /// <c>tasktor summary</c> (numbers only, U1 D5): active minutes per workflow (or app) over the last days, from the
     /// in-memory daily totals. No titles; names are the cluster names the card shows.
     /// </summary>
+    /// <summary>The Learned page's Workflows tab: the model's clusters (not retired) with names, merges and this week's minutes.</summary>
+    public WorkflowsReport WorkflowsReport()
+    {
+        if (Model is not { } model)
+        {
+            return new WorkflowsReport { SwitchesToday = _current?.Shown?.SwitchesToday ?? 0 };
+        }
+
+        var minutes = SummaryNode("7d")["by_workflow"] as JsonObject;
+        return new WorkflowsReport
+        {
+            Model = model.Version,
+            SwitchesToday = _current?.Shown?.SwitchesToday ?? 0,
+            Workflows =
+            [
+                .. model.Manifest.Clusters.Where(c => c.Status != "retired").Select(c =>
+                {
+                    var name = NameOf(c.Id) ?? c.Name;
+                    var merged = MergedInto(c.Id);
+                    return new WorkflowEntry
+                    {
+                        Id = c.Id,
+                        Name = name,
+                        AutoName = c.Name,
+                        Renamed = _overrides.Names.ContainsKey(c.Id),
+                        Status = c.Status,
+                        Stability = Math.Round(c.Stability, 2),
+                        MinutesWeek = minutes?[name] is JsonValue v && v.TryGetValue<double>(out var m) ? m : 0,
+                        MergedInto = merged == c.Id ? null : merged,
+                    };
+                }).OrderBy(w => w.MergedInto is null ? 0 : 1).ThenByDescending(w => w.MinutesWeek).ThenBy(w => w.Name, StringComparer.Ordinal),
+            ],
+        };
+    }
+
     public JsonObject SummaryNode(string? since)
     {
         var span = DurationText.TryParse(since ?? "7d", out var s) && s > TimeSpan.Zero ? s : TimeSpan.FromDays(7);

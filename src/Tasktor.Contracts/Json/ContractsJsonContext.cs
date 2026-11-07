@@ -40,6 +40,7 @@ namespace Tasktor.Contracts;
 [JsonSerializable(typeof(ModelManifest))]
 [JsonSerializable(typeof(EvalReport))]
 [JsonSerializable(typeof(OverridesFile))]
+[JsonSerializable(typeof(WorkflowsReport))]
 [JsonSerializable(typeof(CaptureCommand))]
 [JsonSerializable(typeof(CaptureStatus))]
 [JsonSerializable(typeof(CaptureEvent))]
