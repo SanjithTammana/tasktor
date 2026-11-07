@@ -21,7 +21,7 @@ public sealed class DeepCapturePipelineTests : IDisposable
         _blocks = new CaptureBlocks(Path.Combine(_dir, "blocks.json"), TimeZoneInfo.Utc);
         _vault = new RawVault(Path.Combine(_dir, "raw"), new byte[32]);
         var recorder = new CaptureRecorder(_vault, _blocks, Now);
-        var runs = new KeyRunBuilder(new KeyDecoder(), new ActorAttributor(() => []), new SecretRedactor(), new Suppressor(_blocks).Check);
+        var runs = new KeyRunBuilder(new KeyDecoder(), new ActorAttributor(() => []), new SecretRedactor(), (new Suppressor(_blocks) { SecureDesktop = () => false }).Check, ms => T0.AddMilliseconds(ms));
         _deep = new DeepCapture(_ring, runs, new SnapshotDiffer(), new SecretRedactor(), recorder, Now, () => _ms);
     }
 
@@ -58,7 +58,7 @@ public sealed class DeepCapturePipelineTests : IDisposable
     [Fact]
     public void Typing_flows_from_the_ring_into_the_vault_and_the_activity_document()
     {
-        _deep.Focus(new FocusTarget("w1", "e1", "notepad.exe"));
+        _deep.Focus(new FocusTarget("w1", "e1", "notepad.exe") { IsPassword = false });
         Type("meeting notes");
         Wait(TimeSpan.FromSeconds(4), TimeSpan.FromMilliseconds(500)); // the 3 s pause closes the run
         var run = Assert.Single(Records(), r => r.Kind == RecordKind.KeyRun);
@@ -75,7 +75,7 @@ public sealed class DeepCapturePipelineTests : IDisposable
     public void A_blocked_app_reaches_neither_the_vault_nor_a_document()
     {
         _blocks.Add(new CaptureBlock { Id = "", Kind = BlockKind.App, Value = "keepass*.exe", AddedBy = "user" });
-        _deep.Focus(new FocusTarget("w2", "e1", "KeePassXC.exe"));
+        _deep.Focus(new FocusTarget("w2", "e1", "KeePassXC.exe") { IsPassword = false });
         Type("hunter2");
         Wait(TimeSpan.FromSeconds(4), TimeSpan.FromMilliseconds(500));
         _deep.Walk(Walk(2, "Vault entries", "bank login"), "KeePassXC.exe", null);
@@ -98,9 +98,9 @@ public sealed class DeepCapturePipelineTests : IDisposable
     [Fact]
     public void The_field_value_diff_is_the_stored_text_not_the_keys()
     {
-        _deep.Focus(new FocusTarget("w1", "subject", "mail.exe"), value: "Re: ");
+        _deep.Focus(new FocusTarget("w1", "subject", "mail.exe") { IsPassword = false }, value: "Re: ");
         Type("q"); // the user typed one key, then autocomplete filled the rest
-        _deep.Focus(new FocusTarget("w1", "body", "mail.exe"), previousValue: "Re: quarterly numbers"); // the key is still in the ring
+        _deep.Focus(new FocusTarget("w1", "body", "mail.exe") { IsPassword = false }, previousValue: "Re: quarterly numbers"); // the key is still in the ring
         var run = Assert.Single(Records(), r => r.Kind == RecordKind.KeyRun);
         Assert.Contains("\"text\":\"quarterly numbers\"", run.Body, StringComparison.Ordinal);
         Assert.Contains("\"element_ref\":\"subject\"", run.Body, StringComparison.Ordinal); // attributed to the old field
@@ -129,7 +129,7 @@ public sealed class DeepCapturePipelineTests : IDisposable
     public void An_excluded_apps_volatile_values_are_not_recorded_under_the_focused_app_at_activity_close()
     {
         _blocks.Add(new CaptureBlock { Id = "", Kind = BlockKind.App, Value = "bank*.exe", AddedBy = "user" });
-        _deep.Focus(new FocusTarget("w1", "e1", "notepad.exe"));
+        _deep.Focus(new FocusTarget("w1", "e1", "notepad.exe") { IsPassword = false });
         // A ticking balance in a 10-line view of the excluded app: small diffs (not re-baselines), so it turns volatile.
         string[] Screen(int s) => [.. Enumerable.Range(1, 9).Select(i => "Accounts row " + i), "balance 10" + s.ToString("00", System.Globalization.CultureInfo.InvariantCulture)];
         for (var s = 0; s <= 12; s++)
@@ -142,3 +142,7 @@ public sealed class DeepCapturePipelineTests : IDisposable
         Assert.DoesNotContain(Records(), r => r.Body.Contains("balance", StringComparison.Ordinal) || r.Body.Contains("Accounts", StringComparison.Ordinal));
     }
 }
+
+
+
+

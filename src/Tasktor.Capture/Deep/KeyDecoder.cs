@@ -1,7 +1,18 @@
 using System.Globalization;
+using Tasktor.Contracts.Platform;
 
 namespace Tasktor.Capture.Deep;
 
+/// <summary>An explicit layout result; the default and unrecognized values fail closed.</summary>
+public enum LayoutOutcome : byte
+{
+    Uncertain = 0,
+    Text = 1,
+    NoText = 2,
+}
+
+/// <summary>Text remains sensitive until the existing key-run boundary.</summary>
+public readonly record struct LayoutDecision(LayoutOutcome Outcome, Sensitive<string>? Text);
 /// <summary>
 /// Turns raw key events into text, edits and chords (D-C19), on the logic thread with its own key state (never on the hook
 /// thread). Shift / Caps / Ctrl / Alt / Win are tracked from the stream itself. Ctrl, Alt or Win with a key is a chord
@@ -20,6 +31,9 @@ public sealed class KeyDecoder
 
     /// <summary>Layout hook: (vk, scan, shift, caps, altGr) → text, or null if the key produces no text; the US table is used only when no layout is supplied.</summary>
     public Func<ushort, ushort, bool, bool, bool, string?>? Layout { get; init; }
+
+    /// <summary>Explicit layout outcomes; uncertain compositions suppress the entire run.</summary>
+    public Func<ushort, ushort, bool, bool, bool, LayoutDecision>? DetailedLayout { get; init; }
 
     public bool Shift => _shiftL || _shiftR;
 
@@ -85,6 +99,19 @@ public sealed class KeyDecoder
             return new DecodedKey(action, null, k.TimeMs, k.IsInjected, k.IsLowerIlInjected);
         }
 
+        if (DetailedLayout is not null)
+        {
+            var result = DetailedLayout(k.Vk, k.Scan, Shift, _caps, altGr);
+            if (result.Outcome == LayoutOutcome.NoText && result.Text is null)
+                return new DecodedKey(KeyAction.None, null, k.TimeMs, k.IsInjected, k.IsLowerIlInjected);
+            if (result.Outcome == LayoutOutcome.Text && result.Text is { } sensitive)
+            {
+                var decoded = sensitive.Reveal();
+                if (!string.IsNullOrEmpty(decoded))
+                    return new DecodedKey(KeyAction.Text, decoded, k.TimeMs, k.IsInjected, k.IsLowerIlInjected);
+            }
+            return new DecodedKey(KeyAction.Uncertain, null, k.TimeMs, k.IsInjected, k.IsLowerIlInjected);
+        }
         var text = Layout is null ? Us(k.Vk, Shift, _caps) : Layout(k.Vk, k.Scan, Shift, _caps, altGr);
         return text is null
             ? new DecodedKey(KeyAction.None, null, k.TimeMs, k.IsInjected, k.IsLowerIlInjected)
@@ -197,5 +224,6 @@ public sealed class KeyDecoder
         _ => Us(vk, false, false)?.ToUpperInvariant(),
     };
 }
+
 
 
