@@ -13,6 +13,9 @@ public sealed record RuleRow(string Id, string Title, string Note, bool On);
 /// <summary>Settings → Rules, from plugin packs: one pack rule and whether the user ticked it.</summary>
 public sealed record PackRuleRow(string Pack, string Id, string Title, string Note, bool On);
 
+/// <summary>Settings → Rules: a rule that would arrange windows, waiting for the user's one-time consent (U3 OQ-W2).</summary>
+public sealed record ArrangeRequestRow(string Id, string Title, string Consent);
+
 /// <summary>Settings → Plugins: one plugin folder; <see cref="On"/> while it has the user's consent (running or failing).</summary>
 public sealed record PluginRow(string Id, string Title, string Note, bool On, Contracts.Plugins.PluginInfo Info);
 
@@ -147,6 +150,30 @@ public static class SettingsPage
         Action = "settings.page",
         Args = new Dictionary<string, string>(StringComparer.Ordinal) { ["page"] = pageId, ["shown"] = shown ? "true" : "false" },
     };
+
+    /// <summary>Rules waiting for the one-time consent to arrange windows, with the dialog's text.</summary>
+    public static IReadOnlyList<ArrangeRequestRow> ArrangeRequests(Contracts.Rules.RulesReport? report) =>
+    [
+        .. (report?.AwaitingArrange ?? []).Select(r => new ArrangeRequestRow(
+            r.Id,
+            string.IsNullOrWhiteSpace(r.Description) ? r.Id : r.Description,
+            "When its condition holds, this rule moves the windows of " + (r.Presets.Count == 0 ? "a preset" : string.Join(", ", r.Presets.Select(p => "“" + p + "”")))
+                + " to their saved places. It never opens or closes an app, and Undo (or the condition ending, if the rule says so) puts them back."
+                + "\n\nYou are asked once for this rule; turning it off in the list stops it.")),
+    ];
+
+    /// <summary>The one-time consent for <paramref name="row"/>'s rule.</summary>
+    public static CardAction AllowArrange(ArrangeRequestRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        return new CardAction
+        {
+            Id = "allow-arrange",
+            Label = "Allow",
+            Action = "rule.allow_arrange",
+            Target = new Dictionary<string, string>(StringComparer.Ordinal) { ["rule"] = row.Id },
+        };
+    }
 
     /// <summary>The rules of packs that are on; each starts off until ticked (U5).</summary>
     public static IReadOnlyList<PackRuleRow> PackRules(Contracts.Rules.RulesReport? report) =>

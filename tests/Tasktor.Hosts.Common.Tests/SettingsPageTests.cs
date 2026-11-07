@@ -94,6 +94,14 @@ public sealed class SettingsPageTests
         Assert.Equal(("Quiet on battery", "From Work pack", false), (packRows[0].Title, packRows[0].Note, packRows[0].On));
         var tick = SettingsPage.TickPackRule(packRows[0], on: true);
         Assert.Equal(("pack.rule", "p", "quiet", "true"), (tick.Action, tick.Args!["pack"], tick.Args["rule"], tick.Args["on"]));
+        var asks = SettingsPage.ArrangeRequests(report with { AwaitingArrange = [new() { Id = "focus-layout", Description = "Writing layout in event mode", Presets = ["Writing"] }] });
+        Assert.Equal(("focus-layout", "Writing layout in event mode"), (asks[0].Id, asks[0].Title));
+        foreach (var part in new[] { "Writing", "moves", "never opens or closes", "Undo" })
+        {
+            Assert.Contains(part, asks[0].Consent, StringComparison.Ordinal);
+        }
+
+        Assert.Equal(("rule.allow_arrange", "focus-layout"), (SettingsPage.AllowArrange(asks[0]).Action, SettingsPage.AllowArrange(asks[0]).Target!["rule"]));
         var hide = SettingsPage.ShowPage("jobs", shown: false);
         Assert.Equal(("settings.page", "jobs", "false"), (hide.Action, hide.Args!["page"], hide.Args["shown"]));
         Assert.Equal(("rules.edit", "Edit rules.json"), (SettingsPage.EditRules.Action, SettingsPage.EditRules.Label));

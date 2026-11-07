@@ -478,7 +478,14 @@ public sealed class AgentWatch : Feature
                         Priority = 2,
                     },
                 ],
-                Actions = [new CardAction { Id = "show", Label = "Show window", Action = "agent.show", Target = CardKit.Target("session", "{row}"), Priority = 1 }],
+                Actions =
+                [
+                    new CardAction { Id = "show", Label = "Show window", Action = "agent.show", Target = CardKit.Target("session", "{row}"), Priority = 1 },
+                    // I1 Q1: exact states come from hooks written into Claude Code's settings.json only on confirm; the confirm
+                    // step shows the diff and keeps a .bak. Both are destructive, so both are two-step.
+                    new CardAction { Id = "hooks", Label = "Set up hooks", Action = "agent.hooks.install", Destructive = true, Priority = 3 },
+                    new CardAction { Id = "unhook", Label = "Remove hooks", Action = "agent.hooks.remove", Destructive = true, Priority = 4 },
+                ],
             },
         ];
     }

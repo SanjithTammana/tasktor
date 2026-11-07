@@ -24,6 +24,9 @@ public static class RulesLoader
 
     /// <param name="defaultsText">The shipped <c>rules.default.json</c> (read-only in the install dir).</param>
     /// <param name="userText">The user's <c>rules.json</c>, or null.</param>
+    /// <summary>Why a rule that calls <c>arrange</c> waits (U3 OQ-W2: a one-time consent per rule).</summary>
+    public const string NeedsArrangeConsent = "needs your one-time consent to arrange windows (Settings → Rules)";
+
     /// <param name="hasArrangeConsent">Whether the user gave the one-time consent for a rule that calls <c>arrange</c> (U3 OQ-W2).</param>
     /// <param name="packTexts">Ticked pack rules (between the defaults and the user's file, so the user still overrides them).</param>
     public static RuleSet Load(string? defaultsText, string? userText, Func<string, bool>? hasArrangeConsent = null, IReadOnlyList<string>? packTexts = null)
@@ -87,6 +90,7 @@ public static class RulesLoader
         var compiled = new List<CompiledRule>();
         var disabled = new HashSet<string>(StringComparer.Ordinal);
         var off = new List<CompiledRule>();
+        var awaiting = new List<CompiledRule>();
         foreach (var id in order)
         {
             var (rule, origin, line) = byId[id];
@@ -98,6 +102,12 @@ public static class RulesLoader
             }
 
             var problem = Validate(rule, origin, groups, hasArrangeConsent);
+            if (problem == NeedsArrangeConsent)
+            {
+                awaiting.Add(new CompiledRule(rule, origin, line, Dur(rule.HoldFor), Dur(rule.Cooldown))); // listed for consent, not as an error
+                continue;
+            }
+
             if (problem is not null)
             {
                 errors.Add(new RuleError(rule.Id, origin, line, problem));
@@ -107,7 +117,7 @@ public static class RulesLoader
             compiled.Add(new CompiledRule(rule, origin, line, Dur(rule.HoldFor), Dur(rule.Cooldown)));
         }
 
-        return new RuleSet(compiled, errors, groups, grouping) { Disabled = disabled, OffRules = off };
+        return new RuleSet(compiled, errors, groups, grouping) { Disabled = disabled, OffRules = off, AwaitingArrangeConsent = awaiting };
     }
 
     private sealed record Parsed(RulesFile? File, List<(Rule Rule, RuleOrigin Origin, int Line)> Rules);
@@ -361,7 +371,7 @@ public static class RulesLoader
 
             if (a.Arrange is not null && !hasArrangeConsent(rule.Id))
             {
-                return "needs your one-time consent to arrange windows (Settings → Rules)";
+                return NeedsArrangeConsent;
             }
         }
 

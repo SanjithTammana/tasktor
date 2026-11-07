@@ -97,4 +97,29 @@ public sealed class RulesSettingsTests
 
         Assert.True(seen, "rules.json was saved but the rules did not reload (U1: hot reload)");
     }
+
+    [Fact]
+    public async Task A_rule_that_arranges_windows_waits_for_its_one_time_consent()
+    {
+        using var store = new TempStore();
+        File.WriteAllText(store.Layout.Rules, """{ "rules": [ { "id": "focus-layout", "description": "Writing layout in event mode", "when": { "state": "event_mode" }, "then": [ { "arrange": "Writing" } ], "undo": true } ] }""");
+        await using var host = new AgentHost(new AgentOptions { Store = store.Layout, PipeName = "tasktor-test-" + Guid.NewGuid().ToString("N")[..12] });
+        host.Start();
+        async Task<ActionResult> Allow(string rule, Origin origin = Origin.Flyout) =>
+            await (await host.Loop.InvokeAsync(() => host.Router.Submit(new ActionRequest { Action = "rule.allow_arrange", Origin = origin, Target = new Dictionary<string, string> { ["rule"] = rule } }))).WaitAsync(TimeSpan.FromSeconds(10));
+
+        var waiting = await host.Loop.InvokeAsync(host.RulesReport);
+        var w = waiting.AwaitingArrange.Single();
+        Assert.Equal(("focus-layout", "Writing layout in event mode"), (w.Id, w.Description));
+        Assert.Equal(["Writing"], w.Presets);
+        Assert.DoesNotContain(waiting.Rules, r => r.Id == "focus-layout");
+        Assert.Empty(waiting.Errors); // waiting is not an error
+
+        Assert.Equal(ActionStatus.Refused, (await Allow("focus-layout", Origin.Rule)).Status); // people only
+        Assert.Equal(ActionStatus.Ok, (await Allow("focus-layout")).Status);
+        var after = await host.Loop.InvokeAsync(host.RulesReport);
+        Assert.Empty(after.AwaitingArrange);
+        Assert.Contains(after.Rules, r => r.Id == "focus-layout" && r.On);
+        Assert.Equal(ActionStatus.Refused, (await Allow("nope")).Status);
+    }
 }
