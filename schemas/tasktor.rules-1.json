@@ -1,0 +1,730 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tasktor:schema:tasktor.rules-1.json",
+  "title": "Tasktor rules file (rules.json)",
+  "description": "Contract tasktor.rules/1. Generated from the C# records in Tasktor.Contracts; do not edit by hand.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "schema_version": {
+      "type": "integer"
+    },
+    "groups": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "rules": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "builtin": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "when": {
+            "type": "object",
+            "properties": {
+              "metric": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "instance": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "above": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "below": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "learned": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "stat": {
+                    "type": "string"
+                  },
+                  "key": {
+                    "type": "string"
+                  },
+                  "fallback": {
+                    "type": "string"
+                  },
+                  "clamp": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "multiplier": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "stat",
+                  "key",
+                  "fallback"
+                ]
+              },
+              "group": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "count_above": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "busy_count_above": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "running": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "process": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cpu_above": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "age_above": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "silent_for": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "state": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "is": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "event": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "folder": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "glob": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "app": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "title": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "agent": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "all": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "metric": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "instance": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "above": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "below": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "learned": {
+                      "$ref": "#/properties/rules/items/properties/when/properties/learned"
+                    },
+                    "group": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "count_above": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "busy_count_above": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "running": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "process": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "cpu_above": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "age_above": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "silent_for": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "state": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "is": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "event": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "folder": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "glob": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "app": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "title": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "agent": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "all": {
+                      "$ref": "#/properties/rules/items/properties/when/properties/all"
+                    },
+                    "any": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "$ref": "#/properties/rules/items/properties/when/properties/all/items"
+                      }
+                    },
+                    "not": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "metric": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "instance": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "above": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "below": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "learned": {
+                          "$ref": "#/properties/rules/items/properties/when/properties/learned"
+                        },
+                        "group": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "count_above": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "busy_count_above": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "running": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "process": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "cpu_above": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "age_above": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "silent_for": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "state": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "is": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "event": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "folder": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "glob": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "app": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "title": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "agent": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "all": {
+                          "$ref": "#/properties/rules/items/properties/when/properties/all"
+                        },
+                        "any": {
+                          "$ref": "#/properties/rules/items/properties/when/properties/all/items/properties/any"
+                        },
+                        "not": {
+                          "$ref": "#/properties/rules/items/properties/when/properties/all/items/properties/not"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "any": {
+                "$ref": "#/properties/rules/items/properties/when/properties/all/items/properties/any"
+              },
+              "not": {
+                "$ref": "#/properties/rules/items/properties/when/properties/all/items/properties/not"
+              }
+            }
+          },
+          "for": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cooldown": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "then": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "toast": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "buttons": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "severity": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "badge": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "card": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "pause": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "resume": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "mode": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "set_priority": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "efficiency": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "cap_cores": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "max": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "max"
+                  ]
+                },
+                "target": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "plugin_action": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "arrange": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "capture_pause": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "capture_exclude": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "use_fallback": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "relearn": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "snooze": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "undo": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "commands": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "$ref": "#/properties/groups/additionalProperties"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "when",
+          "then"
+        ]
+      }
+    },
+    "grouping": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "match": {
+            "type": "object",
+            "properties": {
+              "exe": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "path": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "package": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "group_as": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "attach": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "match"
+        ]
+      }
+    }
+  }
+}

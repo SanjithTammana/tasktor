@@ -1,0 +1,263 @@
+{
+  "template": {
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "type": "AdaptiveCard",
+    "version": "1.5",
+    "body": [
+      {
+        "type": "ColumnSet",
+        "columns": [
+          {
+            "type": "Column",
+            "width": "stretch",
+            "items": [
+              {
+                "type": "TextBlock",
+                "text": "${title}",
+                "wrap": true,
+                "weight": "Bolder",
+                "isSubtle": "${stale}"
+              }
+            ]
+          },
+          {
+            "type": "Column",
+            "width": "auto",
+            "$when": "${severity.show}",
+            "items": [
+              {
+                "type": "TextBlock",
+                "text": "${severity.icon} ${severity.word}",
+                "wrap": true,
+                "color": "${severity.color}"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "TextBlock",
+        "text": "${as_of}",
+        "wrap": true,
+        "isSubtle": true,
+        "size": "Small",
+        "$when": "${stale}"
+      },
+      {
+        "type": "Container",
+        "style": "attention",
+        "items": [
+          {
+            "type": "TextBlock",
+            "text": "${b0.icon} ${b0.text}",
+            "wrap": true
+          },
+          {
+            "type": "TextBlock",
+            "text": "${b0.severity}",
+            "wrap": true,
+            "size": "Small",
+            "color": "Attention",
+            "$when": "${b0.severity != \u0027\u0027}"
+          }
+        ]
+      },
+      {
+        "type": "Container",
+        "items": [
+          {
+            "type": "TextBlock",
+            "text": "${b1.label}",
+            "wrap": true,
+            "isSubtle": true,
+            "size": "Small"
+          },
+          {
+            "type": "TextBlock",
+            "text": "${b1.text}",
+            "wrap": true,
+            "weight": "Bolder",
+            "size": "Large"
+          },
+          {
+            "type": "TextBlock",
+            "text": "${b1.severity}",
+            "wrap": true,
+            "size": "Small",
+            "color": "Default",
+            "$when": "${b1.severity != \u0027\u0027}"
+          }
+        ]
+      },
+      {
+        "type": "Container",
+        "items": [
+          {
+            "type": "ColumnSet",
+            "columns": [
+              {
+                "type": "Column",
+                "width": "stretch",
+                "items": [
+                  {
+                    "type": "TextBlock",
+                    "text": "${b2.label}",
+                    "wrap": true,
+                    "isSubtle": true,
+                    "size": "Small"
+                  }
+                ]
+              },
+              {
+                "type": "Column",
+                "width": "auto",
+                "items": [
+                  {
+                    "type": "TextBlock",
+                    "text": "${b2.value}",
+                    "wrap": true,
+                    "weight": "Bolder"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "ColumnSet",
+            "minHeight": "6px",
+            "columns": [
+              {
+                "type": "Column",
+                "width": "${b2.fill}",
+                "style": "accent",
+                "$when": "${b2.has_fill}",
+                "items": []
+              },
+              {
+                "type": "Column",
+                "width": "${b2.rest}",
+                "style": "emphasis",
+                "$when": "${b2.has_rest}",
+                "items": []
+              }
+            ]
+          },
+          {
+            "type": "TextBlock",
+            "text": "${b2.severity}",
+            "wrap": true,
+            "size": "Small",
+            "color": "Default",
+            "$when": "${b2.severity != \u0027\u0027}"
+          }
+        ]
+      },
+      {
+        "type": "Container",
+        "items": [
+          {
+            "type": "ColumnSet",
+            "columns": [
+              {
+                "type": "Column",
+                "width": "stretch",
+                "items": [
+                  {
+                    "type": "TextBlock",
+                    "text": "${b3.label}",
+                    "wrap": true,
+                    "isSubtle": true,
+                    "size": "Small"
+                  }
+                ]
+              },
+              {
+                "type": "Column",
+                "width": "auto",
+                "items": [
+                  {
+                    "type": "TextBlock",
+                    "text": "${b3.value}",
+                    "wrap": true,
+                    "weight": "Bolder"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "ColumnSet",
+            "minHeight": "6px",
+            "columns": [
+              {
+                "type": "Column",
+                "width": "${b3.fill}",
+                "style": "accent",
+                "$when": "${b3.has_fill}",
+                "items": []
+              },
+              {
+                "type": "Column",
+                "width": "${b3.rest}",
+                "style": "emphasis",
+                "$when": "${b3.has_rest}",
+                "items": []
+              }
+            ]
+          },
+          {
+            "type": "TextBlock",
+            "text": "${b3.severity}",
+            "wrap": true,
+            "size": "Small",
+            "color": "Default",
+            "$when": "${b3.severity != \u0027\u0027}"
+          }
+        ]
+      }
+    ],
+    "selectAction": {
+      "type": "Action.OpenUrl",
+      "url": "tasktor://open?card=test.all"
+    }
+  },
+  "data": {
+    "title": "All blocks",
+    "severity": {
+      "icon": "\u26D4",
+      "word": "Critical",
+      "show": true,
+      "color": "Attention"
+    },
+    "stale": false,
+    "as_of": "",
+    "b0": {
+      "severity": "\u26D4 Critical",
+      "text": "Disk almost full",
+      "icon": "\u26D4"
+    },
+    "b1": {
+      "severity": "",
+      "label": "Standup",
+      "text": "in 12 min"
+    },
+    "b2": {
+      "severity": "",
+      "label": "Temp",
+      "value": "70 \u00B0C",
+      "fill": 50,
+      "rest": 50,
+      "has_fill": true,
+      "has_rest": true
+    },
+    "b3": {
+      "severity": "",
+      "label": "Embedding",
+      "value": "42 / 100 docs",
+      "fill": 42,
+      "rest": 58,
+      "has_fill": true,
+      "has_rest": true
+    }
+  }
+}

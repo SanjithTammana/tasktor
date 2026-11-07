@@ -1,0 +1,1915 @@
+{
+  "single app 10 min": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "code.exe",
+        "start_ms": 0,
+        "end_ms": 600000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 600000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": null,
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "parser",
+            600000
+          ],
+          [
+            "py",
+            600000
+          ],
+          [
+            "tasktor",
+            600000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 600000,
+        "active_ms": 600000,
+        "dwell": [
+          [
+            0,
+            600000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 600000,
+        "activities": [
+          0
+        ]
+      }
+    ]
+  },
+  "alt-tab glance 10 s": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "code.exe",
+        "start_ms": 0,
+        "end_ms": 600000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 600000,
+        "idle_ms": 0,
+        "glances": 1,
+        "title_changes": 0,
+        "prev_app": null,
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "engine",
+            590000
+          ],
+          [
+            "main",
+            590000
+          ],
+          [
+            "rs",
+            590000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 600000,
+        "active_ms": 600000,
+        "dwell": [
+          [
+            0,
+            600000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 600000,
+        "activities": [
+          0
+        ]
+      }
+    ]
+  },
+  "switch 45 s opens an activity": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "code.exe",
+        "start_ms": 0,
+        "end_ms": 300000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 300000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": null,
+        "next_app": "chrome.exe",
+        "job_frac": 0,
+        "tokens": [
+          [
+            "main",
+            300000
+          ],
+          [
+            "rs",
+            300000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "app": "chrome.exe",
+        "start_ms": 300000,
+        "end_ms": 345000,
+        "start_utc_ms": 1793000300000,
+        "tz_min": 0,
+        "active_ms": 45000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": "code.exe",
+        "next_app": "code.exe",
+        "job_frac": 0,
+        "tokens": [
+          [
+            "issue",
+            45000
+          ],
+          [
+            "tracker",
+            45000
+          ]
+        ]
+      },
+      {
+        "index": 2,
+        "app": "code.exe",
+        "start_ms": 345000,
+        "end_ms": 600000,
+        "start_utc_ms": 1793000345000,
+        "tz_min": 0,
+        "active_ms": 255000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": "chrome.exe",
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "main",
+            255000
+          ],
+          [
+            "rs",
+            255000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 600000,
+        "active_ms": 600000,
+        "dwell": [
+          [
+            0,
+            300000
+          ],
+          [
+            1,
+            45000
+          ],
+          [
+            2,
+            255000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 600000,
+        "activities": [
+          0,
+          1,
+          2
+        ]
+      }
+    ]
+  },
+  "flicker 1 s is not a glance": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "code.exe",
+        "start_ms": 0,
+        "end_ms": 400000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 400000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": null,
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            399000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 400000,
+        "active_ms": 400000,
+        "dwell": [
+          [
+            0,
+            400000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 400000,
+        "activities": [
+          0
+        ]
+      }
+    ]
+  },
+  "idle 3 min stays inside": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "code.exe",
+        "start_ms": 0,
+        "end_ms": 600000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 420000,
+        "idle_ms": 180000,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": null,
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            420000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 600000,
+        "active_ms": 420000,
+        "dwell": [
+          [
+            0,
+            420000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 600000,
+        "activities": [
+          0
+        ]
+      }
+    ]
+  },
+  "idle 6 min splits": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "code.exe",
+        "start_ms": 0,
+        "end_ms": 200000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 200000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": null,
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            200000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "app": "code.exe",
+        "start_ms": 560000,
+        "end_ms": 900000,
+        "start_utc_ms": 1793000560000,
+        "tz_min": 0,
+        "active_ms": 340000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": "code.exe",
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            340000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 200000,
+        "active_ms": 200000,
+        "dwell": [
+          [
+            0,
+            200000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "start_ms": 560000,
+        "end_ms": 900000,
+        "active_ms": 340000,
+        "dwell": [
+          [
+            1,
+            340000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 200000,
+        "activities": [
+          0
+        ]
+      },
+      {
+        "index": 1,
+        "start_ms": 560000,
+        "end_ms": 900000,
+        "activities": [
+          1
+        ]
+      }
+    ]
+  },
+  "lock mid-run": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "code.exe",
+        "start_ms": 0,
+        "end_ms": 300000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 300000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": null,
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            300000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "app": "code.exe",
+        "start_ms": 901000,
+        "end_ms": 1200000,
+        "start_utc_ms": 1793000901000,
+        "tz_min": 0,
+        "active_ms": 299000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": "code.exe",
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            299000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 300000,
+        "active_ms": 300000,
+        "dwell": [
+          [
+            0,
+            300000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "start_ms": 901000,
+        "end_ms": 1200000,
+        "active_ms": 299000,
+        "dwell": [
+          [
+            1,
+            299000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 300000,
+        "activities": [
+          0
+        ]
+      },
+      {
+        "index": 1,
+        "start_ms": 901000,
+        "end_ms": 1200000,
+        "activities": [
+          1
+        ]
+      }
+    ]
+  },
+  "sleep and resume": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "chrome.exe",
+        "start_ms": 0,
+        "end_ms": 400000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 400000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": null,
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "inbox",
+            400000
+          ],
+          [
+            "mail",
+            400000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "app": "chrome.exe",
+        "start_ms": 5002000,
+        "end_ms": 5400000,
+        "start_utc_ms": 1793005002000,
+        "tz_min": 0,
+        "active_ms": 398000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": "chrome.exe",
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "inbox",
+            398000
+          ],
+          [
+            "mail",
+            398000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 400000,
+        "active_ms": 400000,
+        "dwell": [
+          [
+            0,
+            400000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "start_ms": 5002000,
+        "end_ms": 5400000,
+        "active_ms": 398000,
+        "dwell": [
+          [
+            1,
+            398000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 400000,
+        "activities": [
+          0
+        ]
+      },
+      {
+        "index": 1,
+        "start_ms": 5002000,
+        "end_ms": 5400000,
+        "activities": [
+          1
+        ]
+      }
+    ]
+  },
+  "pause and unpause": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "code.exe",
+        "start_ms": 0,
+        "end_ms": 120000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 120000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": null,
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            120000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "app": "code.exe",
+        "start_ms": 601000,
+        "end_ms": 800000,
+        "start_utc_ms": 1793000601000,
+        "tz_min": 0,
+        "active_ms": 199000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": "code.exe",
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            199000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 1,
+        "start_ms": 601000,
+        "end_ms": 800000,
+        "active_ms": 199000,
+        "dwell": [
+          [
+            1,
+            199000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 800000,
+        "activities": [
+          0,
+          1
+        ]
+      }
+    ]
+  },
+  "excluded app in the middle": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "code.exe",
+        "start_ms": 0,
+        "end_ms": 200000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 200000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": null,
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            200000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "app": "code.exe",
+        "start_ms": 260000,
+        "end_ms": 500000,
+        "start_utc_ms": 1793000260000,
+        "tz_min": 0,
+        "active_ms": 240000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": "code.exe",
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            240000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 200000,
+        "active_ms": 200000,
+        "dwell": [
+          [
+            0,
+            200000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "start_ms": 260000,
+        "end_ms": 500000,
+        "active_ms": 240000,
+        "dwell": [
+          [
+            1,
+            240000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 500000,
+        "activities": [
+          0,
+          1
+        ]
+      }
+    ]
+  },
+  "agent crash gap": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "code.exe",
+        "start_ms": 0,
+        "end_ms": 300000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 300000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": null,
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            300000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "app": "code.exe",
+        "start_ms": 1301000,
+        "end_ms": 1600000,
+        "start_utc_ms": 1793001301000,
+        "tz_min": 0,
+        "active_ms": 299000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": "code.exe",
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            299000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 300000,
+        "active_ms": 300000,
+        "dwell": [
+          [
+            0,
+            300000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "start_ms": 1301000,
+        "end_ms": 1600000,
+        "active_ms": 299000,
+        "dwell": [
+          [
+            1,
+            299000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 300000,
+        "activities": [
+          0
+        ]
+      },
+      {
+        "index": 1,
+        "start_ms": 1301000,
+        "end_ms": 1600000,
+        "activities": [
+          1
+        ]
+      }
+    ]
+  },
+  "marathon chunks at 60 min": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "code.exe",
+        "start_ms": 0,
+        "end_ms": 3600000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 3600000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": null,
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "cpp",
+            3600000
+          ],
+          [
+            "engine",
+            3600000
+          ],
+          [
+            "renderer",
+            3600000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "app": "code.exe",
+        "start_ms": 3600000,
+        "end_ms": 7200000,
+        "start_utc_ms": 1793003600000,
+        "tz_min": 0,
+        "active_ms": 3600000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": "code.exe",
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "cpp",
+            3600000
+          ],
+          [
+            "engine",
+            3600000
+          ],
+          [
+            "renderer",
+            3600000
+          ]
+        ]
+      },
+      {
+        "index": 2,
+        "app": "code.exe",
+        "start_ms": 7200000,
+        "end_ms": 9000000,
+        "start_utc_ms": 1793007200000,
+        "tz_min": 0,
+        "active_ms": 1800000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": "code.exe",
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "cpp",
+            1800000
+          ],
+          [
+            "engine",
+            1800000
+          ],
+          [
+            "renderer",
+            1800000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 900000,
+        "active_ms": 900000,
+        "dwell": [
+          [
+            0,
+            900000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "start_ms": 900000,
+        "end_ms": 1800000,
+        "active_ms": 900000,
+        "dwell": [
+          [
+            0,
+            900000
+          ]
+        ]
+      },
+      {
+        "index": 2,
+        "start_ms": 1800000,
+        "end_ms": 2700000,
+        "active_ms": 900000,
+        "dwell": [
+          [
+            0,
+            900000
+          ]
+        ]
+      },
+      {
+        "index": 3,
+        "start_ms": 2700000,
+        "end_ms": 3600000,
+        "active_ms": 900000,
+        "dwell": [
+          [
+            0,
+            900000
+          ]
+        ]
+      },
+      {
+        "index": 4,
+        "start_ms": 3600000,
+        "end_ms": 4500000,
+        "active_ms": 900000,
+        "dwell": [
+          [
+            1,
+            900000
+          ]
+        ]
+      },
+      {
+        "index": 5,
+        "start_ms": 4500000,
+        "end_ms": 5400000,
+        "active_ms": 900000,
+        "dwell": [
+          [
+            1,
+            900000
+          ]
+        ]
+      },
+      {
+        "index": 6,
+        "start_ms": 5400000,
+        "end_ms": 6300000,
+        "active_ms": 900000,
+        "dwell": [
+          [
+            1,
+            900000
+          ]
+        ]
+      },
+      {
+        "index": 7,
+        "start_ms": 6300000,
+        "end_ms": 7200000,
+        "active_ms": 900000,
+        "dwell": [
+          [
+            1,
+            900000
+          ]
+        ]
+      },
+      {
+        "index": 8,
+        "start_ms": 7200000,
+        "end_ms": 8100000,
+        "active_ms": 900000,
+        "dwell": [
+          [
+            2,
+            900000
+          ]
+        ]
+      },
+      {
+        "index": 9,
+        "start_ms": 8100000,
+        "end_ms": 9000000,
+        "active_ms": 900000,
+        "dwell": [
+          [
+            2,
+            900000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 9000000,
+        "activities": [
+          0,
+          1,
+          2
+        ]
+      }
+    ]
+  },
+  "title changes weight tokens": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "chrome.exe",
+        "start_ms": 0,
+        "end_ms": 600000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 600000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 2,
+        "prev_app": null,
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "dom:github.com",
+            600000
+          ],
+          [
+            "pull",
+            320000
+          ],
+          [
+            "request",
+            320000
+          ],
+          [
+            "review",
+            320000
+          ],
+          [
+            "build",
+            280000
+          ],
+          [
+            "failing",
+            280000
+          ],
+          [
+            "logs",
+            280000
+          ],
+          [
+            "test",
+            280000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 600000,
+        "active_ms": 600000,
+        "dwell": [
+          [
+            0,
+            600000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 600000,
+        "activities": [
+          0
+        ]
+      }
+    ]
+  },
+  "media idle is not away": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "chrome.exe",
+        "start_ms": 0,
+        "end_ms": 1600000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 1600000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": null,
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "lecture",
+            1600000
+          ],
+          [
+            "video",
+            1600000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 900000,
+        "active_ms": 900000,
+        "dwell": [
+          [
+            0,
+            900000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "start_ms": 900000,
+        "end_ms": 1600000,
+        "active_ms": 700000,
+        "dwell": [
+          [
+            0,
+            700000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 1600000,
+        "activities": [
+          0
+        ]
+      }
+    ]
+  },
+  "job running share": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "windowsterminal.exe",
+        "start_ms": 0,
+        "end_ms": 600000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 600000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": null,
+        "next_app": null,
+        "job_frac": 0.5,
+        "tokens": [
+          [
+            "build",
+            600000
+          ],
+          [
+            "cargo",
+            600000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 600000,
+        "active_ms": 600000,
+        "dwell": [
+          [
+            0,
+            600000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 600000,
+        "activities": [
+          0
+        ]
+      }
+    ]
+  },
+  "three-app hop": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "code.exe",
+        "start_ms": 0,
+        "end_ms": 110000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 110000,
+        "idle_ms": 0,
+        "glances": 1,
+        "title_changes": 0,
+        "prev_app": null,
+        "next_app": "slack.exe",
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            100000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "app": "slack.exe",
+        "start_ms": 110000,
+        "end_ms": 160000,
+        "start_utc_ms": 1793000110000,
+        "tz_min": 0,
+        "active_ms": 50000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": "code.exe",
+        "next_app": "code.exe",
+        "job_frac": 0,
+        "tokens": []
+      },
+      {
+        "index": 2,
+        "app": "code.exe",
+        "start_ms": 160000,
+        "end_ms": 400000,
+        "start_utc_ms": 1793000160000,
+        "tz_min": 0,
+        "active_ms": 240000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": "slack.exe",
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            240000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 400000,
+        "active_ms": 400000,
+        "dwell": [
+          [
+            0,
+            110000
+          ],
+          [
+            1,
+            50000
+          ],
+          [
+            2,
+            240000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 400000,
+        "activities": [
+          0,
+          1,
+          2
+        ]
+      }
+    ]
+  },
+  "workflow windows of 15 active minutes": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "code.exe",
+        "start_ms": 0,
+        "end_ms": 1000000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 1000000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": null,
+        "next_app": "chrome.exe",
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            1000000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "app": "chrome.exe",
+        "start_ms": 1000000,
+        "end_ms": 1600000,
+        "start_utc_ms": 1793001000000,
+        "tz_min": 0,
+        "active_ms": 600000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": "code.exe",
+        "next_app": "code.exe",
+        "job_frac": 0,
+        "tokens": [
+          [
+            "docs",
+            600000
+          ]
+        ]
+      },
+      {
+        "index": 2,
+        "app": "code.exe",
+        "start_ms": 1600000,
+        "end_ms": 2700000,
+        "start_utc_ms": 1793001600000,
+        "tz_min": 0,
+        "active_ms": 1100000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": "chrome.exe",
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            1100000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 900000,
+        "active_ms": 900000,
+        "dwell": [
+          [
+            0,
+            900000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "start_ms": 900000,
+        "end_ms": 1800000,
+        "active_ms": 900000,
+        "dwell": [
+          [
+            0,
+            100000
+          ],
+          [
+            1,
+            600000
+          ],
+          [
+            2,
+            200000
+          ]
+        ]
+      },
+      {
+        "index": 2,
+        "start_ms": 1800000,
+        "end_ms": 2700000,
+        "active_ms": 900000,
+        "dwell": [
+          [
+            2,
+            900000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 2700000,
+        "activities": [
+          0,
+          1,
+          2
+        ]
+      }
+    ]
+  },
+  "short window dropped": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "code.exe",
+        "start_ms": 0,
+        "end_ms": 100000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 100000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": null,
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            100000
+          ]
+        ]
+      }
+    ],
+    "windows": [],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 100000,
+        "activities": [
+          0
+        ]
+      }
+    ]
+  },
+  "clock jump keeps order": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "code.exe",
+        "start_ms": 0,
+        "end_ms": 600000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 600000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 1,
+        "prev_app": null,
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            600000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 600000,
+        "active_ms": 600000,
+        "dwell": [
+          [
+            0,
+            600000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 600000,
+        "activities": [
+          0
+        ]
+      }
+    ]
+  },
+  "dst change mid-run": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "code.exe",
+        "start_ms": 0,
+        "end_ms": 600000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 600000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 1,
+        "prev_app": null,
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            600000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 600000,
+        "active_ms": 600000,
+        "dwell": [
+          [
+            0,
+            600000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 600000,
+        "activities": [
+          0
+        ]
+      }
+    ]
+  },
+  "two sessions split by long idle": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "code.exe",
+        "start_ms": 0,
+        "end_ms": 300000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 300000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": null,
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            300000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "app": "code.exe",
+        "start_ms": 900000,
+        "end_ms": 901000,
+        "start_utc_ms": 1793000900000,
+        "tz_min": 0,
+        "active_ms": 1000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": "code.exe",
+        "next_app": "chrome.exe",
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            1000
+          ]
+        ]
+      },
+      {
+        "index": 2,
+        "app": "chrome.exe",
+        "start_ms": 901000,
+        "end_ms": 1500000,
+        "start_utc_ms": 1793000901000,
+        "tz_min": 0,
+        "active_ms": 599000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": "code.exe",
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "docs",
+            599000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 300000,
+        "active_ms": 300000,
+        "dwell": [
+          [
+            0,
+            300000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "start_ms": 900000,
+        "end_ms": 1500000,
+        "active_ms": 600000,
+        "dwell": [
+          [
+            1,
+            1000
+          ],
+          [
+            2,
+            599000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 300000,
+        "activities": [
+          0
+        ]
+      },
+      {
+        "index": 1,
+        "start_ms": 900000,
+        "end_ms": 1500000,
+        "activities": [
+          1,
+          2
+        ]
+      }
+    ]
+  },
+  "redaction and suffix tokens": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "chrome.exe",
+        "start_ms": 0,
+        "end_ms": 200000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 200000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": null,
+        "next_app": "code.exe",
+        "job_frac": 0,
+        "tokens": [
+          [
+            "dom:billing.example.com",
+            200000
+          ],
+          [
+            "invoice",
+            200000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "app": "code.exe",
+        "start_ms": 200000,
+        "end_ms": 500000,
+        "start_utc_ms": 1793000200000,
+        "tz_min": 0,
+        "active_ms": 300000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": "chrome.exe",
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "notes",
+            300000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 500000,
+        "active_ms": 500000,
+        "dwell": [
+          [
+            0,
+            200000
+          ],
+          [
+            1,
+            300000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 500000,
+        "activities": [
+          0,
+          1
+        ]
+      }
+    ]
+  },
+  "glance then switch before return": {
+    "activities": [
+      {
+        "index": 0,
+        "app": "code.exe",
+        "start_ms": 0,
+        "end_ms": 115000,
+        "start_utc_ms": 1793000000000,
+        "tz_min": 0,
+        "active_ms": 115000,
+        "idle_ms": 0,
+        "glances": 1,
+        "title_changes": 0,
+        "prev_app": null,
+        "next_app": "slack.exe",
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            100000
+          ]
+        ]
+      },
+      {
+        "index": 1,
+        "app": "slack.exe",
+        "start_ms": 115000,
+        "end_ms": 200000,
+        "start_utc_ms": 1793000115000,
+        "tz_min": 0,
+        "active_ms": 85000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": "code.exe",
+        "next_app": "code.exe",
+        "job_frac": 0,
+        "tokens": []
+      },
+      {
+        "index": 2,
+        "app": "code.exe",
+        "start_ms": 200000,
+        "end_ms": 300000,
+        "start_utc_ms": 1793000200000,
+        "tz_min": 0,
+        "active_ms": 100000,
+        "idle_ms": 0,
+        "glances": 0,
+        "title_changes": 0,
+        "prev_app": "slack.exe",
+        "next_app": null,
+        "job_frac": 0,
+        "tokens": [
+          [
+            "py",
+            100000
+          ]
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 300000,
+        "active_ms": 300000,
+        "dwell": [
+          [
+            0,
+            115000
+          ],
+          [
+            1,
+            85000
+          ],
+          [
+            2,
+            100000
+          ]
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "index": 0,
+        "start_ms": 0,
+        "end_ms": 300000,
+        "activities": [
+          0,
+          1,
+          2
+        ]
+      }
+    ]
+  }
+}

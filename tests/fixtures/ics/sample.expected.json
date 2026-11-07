@@ -1,0 +1,46 @@
+{
+ "from": "2026-11-02T00:00:00Z",
+ "days": 14,
+ "instances": [
+  [
+   "standup@fixture",
+   "2026-11-02T08:15:00Z"
+  ],
+  [
+   "standup@fixture",
+   "2026-11-03T08:15:00Z"
+  ],
+  [
+   "biweekly@fixture",
+   "2026-11-03T17:00:00Z"
+  ],
+  [
+   "standup@fixture",
+   "2026-11-05T15:00:00Z"
+  ],
+  [
+   "standup@fixture",
+   "2026-11-06T08:15:00Z"
+  ],
+  [
+   "due@fixture",
+   "2026-11-09T00:00:00Z"
+  ],
+  [
+   "standup@fixture",
+   "2026-11-09T08:15:00Z"
+  ],
+  [
+   "standup@fixture",
+   "2026-11-11T08:15:00Z"
+  ],
+  [
+   "standup@fixture",
+   "2026-11-12T08:15:00Z"
+  ],
+  [
+   "standup@fixture",
+   "2026-11-13T08:15:00Z"
+  ]
+ ]
+}

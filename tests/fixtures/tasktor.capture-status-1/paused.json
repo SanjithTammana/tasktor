@@ -1,0 +1,15 @@
+{
+  "schema": "tasktor.capture-control/1",
+  "on": true,
+  "paused_until": "2026-11-05T15:30:00Z",
+  "paused_indefinitely": false,
+  "blocks": [
+    {
+      "id": "b0",
+      "kind": "app",
+      "text": "Not capturing zoom.exe",
+      "by_rule": true
+    }
+  ],
+  "records_today": 40
+}

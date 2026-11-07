@@ -1,0 +1,20 @@
+{
+  "$schema": "../../schemas/tasktor.plugin-1.json",
+  "contract": 1,
+  "id": "tasktor.repos",
+  "name": "Repo hygiene",
+  "version": "1.0.0",
+  "author": "Tasktor",
+  "description": "Shows git repositories with uncommitted changes, unpushed commits or that are behind, under folders you choose.",
+  "command": ["{python}", "main.py"],
+  "interval": "15m",
+  "timeout": "60s",
+  "reads": ["git status counts for repositories under the folders you choose (never file contents)"],
+  "network": ["Only with \"Check remotes\" on: git fetch to each repository's own remotes"],
+  "settings": [
+    { "key": "folders", "label": "Folders to search (one per line)", "type": "string" },
+    { "key": "check_remotes", "label": "Check remotes (runs git fetch)", "type": "bool", "default": "false" }
+  ],
+  "actions": [ { "id": "refresh", "label": "Refresh", "class": "reversible" }, { "id": "open", "label": "Open folder", "class": "read" } ],
+  "min_tasktor": "1.0"
+}

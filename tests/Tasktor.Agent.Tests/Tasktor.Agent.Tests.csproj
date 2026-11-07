@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UsesCore>true</UsesCore>
+    <RootNamespace>Tasktor.Agent.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Tasktor.Agent/Tasktor.Agent.csproj" />
+    <ProjectReference Include="../../src/Tasktor.Cli/Tasktor.Cli.csproj" />
+  </ItemGroup>
+</Project>

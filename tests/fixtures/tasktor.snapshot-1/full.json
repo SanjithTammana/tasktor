@@ -1,0 +1,76 @@
+{
+  "schema": "tasktor.snapshot/1",
+  "generated_at": "2026-11-04T14:02:11Z",
+  "seq": 812,
+  "agent": {
+    "version": "0.1.0",
+    "running": true,
+    "paused": { "tracking": false, "capture": false, "refits": false },
+    "self": { "private_mb": 11.8, "cpu_pct": 0.04, "wakeups_per_min": 1.2 }
+  },
+  "state": {
+    "system": {
+      "cpu_pct": 34,
+      "ram_used_pct": 71,
+      "ram_available_gb": 3.4,
+      "ram_total_gb": 11.7,
+      "commit_pct": 64,
+      "gpu": [ { "id": "luid_0x0000d8a1", "name": "Integrated GPU", "pct": 12.5, "dedicated_mb": 128, "shared_mb": 900 } ],
+      "disks": [ { "id": "0 C:", "active_pct": 3, "read_bps": 1048576, "write_bps": 20480 } ],
+      "volumes": [ { "id": "C:", "letter": "C:", "free_gb": 32.2, "total_gb": 475.6, "free_pct": 6.8, "low": true } ],
+      "net": { "rx_bps": 2048, "tx_bps": 512 },
+      "verdict": "RAM 71%: Browser 3.1 GB",
+      "verdict_severity": "warn"
+    },
+    "apps": [
+      { "app_id": "browser.exe", "name": "Browser", "cpu_pct": 6.5, "private_mb": 3174, "gpu_pct": 1.5, "count": 29 },
+      { "app_id": "system", "name": "System / services", "cpu_pct": 2, "private_mb": 900, "count": 176, "system": true }
+    ],
+    "jobs": [
+      {
+        "id": "p12345-133758000000000000",
+        "label": "train.py",
+        "status": "working",
+        "pause": "none",
+        "started_at": "2026-11-04T13:10:00Z",
+        "cores_now": 6.3,
+        "cpu_time_s": 1820.5,
+        "io_bps": 65536,
+        "priority": "normal",
+        "hogging": true,
+        "workers": 4,
+        "pct": 42.5,
+        "stage": "epoch 3",
+        "eta_s": 1800,
+        "eta_source": "learned",
+        "eta_runs": 12,
+        "silent_source": "default",
+        "basis": "usually ~1 h 10 m (12 runs)"
+      }
+    ],
+    "workflow": { "id": "w7", "name": "Writing report", "confidence": 0.71, "source": "learned", "level": "workflow", "switches_today": 14 },
+    "alerts": [ { "rule": "disk-low", "severity": "warn", "card": "core.disk", "since": "2026-11-04T13:55:00Z", "text": "C: is low: 32 GB free (7%)" } ],
+    "plugins": [ { "id": "example.todo-count", "state": "ok", "updated_at": "2026-11-04T14:00:00Z" } ],
+    "power": { "on_battery": false, "has_battery": true },
+    "fullscreen": "none"
+  },
+  "cards": [
+    {
+      "id": "core.system",
+      "source": { "kind": "core" },
+      "title": "System",
+      "icon": "cpu",
+      "severity": { "bind": "/state/system/verdict_severity" },
+      "blocks": [
+        { "kind": "Metric", "priority": 1, "label": "CPU", "value": { "bind": "/state/system/cpu_pct" }, "unit": "%" },
+        { "kind": "Metric", "priority": 1, "label": "RAM", "value": { "bind": "/state/system/ram_used_pct" }, "unit": "%" },
+        { "kind": "Badge", "priority": 2, "text": { "bind": "/state/system/verdict" } },
+        { "kind": "Sparkline", "priority": 3, "label": "CPU", "series": "system.cpu_pct", "unit": "%" },
+        { "kind": "Table", "priority": 4, "columns": [ { "key": "name", "label": "App" }, { "key": "cpu_pct", "label": "CPU", "unit": "%" } ], "rows": { "bind": "/state/apps" }, "max": 3, "row_key": "app_id" }
+      ],
+      "actions": [ { "id": "open", "label": "Open", "priority": 1, "action": "open", "target": { "card": "core.system" } } ],
+      "link": "tasktor://open?card=core.system",
+      "stale_after_s": 120
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- U4 amended D-G11: the shelf. One sentence whose nouns are controls, its unfolded actions, the inline confirm. -->
+<Window
+    x:Class="Tasktor.Flyout.ShelfWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Tasktor">
+
+    <Grid x:Name="Root" Background="{ThemeResource TasktorShelfBrush}" VerticalAlignment="Top">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="6" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- The edge, grown: last hour of load, left = an hour ago. -->
+        <Canvas x:Name="GrainCanvas" Grid.Row="0" Height="6" AutomationProperties.AccessibilityView="Raw">
+            <Path x:Name="GrainPath" Stroke="{ThemeResource TasktorInk3Brush}" StrokeThickness="1" />
+            <Path x:Name="HotPath" Stroke="{ThemeResource TasktorInkBrush}" StrokeThickness="1" />
+        </Canvas>
+
+        <StackPanel x:Name="Body" Grid.Row="1" Padding="48,24,48,24" Spacing="16">
+            <Grid ColumnSpacing="24">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Severity is a small shape beside the words, never a colour field (D-G14). -->
+                <Path x:Name="SeverityMark" Grid.Column="0" Width="10" Height="10" Margin="0,14,0,0" VerticalAlignment="Top"
+                      Stretch="Uniform" Visibility="Collapsed" />
+
+                <RichTextBlock x:Name="Sentence" Grid.Column="1" MaxWidth="980" HorizontalAlignment="Left" TextWrapping="Wrap"
+                               FontFamily="Segoe UI Variable Display" FontSize="26" LineHeight="38" FontWeight="SemiLight"
+                               Foreground="{ThemeResource TasktorInkBrush}" IsTextSelectionEnabled="False"
+                               AutomationProperties.LiveSetting="Polite" />
+
+                <HyperlinkButton x:Name="DeepLink" Grid.Column="2" VerticalAlignment="Top" Margin="0,6,0,0"
+                                 Content="Everything Tasktor knows ›" Foreground="{ThemeResource TasktorInk2Brush}"
+                                 Click="OnDeepLink" />
+            </Grid>
+
+            <!-- The hour as rows, alerts written on it, the lead row carried past "now" (dotted). -->
+            <Canvas x:Name="Strip" Height="0" AutomationProperties.Name="The last hour" />
+
+            <StackPanel x:Name="ActionsRow" Orientation="Horizontal" Spacing="24" Visibility="Collapsed"
+                        AutomationProperties.Name="Actions">
+                <TextBlock x:Name="ActionsLabel" VerticalAlignment="Center" Style="{StaticResource TasktorBodyTextStyle}"
+                           Foreground="{ThemeResource TasktorInk3Brush}" />
+            </StackPanel>
+
+            <StackPanel x:Name="ConfirmRow" Orientation="Horizontal" Spacing="16" Visibility="Collapsed">
+                <Button x:Name="KeepButton" Style="{StaticResource AccentButtonStyle}" MinHeight="36" Padding="18,7,18,7"
+                        Content="Keep it" Click="OnKeep" />
+                <Button x:Name="ConfirmButton" MinHeight="36" Padding="18,7,18,7" Background="Transparent" BorderThickness="0"
+                        Foreground="{ThemeResource TasktorInk2Brush}" Click="OnConfirm" />
+            </StackPanel>
+
+            <TextBlock x:Name="NoticeText" Visibility="Collapsed" Style="{StaticResource TasktorBodyTextStyle}"
+                       Foreground="{ThemeResource TasktorInk2Brush}" AutomationProperties.LiveSetting="Polite" />
+        </StackPanel>
+    </Grid>
+</Window>

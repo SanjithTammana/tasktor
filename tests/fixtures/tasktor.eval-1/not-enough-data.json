@@ -1,0 +1,28 @@
+{
+  "schema": "tasktor.eval/1",
+  "version": "v1",
+  "activated": false,
+  "gates": [
+    {
+      "id": "G0",
+      "value": 120,
+      "threshold": 300,
+      "pass": false,
+      "report_only": false
+    },
+    {
+      "id": "G6b",
+      "value": 0.08,
+      "threshold": 0.05,
+      "pass": true,
+      "null_value": 0.0,
+      "report_only": false
+    },
+    {
+      "id": "G7",
+      "value": 0.71,
+      "pass": true,
+      "report_only": true
+    }
+  ]
+}

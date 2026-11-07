@@ -1,0 +1,145 @@
+{
+  "template": {
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "type": "AdaptiveCard",
+    "version": "1.5",
+    "body": [
+      {
+        "type": "ColumnSet",
+        "columns": [
+          {
+            "type": "Column",
+            "width": "stretch",
+            "items": [
+              {
+                "type": "TextBlock",
+                "text": "${title}",
+                "wrap": true,
+                "weight": "Bolder",
+                "isSubtle": "${stale}"
+              }
+            ]
+          },
+          {
+            "type": "Column",
+            "width": "auto",
+            "$when": "${severity.show}",
+            "items": [
+              {
+                "type": "TextBlock",
+                "text": "${severity.icon} ${severity.word}",
+                "wrap": true,
+                "color": "${severity.color}"
+              }
+            ]
+          },
+          {
+            "type": "Column",
+            "width": "auto",
+            "items": [
+              {
+                "type": "TextBlock",
+                "text": "${source}",
+                "wrap": true,
+                "isSubtle": true,
+                "size": "Small"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "TextBlock",
+        "text": "${as_of}",
+        "wrap": true,
+        "isSubtle": true,
+        "size": "Small",
+        "$when": "${stale}"
+      },
+      {
+        "type": "Container",
+        "items": [
+          {
+            "type": "TextBlock",
+            "text": "${b0.label}",
+            "wrap": true,
+            "isSubtle": true,
+            "size": "Small"
+          },
+          {
+            "type": "TextBlock",
+            "text": "${b0.value} ${b0.trend}",
+            "wrap": true,
+            "weight": "Bolder",
+            "isSubtle": "${stale}",
+            "size": "Large"
+          },
+          {
+            "type": "TextBlock",
+            "text": "${b0.severity}",
+            "wrap": true,
+            "size": "Small",
+            "color": "Default",
+            "$when": "${b0.severity != \u0027\u0027}"
+          }
+        ]
+      },
+      {
+        "type": "Container",
+        "items": [
+          {
+            "type": "TextBlock",
+            "text": "${b1.label}",
+            "wrap": true,
+            "isSubtle": true,
+            "size": "Small",
+            "$when": "${b1.label != \u0027\u0027}"
+          },
+          {
+            "type": "Container",
+            "$data": "${b1.items}",
+            "items": [
+              {
+                "type": "TextBlock",
+                "text": "\u2022 ${$data}",
+                "wrap": true,
+                "isSubtle": "${$root.stale}"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selectAction": {
+      "type": "Action.OpenUrl",
+      "url": "tasktor://open?card=plugin.todo-count.main"
+    }
+  },
+  "data": {
+    "title": "TODOs",
+    "severity": {
+      "icon": "\u2713",
+      "word": "Normal",
+      "show": false,
+      "color": "Default"
+    },
+    "stale": false,
+    "as_of": "",
+    "source": "from TODO count",
+    "b0": {
+      "severity": "",
+      "label": "Open",
+      "value": "4",
+      "trend": ""
+    },
+    "b1": {
+      "severity": "",
+      "label": "",
+      "items": [
+        "one",
+        "two",
+        "three"
+      ]
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "type": "hello",
+  "at": "2026-01-01T00:00:00Z",
+  "contract": 1,
+  "client": "nmh",
+  "browser": "edge",
+  "extension_version": "1.0.0",
+  "incognito": false
+}

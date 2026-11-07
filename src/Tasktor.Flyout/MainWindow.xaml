@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- U4 amended D-G13: the deep window. Windows Settings patterns: a left rail, a page title, rows separated by hairlines. -->
+<Window
+    x:Class="Tasktor.Flyout.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Tasktor">
+
+    <Grid x:Name="Root">
+        <NavigationView x:Name="Nav" PaneDisplayMode="Left" IsBackButtonVisible="Collapsed" IsSettingsVisible="False"
+                        OpenPaneLength="280" SelectionChanged="OnNavigate">
+            <ScrollViewer>
+                <StackPanel Padding="56,32,56,48" Spacing="8" MaxWidth="1000" HorizontalAlignment="Left">
+                    <TextBlock x:Name="PageTitle" Style="{StaticResource TasktorTitleTextStyle}" Foreground="{ThemeResource TasktorInkBrush}" />
+                    <StackPanel x:Name="PageContent" Spacing="32" />
+                </StackPanel>
+            </ScrollViewer>
+        </NavigationView>
+    </Grid>
+</Window>

@@ -1,0 +1,6 @@
+# Python worker + tooling. The shipped app bundles embeddable Python 3.13 with these wheels (D-C11).
+numpy>=2.0
+scikit-learn>=1.5
+pandas>=2.2
+jsonschema>=4.22
+pytest>=8.0

@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tasktor:schema:tasktor.extract-1.json",
+  "title": "Tasktor training extract metadata (meta.json)",
+  "description": "Contract tasktor.extract/1. Generated from the C# records in Tasktor.Contracts; do not edit by hand.",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "activities": {
+      "type": "integer"
+    },
+    "apps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "terms": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "dense": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "windows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "day": {
+            "type": "integer"
+          },
+          "activities": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "dwell_ms": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "day",
+          "activities",
+          "dwell_ms"
+        ]
+      }
+    },
+    "activity_ids": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      }
+    },
+    "files": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "version",
+    "created_at",
+    "activities",
+    "apps",
+    "dense",
+    "windows",
+    "activity_ids",
+    "files"
+  ]
+}

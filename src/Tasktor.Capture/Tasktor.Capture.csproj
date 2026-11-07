@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>Tasktor.Capture</RootNamespace>
+    <AssemblyName>tasktor-capture</AssemblyName>
+    <IsAotCompatible>true</IsAotCompatible>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishAot>true</PublishAot>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Tasktor.Core/Tasktor.Core.csproj" />
+    <ProjectReference Include="../Tasktor.Hosts.Common/Tasktor.Hosts.Common.csproj" />
+    <ProjectReference Include="../Tasktor.Windows/Tasktor.Windows.csproj" />
+  </ItemGroup>
+</Project>
+

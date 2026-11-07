@@ -1,0 +1,1 @@
+{ "contract": 1, "call": "render", "settings": { "file": "notes/todo.txt" }, "snapshot_path": "snapshot.json", "data_dir": "plugin-data/example.todo-count" }

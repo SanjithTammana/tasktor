@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tasktor:schema:tasktor.agent-1.json",
+  "title": "Tasktor agent hook file (agents/<session>.json)",
+  "description": "Contract tasktor.agent/1. Generated from the C# records in Tasktor.Contracts; do not edit by hand.",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "string"
+    },
+    "agent": {
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "folder": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "state": {
+      "enum": [
+        "working",
+        "needs-permission",
+        "waiting",
+        "ended",
+        "busy",
+        "idle"
+      ]
+    },
+    "since": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "pid": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "agent",
+    "session_id",
+    "state",
+    "since"
+  ]
+}

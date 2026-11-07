@@ -1,0 +1,1 @@
+{ "schema": "tasktor.action/1", "action": "proc.end", "status": "refused", "message": "Destructive CLI actions need --yes and cli.allow_destructive", "reason": "origin_policy" }
