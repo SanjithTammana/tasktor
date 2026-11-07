@@ -97,35 +97,41 @@ public sealed partial class SqliteDb : IDisposable
         }
 
         var conn = new SqliteDb(db);
-        if (key is not null)
+        try
         {
-            if (key.Length != 32)
+            if (key is not null)
             {
-                conn.Dispose();
-                throw new ArgumentException("the key is 32 bytes", nameof(key));
+                if (key.Length != 32)
+                {
+                    throw new ArgumentException("the key is 32 bytes", nameof(key));
+                }
+
+                conn.Exec("PRAGMA key = \"x'" + Convert.ToHexString(key) + "'\";");
+                string? codec;
+                using (var probe = conn.Prepare("PRAGMA cipher_version;"))
+                {
+                    codec = probe.Step() ? probe.Text(0) : null; // an engine without a codec ignores both pragmas
+                }
+
+                if (string.IsNullOrEmpty(codec))
+                {
+                    throw new NotSupportedException("this SQLite engine cannot encrypt");
+                }
             }
 
-            conn.Exec("PRAGMA key = \"x'" + Convert.ToHexString(key) + "'\";");
-            string? codec;
-            using (var probe = conn.Prepare("PRAGMA cipher_version;"))
+            if (!readOnly && path != ":memory:")
             {
-                codec = probe.Step() ? probe.Text(0) : null; // an engine without a codec ignores both pragmas
+                conn.Exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;"); // a wrong key fails here
             }
 
-            if (string.IsNullOrEmpty(codec))
-            {
-                conn.Dispose();
-                throw new NotSupportedException("this SQLite engine cannot encrypt");
-            }
+            conn.Exec("PRAGMA cache_size=-256;"); // ≤ 256 KB page cache (C's memory layout)
+            return conn;
         }
-
-        if (!readOnly && path != ":memory:")
+        catch
         {
-            conn.Exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;");
+            conn.Dispose(); // a failed open never leaves the file held (Windows cannot delete or reopen it otherwise)
+            throw;
         }
-
-        conn.Exec("PRAGMA cache_size=-256;"); // ≤ 256 KB page cache (C's memory layout)
-        return conn;
     }
 
     public long LastInsertRowId => sqlite3_last_insert_rowid(_db);
