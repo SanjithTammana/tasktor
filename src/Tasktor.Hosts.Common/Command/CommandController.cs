@@ -29,6 +29,23 @@ public sealed class CommandController
 
     public string Text { get; private set; } = string.Empty;
 
+    /// <summary>
+    /// C21 "Search my activity" (U4 D-G12: results include the user's own activity): the agent's <c>activity</c> pull. Run
+    /// after <see cref="SearchDelay"/> without typing, for 3 or more characters; its hits show last, only for the text they
+    /// were asked for. Null: no search (capture off).
+    /// </summary>
+    public Func<string, CancellationToken, Task<IReadOnlyList<Contracts.Capture.ActivityHit>?>>? SearchActivity { get; init; }
+
+    public TimeSpan SearchDelay { get; init; } = TimeSpan.FromMilliseconds(300);
+
+    /// <summary>The zone the hits' times are shown in.</summary>
+    public TimeZoneInfo Zone { get; init; } = TimeZoneInfo.Local;
+
+    public const int ActivityHits = 4;
+
+    private CancellationTokenSource? _search;
+    private (string Query, IReadOnlyList<Contracts.Capture.ActivityHit> Hits)? _hits;
+
     public CommandView View { get; private set; }
 
     /// <summary>Index into the flattened results; -1 when there are none.</summary>
@@ -65,6 +82,44 @@ public sealed class CommandController
         Text = text ?? string.Empty;
         Notice = null;
         Requery(keepSelection: false);
+        StartSearch();
+    }
+
+    private void StartSearch()
+    {
+        _search?.Cancel();
+        _search?.Dispose();
+        _search = null;
+        var query = Text.Trim();
+        if (SearchActivity is not { } search || query.Length < 3)
+        {
+            return;
+        }
+
+        var cts = _search = new CancellationTokenSource();
+        var ct = cts.Token;
+        _ = Task.Run(
+            async () =>
+            {
+                try
+                {
+                    await Task.Delay(SearchDelay, ct).ConfigureAwait(false);
+                    var hits = await search(query, ct).ConfigureAwait(false);
+                    _dispatch(() =>
+                    {
+                        if (!ct.IsCancellationRequested && query == Text.Trim())
+                        {
+                            _hits = (query, hits ?? []);
+                            Requery(keepSelection: true);
+                        }
+                    });
+                }
+                catch (Exception e) when (e is OperationCanceledException or IOException or ObjectDisposedException or InvalidOperationException)
+                {
+                    // no hits for this text; the rest of the results stand
+                }
+            },
+            ct);
     }
 
     public void Move(int delta)
@@ -183,6 +238,13 @@ public sealed class CommandController
     {
         var before = Highlighted;
         View = CommandIndex.Query(Text, _cards, _resolver);
+        if (_hits is { } found && found.Query == Text.Trim() && found.Hits.Count > 0)
+        {
+            var items0 = found.Hits.Take(ActivityHits).Select(h => new CommandItem(
+                TimeZoneInfo.ConvertTime(h.Start, Zone).ToString("ddd H:mm", System.Globalization.CultureInfo.InvariantCulture) + " · " + h.Snippet)).ToList();
+            View = View with { Sections = [.. View.Sections, new CommandSection("Your activity", items0)] };
+        }
+
         var items = Items;
         var again = keepSelection && before is not null ? items.ToList().FindIndex(i => i.Label == before.Label) : -1;
         Selected = again >= 0 ? again : items.Count > 0 ? 0 : -1;

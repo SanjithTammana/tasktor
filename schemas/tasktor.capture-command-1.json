@@ -16,7 +16,8 @@
         "exclude",
         "unexclude",
         "tab_pause",
-        "forget"
+        "forget",
+        "search"
       ]
     },
     "by_user": {
@@ -59,6 +60,12 @@
         "null"
       ],
       "format": "date-time"
+    },
+    "query": {
+      "type": [
+        "string",
+        "null"
+      ]
     }
   },
   "required": [

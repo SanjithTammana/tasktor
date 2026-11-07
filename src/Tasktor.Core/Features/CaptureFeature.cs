@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Text.Json;
+using Tasktor.Contracts;
 using Tasktor.Contracts.Actions;
 using Tasktor.Contracts.Capture;
 using Tasktor.Contracts.Cards;
@@ -81,6 +83,19 @@ public sealed class CaptureFeature : Feature
         Context.Router.Register("capture.tab_pause", TabPause);
         Context.Router.Register("capture.forget", Forget);
         Context.Router.Register("capture.extension_setup", Setup);
+        // C21 "Search my activity": relayed to the capture host, which owns the encrypted index. The query and the
+        // snippets are personal data: passed through, never logged. Runs on the pipe's thread, not the loop.
+        Context.RegisterPull("activity", pull =>
+        {
+            if (Link is not { } link || pull.Args?.GetValueOrDefault("q")?.Trim() is not { Length: > 0 and <= 200 } query)
+            {
+                return null;
+            }
+
+            DateTimeOffset? since = pull.Args?.GetValueOrDefault("since") is { } s && DurationText.TryParse(s, out var span) ? Context.Clock.UtcNow - span : null;
+            var status = Send(link, new CaptureCommand { Verb = CaptureVerb.Search, ByUser = true, Query = query, Since = since });
+            return status?.Hits is { } hits ? JsonSerializer.SerializeToNode(hits, ContractsJsonContext.Default.IReadOnlyListActivityHit) : null;
+        });
         _supervisor?.Start();
         Refresh();
         _refresh = Context.Loop.Every(TimeSpan.FromMinutes(1), Refresh); // pauses expire host-side; one cheap call a minute

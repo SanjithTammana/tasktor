@@ -13,6 +13,9 @@ public enum CaptureVerb
     [JsonStringEnumMemberName("unexclude")] Unexclude,
     [JsonStringEnumMemberName("tab_pause")] TabPause,
     [JsonStringEnumMemberName("forget")] Forget,
+
+    /// <summary>C21 "Search my activity": <see cref="CaptureCommand.Query"/>, from <see cref="CaptureCommand.Since"/>. People only.</summary>
+    [JsonStringEnumMemberName("search")] Search,
 }
 
 /// <summary>
@@ -42,8 +45,24 @@ public sealed record CaptureCommand
     /// <summary>Unexclude: the block's id.</summary>
     public string? BlockId { get; init; }
 
-    /// <summary>Forget: records from this time on.</summary>
+    /// <summary>Forget: records from this time on. Search: activities from this time on.</summary>
     public DateTimeOffset? Since { get; init; }
+
+    /// <summary>Search: the words to look for. Personal data: never logged.</summary>
+    public string? Query { get; init; }
+}
+
+/// <summary>One activity a search found (C21): when, which track, and a snippet with the matched words in brackets.</summary>
+public sealed record ActivityHit
+{
+    public required DateTimeOffset Start { get; init; }
+
+    public required DateTimeOffset End { get; init; }
+
+    public int Track { get; init; }
+
+    /// <summary>Personal data (what was on screen or typed): shown to the user, never logged.</summary>
+    public required string Snippet { get; init; }
 }
 
 /// <summary>One active capture block as the agent's card shows it.</summary>
@@ -86,6 +105,9 @@ public sealed record CaptureStatus
 
     /// <summary>Records removed by a forget command.</summary>
     public long? Forgotten { get; init; }
+
+    /// <summary>Search results (only for <see cref="CaptureVerb.Search"/>), best first.</summary>
+    public IReadOnlyList<ActivityHit>? Hits { get; set; }
 
     /// <summary>Why a command was refused (<c>rule_owned</c>, <c>not_found</c>, <c>invalid</c>), or null.</summary>
     public string? Refusal { get; init; }

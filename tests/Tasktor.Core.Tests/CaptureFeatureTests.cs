@@ -68,6 +68,8 @@ public sealed class CaptureFeatureTests : IDisposable
                     break;
                 case CaptureVerb.Forget:
                     return Task.FromResult(Status() with { Forgotten = 12 });
+                case CaptureVerb.Search:
+                    return Task.FromResult(Status() with { Hits = c.Query == "revenue" ? [new ActivityHit { Start = DateTimeOffset.UnixEpoch, End = DateTimeOffset.UnixEpoch.AddMinutes(10), Snippet = "Quarterly [revenue] review" }] : [] });
             }
 
             return Task.FromResult(Status() with { Refusal = refusal });
@@ -167,6 +169,20 @@ public sealed class CaptureFeatureTests : IDisposable
         _capture.Refresh();
         _rig.Loop.RunPending();
         Assert.False(Offered());
+    }
+
+    [Fact]
+    public void Search_my_activity_is_relayed_to_the_capture_host_as_a_persons_search()
+    {
+        var pull = _rig.Pulls["activity"];
+        var hits = pull(new Contracts.Pipe.PullMessage { Id = "1", Table = "activity", Args = new Dictionary<string, string> { ["q"] = " revenue ", ["since"] = "7d" } })!.AsArray();
+        Assert.Equal("Quarterly [revenue] review", (string)hits.Single()!["snippet"]!);
+        var sent = _host.Seen.Last();
+        Assert.Equal((CaptureVerb.Search, true, "revenue"), (sent.Verb, sent.ByUser, sent.Query));
+        Assert.Equal(_rig.Clock.UtcNow.AddDays(-7), sent.Since);
+        Assert.Null(pull(new Contracts.Pipe.PullMessage { Id = "2", Table = "activity", Args = new Dictionary<string, string> { ["q"] = "  " } })); // nothing to search
+        _host.Down = true;
+        Assert.Null(pull(new Contracts.Pipe.PullMessage { Id = "3", Table = "activity", Args = new Dictionary<string, string> { ["q"] = "revenue" } })); // capture not running
     }
 
     [Fact]

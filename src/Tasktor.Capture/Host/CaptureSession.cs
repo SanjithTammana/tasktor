@@ -133,6 +133,19 @@ public sealed class CaptureSession : IDisposable
         }
     }
 
+    /// <summary>C21 search, run on the loop (the index is the loop's); null when there is no index.</summary>
+    public IReadOnlyList<Contracts.Capture.ActivityHit>? Search(string query, DateTimeOffset? since)
+    {
+        if (Index is not { } index)
+        {
+            return null;
+        }
+
+        IReadOnlyList<Contracts.Capture.ActivityHit> Run() =>
+            [.. index.Search(query, since).Select(h => new Contracts.Capture.ActivityHit { Start = h.Start, End = h.End, Track = h.Track, Snippet = h.Snippet })];
+        return _started && !_stopped ? Loop.InvokeAsync(Run).GetAwaiter().GetResult() : Run();
+    }
+
     /// <summary>C21.4: forget the index from <paramref name="since"/> on (the vault forgets its own records); any thread.</summary>
     public int ForgetIndex(DateTimeOffset since)
     {

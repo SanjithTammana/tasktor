@@ -72,6 +72,7 @@ internal sealed class CaptureLifetime : IDisposable
                 ResolveTab = endpoint.ResolveTab,
                 RecordsToday = () => recorder.RecordsToday,
                 Extensions = endpoint.Connected,
+                Search = (query, since) => _session?.Search(query, since),
                 ForgetSince = since =>
                 {
                     var n = recorder.ForgetSince(since);

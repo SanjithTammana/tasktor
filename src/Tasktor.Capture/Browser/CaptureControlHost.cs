@@ -40,12 +40,26 @@ public sealed class CaptureControl
     /// <summary>A tab id (or none = the active tab) → its block key (the browser endpoint knows which browser it is).</summary>
     public Func<int?, string?> ResolveTab { get; init; } = _ => null;
 
+    /// <summary>C21 search over the content index (query, since); null when there is no index on this PC.</summary>
+    public Func<string, DateTimeOffset?, IReadOnlyList<ActivityHit>?>? Search { get; init; }
+
     /// <summary>Raised after a block change so the browser sessions get the new state.</summary>
     public event Action? Changed;
 
     public CaptureStatus Handle(CaptureCommand cmd)
     {
         ArgumentNullException.ThrowIfNull(cmd);
+        if (cmd.Verb == CaptureVerb.Search)
+        {
+            // Outside the block lock: a search never holds up pause or exclude. A person's search only, never a rule's.
+            if (!cmd.ByUser || cmd.Query is not { Length: > 0 and <= 200 } query)
+            {
+                return Status() with { Refusal = "invalid" };
+            }
+
+            return Search?.Invoke(query, cmd.Since) is { } hits ? Status() with { Hits = hits } : Status() with { Refusal = "no_index" };
+        }
+
         string? refusal = null;
         long? forgotten = null;
         var changed = false;
