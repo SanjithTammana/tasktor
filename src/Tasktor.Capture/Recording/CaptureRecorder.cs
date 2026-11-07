@@ -56,6 +56,9 @@ public sealed class CaptureRecorder
 
     public long Skipped { get; private set; }
 
+    /// <summary>The blocks this recorder applies (the key-run suppressor checks the same ones).</summary>
+    public CaptureBlocks Blocks => _blocks;
+
     /// <summary>Scrubs tab titles and address queries (the user's own patterns come from settings).</summary>
     public SecretRedactor Redactor { get; init; } = new();
 
