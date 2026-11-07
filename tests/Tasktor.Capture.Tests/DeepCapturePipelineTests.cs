@@ -21,7 +21,7 @@ public sealed class DeepCapturePipelineTests : IDisposable
         _blocks = new CaptureBlocks(Path.Combine(_dir, "blocks.json"), TimeZoneInfo.Utc);
         _vault = new RawVault(Path.Combine(_dir, "raw"), new byte[32]);
         var recorder = new CaptureRecorder(_vault, _blocks, Now);
-        var runs = new KeyRunBuilder(new KeyDecoder(), new ActorAttributor(() => []), new SecretRedactor(), new Suppressor(_blocks).Check, ms => T0.AddMilliseconds(ms));
+        var runs = new KeyRunBuilder(new KeyDecoder(), new ActorAttributor(() => []), new SecretRedactor(), (new Suppressor(_blocks) { SecureDesktop = () => false }).Check, ms => T0.AddMilliseconds(ms));
         _deep = new DeepCapture(_ring, runs, new SnapshotDiffer(), new SecretRedactor(), recorder, Now, () => _ms);
     }
 
@@ -142,6 +142,7 @@ public sealed class DeepCapturePipelineTests : IDisposable
         Assert.DoesNotContain(Records(), r => r.Body.Contains("balance", StringComparison.Ordinal) || r.Body.Contains("Accounts", StringComparison.Ordinal));
     }
 }
+
 
 
 

@@ -1,7 +1,8 @@
 # Capture lane report
 
 ## Done
-- Parallel uncommitted work: secure-desktop/WTS logic, bounded UIA walk, visible-window geometry, and media logic. These are incomplete adapter work and are not in the pushed commits. No native UIA or media adapter, session notification wiring, or DeepCapture/browser event integration is complete.
+- Secure-desktop policy and probes: unknown desktop/session state suppresses capture by default; WTS snapshots and notification policy are testable and fail closed. These components are not yet connected to the host message loop or sources.
+- Parallel uncommitted work: bounded UIA walk, visible-window geometry, and media logic. These are incomplete adapter work and are not in the pushed commits. No native UIA or media adapter, session notification wiring, or DeepCapture/browser event integration is complete.
 - Privacy prerequisites (capture: protect uncertain key runs): key-run suppression receives an explicit monotonic-to-wall-clock mapper, and an unknown password state suppresses text and field-value retention. Existing synthetic safe-field fixtures now explicitly declare a non-password state.
 - Low-level hook adapter (capture: low-level hook adapter): one Windows message-loop thread installs both low-level hooks and runs the 30-second inactivity watchdog. Callbacks copy typed native events to the ring and call the next hook. Keyboard/mouse flags and 32-bit tick wrap are kept distinct. The hook and layout adapter are not yet wired into the host.
 - Merged upstream browser T1 events. Step 6 must route TextSeen to DeepCapture.Walk with DiffSource.Extension and MediaSeen to DeepCapture.Media on the logic thread; the M12 browser T1 real-PC check remains outstanding.
@@ -11,6 +12,7 @@
 - Added an indicator startup gate and synthetic tests. If stopping capture throws, the gate keeps the indicator alive and permits a retry. The gate now owns the capture host lifetime.
 
 ## Checks run
+- PASS: 205 Capture tests on the in-progress versioned Windows target, including the default-suppression and synthetic WTS/notification cases. A read-only PC probe reported an unlocked connected session on the user desktop; no lock, UAC, disconnect or notification-delivery test was performed.
 - PASS: post-merge full .NET suite on the pre-retarget tree: Core 468, Capture 180, Agent 51. Added fake layout outcomes suppress an entire uncertain run, including field diffs; event suppression uses an injected wall-time mapping and unknown password status suppresses text.
 - PASS: full `dotnet test Tasktor.sln` after upstream watcher fix df84e7b: Core 468, Capture 180 and Agent 51 passed; all other projects passed. The suite included the uncommitted in-progress adapter tests.
 - HISTORICAL FAIL (fixed upstream): `dotnet test Tasktor.sln` aborted the Agent test host after 23 Agent tests passed: an unhandled `DirectoryNotFoundException` arose in `JobProgressSource.Rescan` (`ProgressFiles.cs:162`), called by its FileSystemWatcher error callback (line 142), while a temporary jobs directory was unavailable. Core 466 and Capture 170 tests passed before the host crash. The Release solution build passed with zero warnings and the worker suite passed 108 tests. A later post-fix full suite passed.
@@ -57,6 +59,7 @@
 - The Windows layout adapter remains unwired pending real-PC verification; this is an implementation status, not a blocker.
 
 - Windows computer-use policy disallows Win-key shortcuts, so the Win+Alt+T shortcut itself cannot be automated in this session.
+
 
 
 
