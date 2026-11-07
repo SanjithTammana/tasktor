@@ -31,11 +31,36 @@ public sealed partial class SqliteDb : IDisposable
 
     private SqliteDb(nint db) => _db = db;
 
+    private static string? s_engine;
+    private static volatile bool s_resolved;
+
+    /// <summary>
+    /// Use another SQLite build for this whole process, e.g. SQLCipher (<c>e_sqlcipher</c>) in the capture process for its
+    /// encrypted index (C OQ-C22). Call before the first database opens; the native library is bound once per process.
+    /// If it cannot be loaded the default engine is used, and <see cref="Open"/> with a key then refuses (fails closed).
+    /// </summary>
+    public static void UseEngine(string libraryName)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(libraryName);
+        if (s_resolved && s_engine != libraryName)
+        {
+            throw new InvalidOperationException("SQLite is already bound in this process");
+        }
+
+        s_engine = libraryName;
+    }
+
     private static nint Resolve(string name, Assembly assembly, DllImportSearchPath? path)
     {
         if (name != "sqlite3")
         {
             return 0;
+        }
+
+        s_resolved = true;
+        if (s_engine is { } engine && NativeLibrary.TryLoad(engine, assembly, path, out var chosen))
+        {
+            return chosen;
         }
 
         foreach (var candidate in OperatingSystem.IsWindows() ? new[] { "winsqlite3.dll", "sqlite3.dll" } : OperatingSystem.IsMacOS() ? ["libsqlite3.dylib"] : ["libsqlite3.so.0", "libsqlite3.so"])

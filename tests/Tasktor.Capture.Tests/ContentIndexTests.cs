@@ -86,12 +86,39 @@ public sealed class ContentIndexTests : IDisposable
     }
 
     [Fact]
-    public void On_disk_it_opens_only_with_an_engine_that_encrypts()
+    public void On_disk_the_index_is_encrypted_and_opens_only_with_its_key()
     {
-        // The system SQLite has no codec: the index refuses to write plain text to disk (OQ-C22: SQLCipher, or no index file).
+        // This test assembly binds SQLite to SQLCipher, as tasktor-capture does at start (OQ-C22).
         var path = Path.Combine(Path.GetTempPath(), "tasktor-index-" + Guid.NewGuid().ToString("N")[..8] + ".db");
-        Assert.Null(ContentIndex.OpenEncrypted(path, new byte[32]));
-        Assert.False(File.Exists(path) && new FileInfo(path).Length > 0);
-        File.Delete(path);
+        var key = Enumerable.Range(1, 32).Select(i => (byte)i).ToArray();
+        try
+        {
+            using (var index = ContentIndex.OpenEncrypted(path, key))
+            {
+                Assert.NotNull(index);
+                index!.Add(Doc(0, ("typed", "zebracorn quarterly plaintextcanary")));
+            }
+
+            foreach (var file in Directory.GetFiles(Path.GetDirectoryName(path)!, Path.GetFileName(path) + "*"))
+            {
+                Assert.DoesNotContain("plaintextcanary", System.Text.Encoding.Latin1.GetString(File.ReadAllBytes(file)), StringComparison.Ordinal);
+            }
+
+            using (var again = ContentIndex.OpenEncrypted(path, key))
+            {
+                Assert.Single(again!.Search("zebracorn"));
+            }
+
+            var wrong = key.ToArray();
+            wrong[0] ^= 0xFF;
+            Assert.Null(ContentIndex.OpenEncrypted(path, wrong)); // another key: no index, never a plain one
+        }
+        finally
+        {
+            foreach (var file in Directory.GetFiles(Path.GetDirectoryName(path)!, Path.GetFileName(path) + "*"))
+            {
+                File.Delete(file);
+            }
+        }
     }
 }

@@ -8,5 +8,7 @@
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
     <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="4.14.0" />
     <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
+    <!-- SQLCipher (BSD-style) for the capture process's encrypted content index only (C OQ-C22); native, no managed code. -->
+    <PackageVersion Include="SQLitePCLRaw.lib.e_sqlcipher" Version="2.1.11" />
   </ItemGroup>
 </Project>

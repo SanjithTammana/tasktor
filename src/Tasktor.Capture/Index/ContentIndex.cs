@@ -58,16 +58,23 @@ public sealed partial class ContentIndex : IDisposable
     /// <summary>An index over an open database (tests use <c>:memory:</c>).</summary>
     public static ContentIndex Open(SqliteDb db) => new(db ?? throw new ArgumentNullException(nameof(db)));
 
-    /// <summary>The index file, encrypted with <paramref name="key"/>; null when this SQLite engine cannot encrypt (OQ-C22).</summary>
+    /// <summary>The index file, encrypted with <paramref name="key"/>; null when this SQLite engine cannot encrypt (OQ-C22) or the file is not readable with this key.</summary>
     public static ContentIndex? OpenEncrypted(string path, byte[] key)
     {
+        SqliteDb? db = null;
         try
         {
-            return new ContentIndex(SqliteDb.Open(path, key: key));
+            db = SqliteDb.Open(path, key: key);
+            return new ContentIndex(db);
         }
         catch (NotSupportedException)
         {
-            return null;
+            return null; // this engine cannot encrypt: no index rather than a plain one
+        }
+        catch (SqliteException)
+        {
+            db?.Dispose();
+            return null; // not readable with this key (another install key): left as it is, not indexed into
         }
     }
 
