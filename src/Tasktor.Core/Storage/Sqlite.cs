@@ -49,7 +49,12 @@ public sealed partial class SqliteDb : IDisposable
         return 0;
     }
 
-    public static SqliteDb Open(string path, bool readOnly = false)
+    /// <param name="key">
+    /// A 256-bit database key: the engine must encrypt pages with it (SQLCipher's <c>PRAGMA key</c>, set before anything
+    /// else). An engine without a codec throws <see cref="NotSupportedException"/> before a byte is written, so a store
+    /// that needs encryption never lands on disk in plain text.
+    /// </param>
+    public static SqliteDb Open(string path, bool readOnly = false, byte[]? key = null)
     {
         ArgumentNullException.ThrowIfNull(path);
         if (!readOnly && path != ":memory:")
@@ -67,6 +72,28 @@ public sealed partial class SqliteDb : IDisposable
         }
 
         var conn = new SqliteDb(db);
+        if (key is not null)
+        {
+            if (key.Length != 32)
+            {
+                conn.Dispose();
+                throw new ArgumentException("the key is 32 bytes", nameof(key));
+            }
+
+            conn.Exec("PRAGMA key = \"x'" + Convert.ToHexString(key) + "'\";");
+            string? codec;
+            using (var probe = conn.Prepare("PRAGMA cipher_version;"))
+            {
+                codec = probe.Step() ? probe.Text(0) : null; // an engine without a codec ignores both pragmas
+            }
+
+            if (string.IsNullOrEmpty(codec))
+            {
+                conn.Dispose();
+                throw new NotSupportedException("this SQLite engine cannot encrypt");
+            }
+        }
+
         if (!readOnly && path != ":memory:")
         {
             conn.Exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;");

@@ -1,5 +1,6 @@
 using Tasktor.Capture.Browser;
 using Tasktor.Capture.Deep;
+using Tasktor.Capture.Index;
 using Tasktor.Capture.Recording;
 using Tasktor.Capture.Security;
 using Tasktor.Contracts.Platform;
@@ -19,11 +20,15 @@ public sealed class CaptureSession : IDisposable
 {
     public static readonly TimeSpan PumpEvery = TimeSpan.FromMilliseconds(250);
 
+    /// <summary>The content worker's batch (D-C21): closed documents are indexed every 30 min, and once more on stop.</summary>
+    public static readonly TimeSpan IngestEvery = TimeSpan.FromMinutes(30);
+
     private readonly BrowserEndpoint _endpoint;
     private readonly IClock _clock;
     private readonly SecureDesktopGuard _guard;
     private readonly Func<SessionAvailability> _session;
     private IDisposable? _pump;
+    private IDisposable? _ingest;
     private bool _started;
     private bool _stopped;
     private volatile bool _secure = true;
@@ -59,10 +64,17 @@ public sealed class CaptureSession : IDisposable
 
     public long LoopErrors { get; private set; }
 
+    /// <summary>The C21 content index (encrypted on disk), or null when this PC cannot encrypt one: then nothing is indexed.</summary>
+    public ContentIndex? Index { get; init; }
+
+    /// <summary>Where closed documents are read from for indexing.</summary>
+    public RawVault? Vault { get; init; }
+
     /// <summary>Start the loop thread and its pump.</summary>
     public void Start()
     {
         _pump = Loop.Every(PumpEvery, Tick);
+        _ingest = Loop.Every(IngestEvery, Ingest);
         Loop.Start("tasktor-capture-logic");
         _started = true;
     }
@@ -93,11 +105,13 @@ public sealed class CaptureSession : IDisposable
         _endpoint.TextSeen -= OnText;
         _endpoint.MediaSeen -= OnMedia;
         _pump?.Dispose();
+        _ingest?.Dispose();
         if (_started)
         {
             Loop.InvokeAsync(() =>
             {
                 Deep.CloseActivity();
+                Ingest();
                 return true;
             }).Wait(TimeSpan.FromSeconds(10));
             Loop.Stop();
@@ -106,13 +120,37 @@ public sealed class CaptureSession : IDisposable
         {
             Loop.RunPending();
             Deep.CloseActivity();
+            Ingest();
         }
+    }
+
+    /// <summary>Index the documents closed since the last batch (on the loop).</summary>
+    public void Ingest()
+    {
+        if (Index is { } index && Vault is { } vault)
+        {
+            index.Ingest(vault, _clock.UtcNow.AddMinutes(1));
+        }
+    }
+
+    /// <summary>C21.4: forget the index from <paramref name="since"/> on (the vault forgets its own records); any thread.</summary>
+    public int ForgetIndex(DateTimeOffset since)
+    {
+        if (Index is not { } index)
+        {
+            return 0;
+        }
+
+        return _started && !_stopped
+            ? Loop.InvokeAsync(() => index.Forget(since, DateTimeOffset.MaxValue)).GetAwaiter().GetResult()
+            : index.Forget(since, DateTimeOffset.MaxValue);
     }
 
     public void Dispose()
     {
         Stop();
         Loop.Dispose();
+        Index?.Dispose();
     }
 
     private void OnText(string app, int tab, UiaWalk walk, Sensitive<string>? host) =>
