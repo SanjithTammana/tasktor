@@ -38,6 +38,7 @@ internal sealed class CaptureLifetime : IDisposable
 {
     private CapturePipeServer? _browser;
     private ControlPipeServer? _control;
+    private Host.CaptureSession? _session;
     private Timer? _expiry, _retention;
     private bool _disposed;
 
@@ -55,6 +56,12 @@ internal sealed class CaptureLifetime : IDisposable
             var recorder = new Recording.CaptureRecorder(vault, blocks, now);
             var endpoint = new BrowserEndpoint(blocks, now);
             endpoint.ContextChanged += (browser, tab, ctx) => { if (!stop.IsCompleted) recorder.Browser(browser, tab, ctx); };
+
+            // Step 6: one logic loop for DeepCapture; the browser's page text and video are posted to it. The secure-desktop
+            // and session checks fail closed. The keyboard hook is not attached yet (layout decoding awaits the real-PC check).
+            var sessions = new Security.WtsSessionSnapshot(new Security.Win32WtsSessionQuery());
+            _session = new Host.CaptureSession(recorder, endpoint, Core.Time.SystemClock.Instance, new Security.Win32DesktopProbe(), sessions.Read);
+            _session.Start();
             var control = new CaptureControl(blocks, now)
             {
                 ResolveTab = endpoint.ResolveTab,
@@ -95,6 +102,7 @@ internal sealed class CaptureLifetime : IDisposable
         if (_retention is not null) { _retention.DisposeAsync().AsTask().GetAwaiter().GetResult(); _retention = null; }
         if (_control is not null) { _control.DisposeAsync().AsTask().GetAwaiter().GetResult(); _control = null; }
         if (_browser is not null) { _browser.DisposeAsync().AsTask().GetAwaiter().GetResult(); _browser = null; }
+        if (_session is not null) { _session.Dispose(); _session = null; } // after the sources: close the activity, then the loop
         _disposed = true;
     }
 }
