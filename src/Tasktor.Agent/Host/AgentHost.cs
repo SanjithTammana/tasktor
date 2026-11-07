@@ -247,7 +247,7 @@ public sealed class AgentHost : IAsyncDisposable
         var defaultsPath = Path.Combine(Options.InstallDir, "rules.default.json");
         var defaults = File.Exists(defaultsPath) ? File.ReadAllText(defaultsPath) : null;
         var user = File.Exists(Store.Rules) ? File.ReadAllText(Store.Rules) : null;
-        var pack = Plugins.TickedPackRules((packId, ruleId) => Consents.Current.Modules.ContainsKey("pack:" + packId + ":" + ruleId));
+        var pack = Plugins.TickedPackRules((packId, ruleId) => Consents.Current.Modules.ContainsKey(PackRuleKey(packId, ruleId)));
         var set = RulesLoader.Load(defaults, user, Consents.HasArrangeConsent, pack is null ? null : [pack]);
         Rules.SetRules(set);
         RulesReloaded?.Invoke(set);
@@ -382,6 +382,9 @@ public sealed class AgentHost : IAsyncDisposable
         })));
     }
 
+    /// <summary>Where a pack rule's tick is kept: the consent store, as <c>pack:&lt;pack&gt;:&lt;rule&gt;</c>.</summary>
+    private static string PackRuleKey(string pack, string rule) => "pack:" + pack + ":" + rule;
+
     /// <summary>U4 D-G3 Settings → Rules: every rule (on and off), its source and last firing, and the load errors. Loop only.</summary>
     public Contracts.Rules.RulesReport RulesReport()
     {
@@ -399,6 +402,14 @@ public sealed class AgentHost : IAsyncDisposable
         {
             Rules = [.. set.Rules.Select(r => Info(r, true)), .. set.OffRules.Select(r => Info(r, false))],
             Errors = [.. set.Errors.Select(e => e.ToString())],
+            PackRules = [.. Plugins.OfferedPackRules().Select(x => new Contracts.Rules.PackRuleInfo
+            {
+                Pack = x.Pack.Id,
+                PackName = x.Pack.Manifest.Name,
+                Id = x.Rule.Id,
+                Description = x.Rule.Description,
+                Ticked = Consents.HasModule(PackRuleKey(x.Pack.Id, x.Rule.Id)),
+            })],
         };
     }
 
@@ -665,6 +676,36 @@ public sealed class AgentHost : IAsyncDisposable
                     return Options.Launch("edit:" + path)
                         ? new ActionResult { Action = "rules.edit", Status = ActionStatus.Ok, Message = "Opened rules.json; changes apply when you save" }
                         : new ActionResult { Action = "rules.edit", Status = ActionStatus.Failed, Message = "No editor opened " + path };
+                },
+            };
+        });
+        Router.Register("pack.rule", req =>
+        {
+            // U5: a pack's rules all start off; ticking one is the user's consent to it, and loads it.
+            var a = req.Args ?? new Dictionary<string, string>();
+            var (pack, rule, on) = (a.GetValueOrDefault("pack"), a.GetValueOrDefault("rule"), a.GetValueOrDefault("on"));
+            if (on is not ("true" or "false") || !Plugins.OfferedPackRules().Any(x => x.Pack.Id == pack && x.Rule.Id == rule))
+            {
+                return new PreparedAction { Summary = "Tick a pack rule", Refusal = "No such rule in a pack that is on" };
+            }
+
+            var tick = on == "true";
+            return new PreparedAction
+            {
+                Summary = (tick ? "Turn on " : "Turn off ") + rule,
+                Immediate = new ActionResult { Action = req.Action, Status = ActionStatus.Ok, Message = (tick ? "Turned on " : "Turned off ") + rule },
+                Done = _ =>
+                {
+                    if (tick)
+                    {
+                        Consents.GiveModule(PackRuleKey(pack!, rule!), Loop.Clock.UtcNow);
+                    }
+                    else
+                    {
+                        Consents.RevokeModule(PackRuleKey(pack!, rule!));
+                    }
+
+                    ReloadRules();
                 },
             };
         });

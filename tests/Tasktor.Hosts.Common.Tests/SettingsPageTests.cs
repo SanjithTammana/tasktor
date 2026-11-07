@@ -90,6 +90,10 @@ public sealed class SettingsPageTests
         Assert.Equal(("rule.disable", "hot"), (SettingsPage.SwitchRule(rows[0], on: false).Action, SettingsPage.SwitchRule(rows[0], false).Target!["rule"]));
         Assert.Equal("rule.enable", SettingsPage.SwitchRule(rows[2], on: true).Action);
         Assert.Empty(SettingsPage.Rules(null, TimeZoneInfo.Utc));
+        var packRows = SettingsPage.PackRules(report with { PackRules = [new() { Pack = "p", PackName = "Work pack", Id = "quiet", Description = "Quiet on battery", Ticked = false }] });
+        Assert.Equal(("Quiet on battery", "From Work pack", false), (packRows[0].Title, packRows[0].Note, packRows[0].On));
+        var tick = SettingsPage.TickPackRule(packRows[0], on: true);
+        Assert.Equal(("pack.rule", "p", "quiet", "true"), (tick.Action, tick.Args!["pack"], tick.Args["rule"], tick.Args["on"]));
         var hide = SettingsPage.ShowPage("jobs", shown: false);
         Assert.Equal(("settings.page", "jobs", "false"), (hide.Action, hide.Args!["page"], hide.Args["shown"]));
         Assert.Equal(("rules.edit", "Edit rules.json"), (SettingsPage.EditRules.Action, SettingsPage.EditRules.Label));

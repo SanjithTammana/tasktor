@@ -7,6 +7,22 @@ public sealed record RulesReport
 
     /// <summary>Rules that did not load, as "rules.json line 12 (id): why".</summary>
     public required IReadOnlyList<string> Errors { get; init; }
+
+    /// <summary>The rules of packs that are on (U5: each starts off until the user ticks it).</summary>
+    public IReadOnlyList<PackRuleInfo> PackRules { get; init; } = [];
+}
+
+public sealed record PackRuleInfo
+{
+    public required string Pack { get; init; }
+
+    public required string PackName { get; init; }
+
+    public required string Id { get; init; }
+
+    public string? Description { get; init; }
+
+    public required bool Ticked { get; init; }
 }
 
 public sealed record RuleInfo

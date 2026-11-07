@@ -10,6 +10,9 @@ public sealed record ModuleRow(ModuleInfo Info, bool On, string? Note, bool CanT
 /// <summary>Settings → Rules: one rule with its switch; <see cref="Note"/> says where it comes from and when it last fired.</summary>
 public sealed record RuleRow(string Id, string Title, string Note, bool On);
 
+/// <summary>Settings → Rules, from plugin packs: one pack rule and whether the user ticked it.</summary>
+public sealed record PackRuleRow(string Pack, string Id, string Title, string Note, bool On);
+
 /// <summary>Settings → Plugins: one plugin folder; <see cref="On"/> while it has the user's consent (running or failing).</summary>
 public sealed record PluginRow(string Id, string Title, string Note, bool On, Contracts.Plugins.PluginInfo Info);
 
@@ -144,6 +147,25 @@ public static class SettingsPage
         Action = "settings.page",
         Args = new Dictionary<string, string>(StringComparer.Ordinal) { ["page"] = pageId, ["shown"] = shown ? "true" : "false" },
     };
+
+    /// <summary>The rules of packs that are on; each starts off until ticked (U5).</summary>
+    public static IReadOnlyList<PackRuleRow> PackRules(Contracts.Rules.RulesReport? report) =>
+    [
+        .. (report?.PackRules ?? []).Select(r => new PackRuleRow(r.Pack, r.Id, string.IsNullOrWhiteSpace(r.Description) ? r.Id : r.Description, "From " + r.PackName, r.Ticked)),
+    ];
+
+    /// <summary>Tick or untick a pack rule (the tick is the user's consent to it).</summary>
+    public static CardAction TickPackRule(PackRuleRow row, bool on)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        return new CardAction
+        {
+            Id = "pack-rule",
+            Label = row.Title,
+            Action = "pack.rule",
+            Args = new Dictionary<string, string>(StringComparer.Ordinal) { ["pack"] = row.Pack, ["rule"] = row.Id, ["on"] = on ? "true" : "false" },
+        };
+    }
 
     /// <summary>A rule's switch: written into rules.json by the agent as a toggle (the user's text is kept).</summary>
     public static CardAction SwitchRule(RuleRow row, bool on)
