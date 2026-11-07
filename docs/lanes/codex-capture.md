@@ -15,6 +15,7 @@
 - Added an indicator startup gate and synthetic tests. If stopping capture throws, the gate keeps the indicator alive and permits a retry. The gate now owns the capture host lifetime.
 
 ## Checks run
+- INCONCLUSIVE: real-PC layout check found US loaded but not German or French. US synthetic translation and synthetic uncertain-run suppression passed; the probe did not change the active layout or keyboard state, install hooks, log text, or persist input. Native German/French dead-key behavior and target-app behavior were not checked. The hook remains unattached under the stated gate.
 - PASS: seven synthetic media-logic tests on the merged tree and local versioned Windows target; Linux execution remains unverified.
 - PASS: six bounded UIA walk tests on the merged tree and the local versioned Windows target. Linux execution remains unverified.
 - PASS: nine synthetic visibility tests cover overlapping windows and monitors, negative coordinates, gaps, filtering, unknown identities and the 30-window cap. No real window-source check yet.
@@ -58,15 +59,18 @@
 - Exercise monitor add/remove and mixed DPI changes, tray appearance and Explorer restart with an isolated capture session; verify fail-closed shutdown if either indicator fails. Then verify hooks, secure desktop, UIA and media sources once implemented.
 
 ## Requests
+- Core shutdown observability: expose a bounded stop/join result or completion task from `Tasktor.Core.Loop.LogicLoop` that is true/completed only after its thread exits, and test a blocked callback. CaptureSession cannot prove thread termination before indicator removal through the current void Stop API. Core is outside this lane; do not wire sources as if this guarantee exists.
 - Jobs watcher crash fixed upstream in df84e7b; post-merge full suite passed.
 - StoreWriter shutdown race fixed upstream in 96c9068; no open request for that issue.
 
 ## Blockers
+- The full real-PC dead-key gate is inconclusive because German and French layouts were not loaded; do not attach the hook until the requested check passes. Loading a layout can activate it system-wide, so the probe did not change the user's keyboard configuration.
 - No current code-test blocker. Native UIA, WASAPI, secure-session notification wiring, and browser/DeepCapture wiring remain implementation work.
 
 - The Windows layout adapter remains unwired pending real-PC verification; this is an implementation status, not a blocker.
 
 - Windows computer-use policy disallows Win-key shortcuts, so the Win+Alt+T shortcut itself cannot be automated in this session.
+
 
 
 
