@@ -1,9 +1,10 @@
 # Capture lane report
 
 ## Done
+- Bounded UIA walk logic: traverses synthetic source trees with 400-node and depth-12 caps, rejects unknown/offscreen nodes and never requests values for password or unknown-password fields. It returns a Sensitive<UiaWalk>; it is not wired to Windows UIA.
 - Visibility geometry: pure z-order occlusion and monitor-union calculation returns the existing VisibleSet; it is not a Windows event source and is not wired.
 - Secure-desktop policy and probes: unknown desktop/session state suppresses capture by default; WTS snapshots and notification policy are testable and fail closed. These components are not yet connected to the host message loop or sources.
-- Parallel uncommitted work: bounded UIA walk and media logic. These are incomplete adapter work and are not in the pushed commits. No native UIA or media adapter, session notification wiring, or DeepCapture/browser event integration is complete.
+- Parallel uncommitted work: media logic. These are incomplete adapter work and are not in the pushed commits. Native UIA and WASAPI sources and session notifications are not complete. Upstream now wires browser text and media to DeepCapture; secure-desktop gating of those callbacks still needs correction.
 - Privacy prerequisites (capture: protect uncertain key runs): key-run suppression receives an explicit monotonic-to-wall-clock mapper, and an unknown password state suppresses text and field-value retention. Existing synthetic safe-field fixtures now explicitly declare a non-password state.
 - Low-level hook adapter (capture: low-level hook adapter): one Windows message-loop thread installs both low-level hooks and runs the 30-second inactivity watchdog. Callbacks copy typed native events to the ring and call the next hook. Keyboard/mouse flags and 32-bit tick wrap are kept distinct. The hook and layout adapter are not yet wired into the host.
 - Merged upstream browser T1 events. Step 6 must route TextSeen to DeepCapture.Walk with DiffSource.Extension and MediaSeen to DeepCapture.Media on the logic thread; the M12 browser T1 real-PC check remains outstanding.
@@ -13,6 +14,7 @@
 - Added an indicator startup gate and synthetic tests. If stopping capture throws, the gate keeps the indicator alive and permits a retry. The gate now owns the capture host lifetime.
 
 ## Checks run
+- PASS: six bounded UIA walk tests on the merged tree and the local versioned Windows target. Linux execution remains unverified.
 - PASS: nine synthetic visibility tests cover overlapping windows and monitors, negative coordinates, gaps, filtering, unknown identities and the 30-window cap. No real window-source check yet.
 - PASS: 205 Capture tests on the in-progress versioned Windows target, including the default-suppression and synthetic WTS/notification cases. A read-only PC probe reported an unlocked connected session on the user desktop; no lock, UAC, disconnect or notification-delivery test was performed.
 - PASS: post-merge full .NET suite on the pre-retarget tree: Core 468, Capture 180, Agent 51. Added fake layout outcomes suppress an entire uncertain run, including field diffs; event suppression uses an injected wall-time mapping and unknown password status suppresses text.
@@ -39,7 +41,7 @@
 
 - PASS: four synthetic startup gate tests, including a capture-stop failure and retry; native indicator and host wiring were subsequently added.
 
-- IN PROGRESS: secure-desktop, visible-window and media logic have synthetic tests but are not yet integrated. DeepCapture and the browser T1 events remain unwired.
+- IN PROGRESS: secure-desktop, visible-window and media logic have synthetic tests but are not yet integrated. Upstream wires the browser T1 events to DeepCapture; remaining source and session wiring is outstanding.
 
 ## Interpretations
 - Unsupported dead-key compositions suppress the entire key run; the Windows layout adapter remains unwired as text decoding until the real-PC check.
@@ -47,6 +49,7 @@
 - The amended D-G16 indicator is the top edge of every monitor. The first indicator must fail closed before hooks are installed.
 
 ## Needs Windows verification
+- Supply and verify a native UIAutomationCore backend with a real one-second transaction timeout, safe password property-read ordering, and bounded name/automation-ID reads. The pure walker caps values but does not cap those two strings. No real UIA walk was exercised.
 - Finish every unchecked M14 shelf, theme, tray + edge, command line, deep window and lifecycle step in `docs/PROGRESS.md` with an isolated temporary `--data-dir`; remove the directory afterward.
 - Run the M13 render fixtures only if an offline widget host or Adaptive Cards designer is available.
 - Exercise monitor add/remove and mixed DPI changes, tray appearance and Explorer restart with an isolated capture session; verify fail-closed shutdown if either indicator fails. Then verify hooks, secure desktop, UIA and media sources once implemented.
@@ -61,6 +64,8 @@
 - The Windows layout adapter remains unwired pending real-PC verification; this is an implementation status, not a blocker.
 
 - Windows computer-use policy disallows Win-key shortcuts, so the Win+Alt+T shortcut itself cannot be automated in this session.
+
+
 
 
 
