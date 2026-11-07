@@ -22,6 +22,9 @@ public static partial class PluginValidation
     [GeneratedRegex("^[a-z0-9][a-z0-9._-]{0,63}$")]
     private static partial Regex IdPattern();
 
+    /// <summary>A usable plugin id (also its folder name).</summary>
+    public static bool ValidId(string id) => id is not null && IdPattern().IsMatch(id);
+
     [GeneratedRegex("^[a-z0-9][a-z0-9._-]{0,31}$")]
     private static partial Regex CardIdPattern();
 

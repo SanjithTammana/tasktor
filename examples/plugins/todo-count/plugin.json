@@ -4,7 +4,7 @@
   "id": "todo-count",
   "name": "TODO count",
   "version": "0.1.0",
-  "author": "Jane Doe",
+  "author": "Example author",
   "description": "Counts open TODO lines in one text file.",
   "command": ["{python}", "main.py"],
   "interval": "5m",
