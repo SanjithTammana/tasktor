@@ -8,7 +8,7 @@
   "description": "Shows git repositories with uncommitted changes, unpushed commits or that are behind, under folders you choose.",
   "command": ["{python}", "main.py"],
   "interval": "15m",
-  "timeout": "120s",
+  "timeout": "60s",
   "reads": ["git status counts for repositories under the folders you choose (never file contents)"],
   "network": ["Only with \"Check remotes\" on: git fetch to each repository's own remotes"],
   "settings": [
