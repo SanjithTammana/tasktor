@@ -63,7 +63,13 @@
 - Jobs watcher crash fixed upstream in df84e7b; post-merge full suite passed.
 - StoreWriter shutdown race fixed upstream in 96c9068; no open request for that issue.
 
+## Integration in progress
+- Session notifications and guarded browser admission are under test. A notification can race an already executing recorder write after its final guard check; strict serialization remains unresolved. Do not treat secure-desktop integration as verified.
+- Native UIA and media backends are incomplete; the visibility snapshot has not met the timing target. None is attached.
+- Upstream has advanced to b5bcb87 with an encrypted index; its session and host changes still need merging and verification.
+
 ## Blockers
+- Secure-session notification and an already executing browser recorder write are not serialized; a notice can arrive after the last safety check and before that write. Do not ship the pending integration as a verified secure-desktop guarantee.
 - The full real-PC dead-key gate is inconclusive because German and French layouts were not loaded; do not attach the hook until the requested check passes. Loading a layout can activate it system-wide, so the probe did not change the user's keyboard configuration.
 - No current code-test blocker. Native UIA, WASAPI, secure-session notification wiring, and browser/DeepCapture wiring remain implementation work.
 
