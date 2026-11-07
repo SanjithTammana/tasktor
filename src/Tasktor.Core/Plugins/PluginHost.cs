@@ -343,6 +343,12 @@ public sealed class PluginHost : ICardProvider
     }).ToList();
 
     /// <summary>A pack's rules, only the ticked ones, as a rules file text for the loader (every entry is off until ticked).</summary>
+    /// <summary>The packs that are on (any of their plugins consented) with their rules, ticked or not.</summary>
+    public IEnumerable<(PackEntry Pack, Rule Rule)> OfferedPackRules() =>
+        _packs.Values.Where(p => p.Rules is not null && _plugins.Values.Any(x => x.Pack == p.Id && x.State != PluginLifecycle.Found))
+            .OrderBy(p => p.Id, StringComparer.Ordinal)
+            .SelectMany(p => (p.Rules!.Rules ?? []).Select(r => (p, r)));
+
     public string? TickedPackRules(Func<string, string, bool> isTicked)
     {
         ArgumentNullException.ThrowIfNull(isTicked);

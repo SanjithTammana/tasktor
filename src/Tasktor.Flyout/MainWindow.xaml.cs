@@ -606,6 +606,49 @@ public sealed partial class MainWindow : Window
         }
 
         PageContent.Children.Add(list);
+        DrawPackRules();
+    }
+
+    /// <summary>Settings → Rules, from plugin packs: every rule of a pack that is on, each off until ticked.</summary>
+    private void DrawPackRules()
+    {
+        var rows = SettingsPage.PackRules(_rules);
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        PageContent.Children.Add(new TextBlock { Text = "From plugin packs", Style = StyleOf("TasktorBodyStrongTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 12, 0, 0) });
+        var list = new StackPanel();
+        foreach (var row in rows)
+        {
+            var grid = new Grid { MinHeight = 56 };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = row.Title, TextWrapping = TextWrapping.Wrap, Style = StyleOf("TasktorBodyTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+            text.Children.Add(new TextBlock { Text = row.Note, Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush("TasktorInk3Brush") });
+            grid.Children.Add(text);
+            var toggle = new ToggleSwitch { IsOn = row.On, OnContent = "On", OffContent = "Off", VerticalAlignment = VerticalAlignment.Center };
+            AutomationProperties.SetName(toggle, row.Title);
+            toggle.Toggled += async (_, _) =>
+            {
+                if (toggle.IsOn == row.On)
+                {
+                    return;
+                }
+
+                await RunAsync(SettingsPage.TickPackRule(row, toggle.IsOn));
+                _rules = null;
+                Draw(_snapshot.Mirror.Cards);
+            };
+            Grid.SetColumn(toggle, 1);
+            grid.Children.Add(toggle);
+            list.Children.Add(grid);
+            list.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
+        }
+
+        PageContent.Children.Add(list);
     }
 
     private async Task PullRulesAsync()
