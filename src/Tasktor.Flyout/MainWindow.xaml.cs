@@ -243,6 +243,104 @@ public sealed partial class MainWindow : Window
         {
             PageContent.Children.Add(Section(section));
         }
+
+        DrawWorkflows();
+    }
+
+    private Contracts.Workflow.WorkflowsReport? _workflows;
+    private bool _pullingWorkflows;
+
+    /// <summary>The Learned page's Workflows tab (C7, C9, C10): learned workflows with Rename and Merge into.</summary>
+    private void DrawWorkflows()
+    {
+        if (_workflows is null && !_pullingWorkflows)
+        {
+            _pullingWorkflows = true;
+            _ = PullWorkflowsAsync();
+        }
+
+        PageContent.Children.Add(new TextBlock { Text = "Workflows", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 16, 0, 0) });
+        var (summary, rows) = LearnedPage.Workflows(_workflows);
+        PageContent.Children.Add(Text(_workflows is null ? "Reading learned workflows…" : summary, "TasktorInk2Brush"));
+        var list = new StackPanel();
+        foreach (var row in rows)
+        {
+            var grid = new Grid { MinHeight = 56, ColumnSpacing = 8 };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = row.Title, TextWrapping = TextWrapping.Wrap, Style = StyleOf("TasktorBodyTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+            text.Children.Add(new TextBlock { Text = row.Note, TextWrapping = TextWrapping.Wrap, Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush("TasktorInk3Brush") });
+            grid.Children.Add(text);
+            if (row.CanRename)
+            {
+                var rename = new Button { Content = "Rename…", VerticalAlignment = VerticalAlignment.Center };
+                AutomationProperties.SetName(rename, "Rename " + row.Title);
+                rename.Click += async (_, _) =>
+                {
+                    var box = new TextBox { Text = row.Title, MaxLength = 80 };
+                    var dialog = new ContentDialog { Title = "Rename workflow", Content = box, PrimaryButtonText = "Rename", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Primary, XamlRoot = Content.XamlRoot };
+                    if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+                    {
+                        await RunAsync(LearnedPage.Rename(row, box.Text));
+                        _workflows = null;
+                        Draw(_snapshot.Mirror.Cards);
+                    }
+                };
+                Grid.SetColumn(rename, 1);
+                grid.Children.Add(rename);
+            }
+
+            if (row.CanMerge)
+            {
+                var merge = new Button { Content = "Merge into…", VerticalAlignment = VerticalAlignment.Center };
+                AutomationProperties.SetName(merge, "Merge " + row.Title + " into another workflow");
+                merge.Click += async (_, _) =>
+                {
+                    var pick = new ComboBox { ItemsSource = row.MergeTargets.Select(t => t.Name).ToList(), SelectedIndex = 0, MinWidth = 240 };
+                    var body = new StackPanel { Spacing = 8 };
+                    body.Children.Add(new TextBlock { Text = "From the next refit on, both are learned as one workflow. Until then " + row.Title + " shows as the one you pick.", TextWrapping = TextWrapping.Wrap });
+                    body.Children.Add(pick);
+                    var dialog = new ContentDialog { Title = "Merge " + row.Title, Content = body, PrimaryButtonText = "Merge", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close, XamlRoot = Content.XamlRoot };
+                    if (await dialog.ShowAsync() == ContentDialogResult.Primary && pick.SelectedIndex >= 0)
+                    {
+                        await RunAsync(LearnedPage.Merge(row, row.MergeTargets[pick.SelectedIndex].Id));
+                        _workflows = null;
+                        Draw(_snapshot.Mirror.Cards);
+                    }
+                };
+                Grid.SetColumn(merge, 2);
+                grid.Children.Add(merge);
+            }
+
+            list.Children.Add(grid);
+            list.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
+        }
+
+        PageContent.Children.Add(list);
+    }
+
+    private async Task PullWorkflowsAsync()
+    {
+        try
+        {
+            var node = await _snapshot.PullAsync("workflows");
+            _workflows = node is null ? new Contracts.Workflow.WorkflowsReport() : System.Text.Json.JsonSerializer.Deserialize(node, Contracts.ContractsJsonContext.Default.WorkflowsReport);
+        }
+        catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            // stays on "Reading…" until the next visit
+        }
+        finally
+        {
+            _pullingWorkflows = false;
+        }
+
+        if (_page == "learned" && _workflows is not null)
+        {
+            Draw(_snapshot.Mirror.Cards);
+        }
     }
 
     private async Task PullLearnedAsync()

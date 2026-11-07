@@ -196,4 +196,22 @@ public sealed class WorkflowSummaryTests : IDisposable
         Assert.Equal("Thesis", saved.Names[a]);
         Assert.Equal(a, saved.Merge[b]);
     }
+
+    [Fact]
+    public void The_workflows_list_shows_names_status_and_merges_for_the_learned_page()
+    {
+        var model = WorkflowModel.Open(ModelDir);
+        var t = Tracking(model);
+        var (a, b) = (model.Manifest.Clusters[0].Id, model.Manifest.Clusters[1].Id);
+        _rig.Act(new Contracts.Actions.ActionRequest { Action = "workflow.rename", Origin = Contracts.Actions.Origin.Flyout, Target = new Dictionary<string, string> { ["workflow"] = a }, Args = new Dictionary<string, string> { ["name"] = "Thesis" } });
+        _rig.Act(new Contracts.Actions.ActionRequest { Action = "workflow.merge", Origin = Contracts.Actions.Origin.Flyout, Target = new Dictionary<string, string> { ["workflow"] = b }, Args = new Dictionary<string, string> { ["into"] = a } });
+
+        var report = t.WorkflowsReport();
+        Assert.Equal(model.Version, report.Model);
+        var first = report.Workflows.Single(w => w.Id == a);
+        Assert.Equal(("Thesis", model.Manifest.Clusters[0].Name, true, null), (first.Name, first.AutoName, first.Renamed, first.MergedInto));
+        Assert.Equal(a, report.Workflows.Single(w => w.Id == b).MergedInto);
+        Assert.All(report.Workflows, w => Assert.NotEqual("retired", w.Status)); // retired clusters are not listed
+        Assert.DoesNotContain("FixtureSecretTitle", System.Text.Json.JsonSerializer.Serialize(report, Contracts.ContractsJsonContext.Default.WorkflowsReport), StringComparison.Ordinal);
+    }
 }

@@ -117,4 +117,74 @@ public static class LearnedPage
     private static double? Dbl(JsonObject o, string key) => BindingResolver.AsDouble(o[key]);
 
     private static string? Num(JsonObject o, string key) => Dbl(o, key) is { } d ? ((long)d).ToString(CultureInfo.InvariantCulture) : null;
+
+    /// <summary>
+    /// The Workflows tab (C7, C9, C10): one row per learned workflow with this week's time and the user's name, and a
+    /// summary line (switches today, the model). Merged ones say where they went and offer nothing more.
+    /// </summary>
+    public static (string Summary, IReadOnlyList<WorkflowRow> Rows) Workflows(Contracts.Workflow.WorkflowsReport? report)
+    {
+        if (report?.Model is not { } model)
+        {
+            return ("Nothing learned yet: activities are shown by app until the first refit.", []);
+        }
+
+        var byId = report.Workflows.ToDictionary(w => w.Id, StringComparer.Ordinal);
+        var live = report.Workflows.Where(w => w.MergedInto is null).ToList();
+        var rows = report.Workflows.Select(w =>
+        {
+            string note;
+            if (w.MergedInto is { } into)
+            {
+                note = "Merged into " + (byId.TryGetValue(into, out var target) ? target.Name : into);
+            }
+            else
+            {
+                note = Minutes(w.MinutesWeek) + " this week"
+                    + (w.Status == "unstable" ? " · still settling: not shown yet" : w.Status == "hidden" ? " · hidden after “That's wrong”" : string.Empty)
+                    + (w.Renamed ? " · named by you (was “" + w.AutoName + "”)" : string.Empty);
+            }
+
+            var targets = w.MergedInto is null ? live.Where(t => t.Id != w.Id).Select(t => (t.Id, t.Name)).ToList() : [];
+            return new WorkflowRow(w.Id, w.Name, note, w.MergedInto is null, targets.Count > 0, targets);
+        }).ToList();
+        return (report.SwitchesToday.ToString(CultureInfo.InvariantCulture) + " switches today · model " + model, rows);
+    }
+
+    public static CardAction Rename(WorkflowRow row, string name)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        return new CardAction
+        {
+            Id = "rename",
+            Label = "Rename",
+            Action = "workflow.rename",
+            Target = new Dictionary<string, string>(StringComparer.Ordinal) { ["workflow"] = row.Id },
+            Args = new Dictionary<string, string>(StringComparer.Ordinal) { ["name"] = (name ?? string.Empty).Trim() },
+        };
+    }
+
+    public static CardAction Merge(WorkflowRow row, string intoId)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        return new CardAction
+        {
+            Id = "merge",
+            Label = "Merge",
+            Action = "workflow.merge",
+            Target = new Dictionary<string, string>(StringComparer.Ordinal) { ["workflow"] = row.Id },
+            Args = new Dictionary<string, string>(StringComparer.Ordinal) { ["into"] = intoId },
+        };
+    }
+
+    private static string Minutes(double minutes)
+    {
+        var m = (int)Math.Round(minutes);
+        return m < 60 ? m.ToString(CultureInfo.InvariantCulture) + " min"
+            : (m / 60).ToString(CultureInfo.InvariantCulture) + " h" + (m % 60 == 0 ? string.Empty : " " + (m % 60).ToString(CultureInfo.InvariantCulture) + " min");
+    }
 }
+
+/// <summary>A learned workflow on the Workflows tab, with the workflows it may be merged into.</summary>
+public sealed record WorkflowRow(string Id, string Title, string Note, bool CanRename, bool CanMerge, IReadOnlyList<(string Id, string Name)> MergeTargets);
+
