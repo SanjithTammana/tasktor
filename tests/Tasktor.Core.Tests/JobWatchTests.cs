@@ -554,13 +554,23 @@ public sealed class ProgressFileTests : IDisposable
         }
 
         src.Dispose();
+        int atDispose;
+        lock (got)
+        {
+            // The watcher's own event for j.json may also have posted j before Dispose (a second, legitimate row):
+            // what matters is that nothing is posted once Dispose has returned.
+            atDispose = got.Count;
+        }
+
         Directory.Delete(dir, recursive: true);
         File.WriteAllText(dir, "gone");
         Assert.False(src.Rescan(overflow: true)); // after Dispose: nothing runs, nothing is posted
         src.Tick();
+        Thread.Sleep(200); // room for any late watcher callback to (wrongly) post
         lock (got)
         {
-            Assert.Single(got);
+            Assert.Equal(atDispose, got.Count);
+            Assert.All(got, r => Assert.Equal("j", r.Id));
         }
 
         File.Delete(dir);

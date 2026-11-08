@@ -32,7 +32,8 @@ internal static class Composition
             runner.AfterStart = Windows.Processes.JobObject.ForWorker;
         }
 
-        var processTable = new Win32ProcessTable();
+        // Check mode (--switcher-pid): only the check's own processes and their descendants are sampled or read.
+        var processTable = new Win32ProcessTable { CheckPids = switcherPids is { Count: > 0 } fixture ? fixture.ToHashSet() : null };
         var frozen = new Core.Features.Jobs.FrozenRegistry(store.Frozen);
         IProcessControl control = windows
             ? new Windows.Processes.Win32ProcessControl(runner, frozen, () => DateTimeOffset.UtcNow)
@@ -142,7 +143,7 @@ internal static class Composition
             host.NewFeatureContext(),
             apps,
             windows ? processTable.ReadOne : PortableProcessTable.ReadOne,
-            windows ? ProcessInfo.CommandLine : _ => null,
+            windows ? key => processTable.Allows(key.Pid) ? ProcessInfo.CommandLine(key) : null : _ => null,
             exits,
             exits is null ? null : exits.Watch,
             progress,
@@ -224,7 +225,7 @@ internal static class Composition
         host.RegisterModule("agents", () =>
         {
             var profile = AgentHost.KnownFolder("UserProfile");
-            host.AddFeature(new AgentWatch(ctx, apps, new AgentHookSource(host.Store.AgentsDir), windows ? processTable.ReadOne : PortableProcessTable.ReadOne, windows ? ProcessInfo.CommandLine : _ => null)
+            host.AddFeature(new AgentWatch(ctx, apps, new AgentHookSource(host.Store.AgentsDir), windows ? processTable.ReadOne : PortableProcessTable.ReadOne, windows ? key => processTable.Allows(key.Pid) ? ProcessInfo.CommandLine(key) : null : _ => null)
             {
                 AgentGroup = () => Group("agents"),
                 WindowInFront = windows ? chain => chain.Contains(ProcessInfo.ForegroundPid()) : null,
@@ -435,7 +436,7 @@ internal static class Composition
             Windows = windows ? () => Windows.Shell.Win32Windows.Enumerate(Frozen, include: host.Options.SwitcherPids is { Count: > 0 } fixture ? pid => fixture.Contains(pid) : null) : () => [],
             Monitors = windows ? Windows.Shell.Win32Windows.Monitors : () => [],
             IsFrozen = windows ? Frozen : _ => false,
-            CommandLine = windows ? pid => ProcessInfo.CommandLine(new ProcKey(pid, 0)) : _ => null, // a slot's launch, shown before saving
+            CommandLine = windows ? pid => (host.Options.SwitcherPids is not { Count: > 0 } fixture || fixture.Contains(pid)) ? ProcessInfo.CommandLine(new ProcKey(pid, 0)) : null : _ => null, // a slot's launch, shown before saving
             Move = windows ? move => Windows.Shell.Win32Windows.Place(move.Hwnd, move.Rect, move.Show, Frozen) : _ => false,
             Launch = windows ? exe => Launch(new Contracts.Presets.PresetLaunch { Exe = exe }) : _ => false,
             LaunchWithArgs = windows ? Launch : null,

@@ -24,6 +24,17 @@ public sealed partial class Win32ProcessTable : ITableSource<ProcKey, ProcessRow
     /// <summary>GPU % per PID (A2.3), from the PDH source's last read.</summary>
     public Func<uint, double?>? GpuByPid { get; set; }
 
+    /// <summary>
+    /// Check mode: the fixture processes. Only they and their descendants are sampled; every other process is skipped
+    /// before it is opened (no usage, path, user or command line), and <see cref="ReadOne"/> returns null for it.
+    /// </summary>
+    public IReadOnlySet<uint>? CheckPids { get; init; }
+
+    private volatile HashSet<uint>? _scope;
+
+    /// <summary>Whether a process may be read (always, outside check mode).</summary>
+    public bool Allows(uint pid) => CheckPids is not { } roots || (_scope ?? roots.ToHashSet()).Contains(pid);
+
     public void Read(ICollection<KeyValuePair<ProcKey, ProcessRow>> into, ColumnSet columns)
     {
         ArgumentNullException.ThrowIfNull(into);
@@ -41,6 +52,23 @@ public sealed partial class Win32ProcessTable : ITableSource<ProcKey, ProcessRow
         try
         {
             var entry = new ProcessEntry32W { Size = (uint)Marshal.SizeOf<ProcessEntry32W>() };
+            if (CheckPids is { } roots)
+            {
+                // First pass: pids and parents only, to know the fixture's process tree.
+                var pairs = new List<(uint, uint)>();
+                if (Process32FirstW(snap, ref entry))
+                {
+                    do
+                    {
+                        pairs.Add((entry.ProcessId, entry.ParentProcessId));
+                    }
+                    while (Process32NextW(snap, ref entry));
+                }
+
+                _scope = Core.Apps.ProcessScope.Of(pairs, roots);
+                entry = new ProcessEntry32W { Size = (uint)Marshal.SizeOf<ProcessEntry32W>() };
+            }
+
             if (!Process32FirstW(snap, ref entry))
             {
                 return;
@@ -48,8 +76,13 @@ public sealed partial class Win32ProcessTable : ITableSource<ProcKey, ProcessRow
 
             do
             {
-                var exe = entry.GetExeName();
                 var pid = entry.ProcessId;
+                if (CheckPids is not null && !Allows(pid))
+                {
+                    continue; // check mode: not a fixture process, so not opened, named or kept
+                }
+
+                var exe = entry.GetExeName();
                 ProcessRow row;
                 if ((columns & (ColumnSet.Usage | ColumnSet.Identity | ColumnSet.Io)) == 0 || pid is 0 or 4)
                 {
@@ -78,7 +111,7 @@ public sealed partial class Win32ProcessTable : ITableSource<ProcKey, ProcessRow
     /// <summary>A fresh read of one process (guards' identity re-check). Null when it is gone.</summary>
     public ProcessRow? ReadOne(ProcKey key)
     {
-        if (!OperatingSystem.IsWindows())
+        if (!OperatingSystem.IsWindows() || !Allows(key.Pid))
         {
             return null;
         }

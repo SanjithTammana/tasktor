@@ -62,7 +62,9 @@ public sealed class FolderActionTests : IDisposable
         });
         File.WriteAllText(Path.Combine(dir, "report.pdf.part"), "x");
         File.Move(Path.Combine(dir, "report.pdf.part"), Path.Combine(dir, "report.pdf"));
-        var deadline = DateTime.UtcNow.AddSeconds(10);
+        // A settle takes ~3 s of 1 s timer ticks on the thread pool; a loaded CI runner (parallel test classes blocking
+        // pool threads) has been seen to delay it past 10 s once, so allow 30 s. What is asserted is unchanged.
+        var deadline = DateTime.UtcNow.AddSeconds(30);
         while (DateTime.UtcNow < deadline)
         {
             lock (seen)
