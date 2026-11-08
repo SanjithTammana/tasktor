@@ -10,7 +10,9 @@ namespace Tasktor.Capture.Commands;
 /// A file that shrank or was rewritten under the tail (PSReadLine trimming it, or the file deleted and recreated) has no
 /// per-line timestamps, so what is new is decided by content: the tail remembers hashes of the commands it has seen (the
 /// file's own lines at start and every line read since) and takes only the commands after the last one it knows. A trim
-/// (all known) imports nothing; a recreated file (nothing known) is new from its first line.
+/// (all known) imports nothing. A file with nothing known is either recreated (new) or an old one restored (never
+/// imported: the past stays out): it counts as new only if it was written after the last read and holds no more than
+/// <see cref="MaxFresh"/> commands, what could have been typed since; otherwise the tail just carries on from its end.
 /// </summary>
 public sealed class HistoryTail
 {
@@ -25,16 +27,26 @@ public sealed class HistoryTail
     /// <summary>Command hashes remembered for recognising a rewritten file (PSReadLine keeps 4096 entries by default).</summary>
     public const int MaxSeen = 8192;
 
+    /// <summary>Most commands a file with no known line may hold and still count as new (recreated, not restored).</summary>
+    public const int MaxFresh = 3;
+
+    /// <summary>File-time slack for "written after the last read" (coarse file-system timestamps).</summary>
+    public static readonly TimeSpan Slack = TimeSpan.FromSeconds(2);
+
     private readonly string _path;
     private readonly StringBuilder _pending = new();
     private long _offset;
     private byte[] _anchor = [];
     private readonly HashSet<ulong> _seen = [];
     private readonly Queue<ulong> _seenOrder = new();
+    private readonly Func<DateTime> _utcNow;
+    private DateTime _lastLook;
 
-    public HistoryTail(string path)
+    public HistoryTail(string path, Func<DateTime>? utcNow = null)
     {
         _path = path;
+        _utcNow = utcNow ?? (() => DateTime.UtcNow);
+        _lastLook = _utcNow();
         Restart();
     }
 
@@ -45,12 +57,14 @@ public sealed class HistoryTail
     /// <summary>Commands appended since the last call, oldest first. A missing or locked file yields none.</summary>
     public IReadOnlyList<Sensitive<string>> ReadNew()
     {
+        var lookedBefore = _lastLook;
+        _lastLook = _utcNow();
         try
         {
             using var fs = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             if (fs.Length < _offset || !AnchorHolds(fs))
             {
-                return Rewritten(fs);
+                return Rewritten(fs, lookedBefore);
             }
 
             if (fs.Length == _offset)
@@ -93,13 +107,17 @@ public sealed class HistoryTail
     /// The file was trimmed or replaced: read its complete lines (the last <see cref="MaxRead"/> bytes), return the
     /// commands after the last one already seen, and carry on from the end of its last complete line.
     /// </summary>
-    private List<Sensitive<string>> Rewritten(FileStream fs)
+    private List<Sensitive<string>> Rewritten(FileStream fs, DateTime lookedBefore)
     {
         _pending.Clear();
         var (text, end) = CompleteLines(fs);
         var commands = Parse(text, new StringBuilder());
         var last = commands.FindLastIndex(c => _seen.Contains(Hash(c)));
         var fresh = commands.GetRange(last + 1, commands.Count - last - 1);
+        if (last < 0 && !(commands.Count <= MaxFresh && File.GetLastWriteTimeUtc(_path) >= lookedBefore - Slack))
+        {
+            fresh = []; // nothing known and not provably new (an old file restored, or more than could be typed): skip it
+        }
         Remember(commands);
         _offset = end;
         KeepAnchor(fs);
