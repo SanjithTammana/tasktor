@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tasktor:schema:tasktor.overrides-1.json",
+  "title": "Tasktor workflow overrides (overrides.json)",
+  "description": "Contract tasktor.overrides/1. Generated from the C# records in Tasktor.Contracts; do not edit by hand.",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "string"
+    },
+    "names": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "merge": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "hide": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "split_request": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "hide_term": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -1,0 +1,391 @@
+{
+  "template": {
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "type": "AdaptiveCard",
+    "version": "1.5",
+    "body": [
+      {
+        "type": "ColumnSet",
+        "columns": [
+          {
+            "type": "Column",
+            "width": "stretch",
+            "items": [
+              {
+                "type": "TextBlock",
+                "text": "${title}",
+                "wrap": true,
+                "weight": "Bolder",
+                "isSubtle": "${stale}"
+              }
+            ]
+          },
+          {
+            "type": "Column",
+            "width": "auto",
+            "$when": "${severity.show}",
+            "items": [
+              {
+                "type": "TextBlock",
+                "text": "${severity.icon} ${severity.word}",
+                "wrap": true,
+                "color": "${severity.color}"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "TextBlock",
+        "text": "${as_of}",
+        "wrap": true,
+        "isSubtle": true,
+        "size": "Small",
+        "$when": "${stale}"
+      },
+      {
+        "type": "Container",
+        "items": [
+          {
+            "type": "TextBlock",
+            "text": "${b0.label}",
+            "wrap": true,
+            "isSubtle": true,
+            "size": "Small"
+          },
+          {
+            "type": "TextBlock",
+            "text": "${b0.value} ${b0.trend}",
+            "wrap": true,
+            "weight": "Bolder",
+            "isSubtle": "${stale}",
+            "size": "Large"
+          },
+          {
+            "type": "TextBlock",
+            "text": "${b0.severity}",
+            "wrap": true,
+            "size": "Small",
+            "color": "Default",
+            "$when": "${b0.severity != \u0027\u0027}"
+          }
+        ]
+      },
+      {
+        "type": "Container",
+        "items": [
+          {
+            "type": "TextBlock",
+            "text": "${b1.label}",
+            "wrap": true,
+            "isSubtle": true,
+            "size": "Small"
+          },
+          {
+            "type": "TextBlock",
+            "text": "${b1.value} ${b1.trend}",
+            "wrap": true,
+            "weight": "Bolder",
+            "isSubtle": "${stale}",
+            "size": "Large"
+          },
+          {
+            "type": "TextBlock",
+            "text": "${b1.severity}",
+            "wrap": true,
+            "size": "Small",
+            "color": "Default",
+            "$when": "${b1.severity != \u0027\u0027}"
+          }
+        ]
+      },
+      {
+        "type": "Container",
+        "items": [
+          {
+            "type": "TextBlock",
+            "text": "${b2.text}",
+            "wrap": true,
+            "weight": "Bolder",
+            "isSubtle": "${stale}"
+          },
+          {
+            "type": "TextBlock",
+            "text": "${b2.severity}",
+            "wrap": true,
+            "size": "Small",
+            "color": "Warning",
+            "$when": "${b2.severity != \u0027\u0027}"
+          }
+        ]
+      },
+      {
+        "type": "Container",
+        "items": [
+          {
+            "type": "TextBlock",
+            "text": "${b3.label}",
+            "wrap": true,
+            "isSubtle": true,
+            "size": "Small"
+          },
+          {
+            "type": "TextBlock",
+            "text": "${b3.spark} ${b3.last}",
+            "wrap": false,
+            "fontType": "Monospace"
+          },
+          {
+            "type": "TextBlock",
+            "text": "${b3.severity}",
+            "wrap": true,
+            "size": "Small",
+            "color": "Default",
+            "$when": "${b3.severity != \u0027\u0027}"
+          }
+        ]
+      },
+      {
+        "type": "Container",
+        "items": [
+          {
+            "type": "TextBlock",
+            "text": "${b4.label}",
+            "wrap": true,
+            "isSubtle": true,
+            "size": "Small",
+            "$when": "${b4.label != \u0027\u0027}"
+          },
+          {
+            "type": "ColumnSet",
+            "columns": [
+              {
+                "type": "Column",
+                "width": "stretch",
+                "items": [
+                  {
+                    "type": "TextBlock",
+                    "text": "App",
+                    "wrap": false,
+                    "isSubtle": true,
+                    "size": "Small"
+                  }
+                ]
+              },
+              {
+                "type": "Column",
+                "width": "auto",
+                "items": [
+                  {
+                    "type": "TextBlock",
+                    "text": "CPU",
+                    "wrap": false,
+                    "isSubtle": true,
+                    "size": "Small"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "ColumnSet",
+            "$data": "${b4.rows}",
+            "columns": [
+              {
+                "type": "Column",
+                "width": "stretch",
+                "items": [
+                  {
+                    "type": "TextBlock",
+                    "text": "${name}",
+                    "wrap": false,
+                    "isSubtle": "${$root.stale}"
+                  }
+                ]
+              },
+              {
+                "type": "Column",
+                "width": "auto",
+                "items": [
+                  {
+                    "type": "TextBlock",
+                    "text": "${cpu_pct}",
+                    "wrap": false,
+                    "isSubtle": "${$root.stale}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "Container",
+        "items": [
+          {
+            "type": "ColumnSet",
+            "columns": [
+              {
+                "type": "Column",
+                "width": "stretch",
+                "items": [
+                  {
+                    "type": "TextBlock",
+                    "text": "${b5.label}",
+                    "wrap": true,
+                    "isSubtle": true,
+                    "size": "Small"
+                  }
+                ]
+              },
+              {
+                "type": "Column",
+                "width": "auto",
+                "items": [
+                  {
+                    "type": "TextBlock",
+                    "text": "${b5.value}",
+                    "wrap": true,
+                    "weight": "Bolder"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "ColumnSet",
+            "minHeight": "6px",
+            "columns": [
+              {
+                "type": "Column",
+                "width": "${b5.fill}",
+                "style": "accent",
+                "$when": "${b5.has_fill}",
+                "items": []
+              },
+              {
+                "type": "Column",
+                "width": "${b5.rest}",
+                "style": "emphasis",
+                "$when": "${b5.has_rest}",
+                "items": []
+              }
+            ]
+          },
+          {
+            "type": "TextBlock",
+            "text": "${b5.severity}",
+            "wrap": true,
+            "size": "Small",
+            "color": "Default",
+            "$when": "${b5.severity != \u0027\u0027}"
+          }
+        ]
+      }
+    ],
+    "selectAction": {
+      "type": "Action.OpenUrl",
+      "url": "tasktor://open?card=core.system"
+    },
+    "actions": [
+      {
+        "type": "Action.Execute",
+        "title": "Open",
+        "verb": "open",
+        "data": {
+          "card": "core.system",
+          "action": "open"
+        }
+      },
+      {
+        "type": "Action.Execute",
+        "title": "Lower",
+        "verb": "priority.set",
+        "data": {
+          "card": "core.system",
+          "action": "priority.set",
+          "target": {
+            "app": "{row}"
+          }
+        }
+      },
+      {
+        "type": "Action.OpenUrl",
+        "title": "End\u2026",
+        "url": "tasktor://open?card=core.system\u0026action=app.end\u0026confirm=1"
+      },
+      {
+        "type": "Action.Execute",
+        "title": "Efficiency",
+        "verb": "efficiency.set",
+        "data": {
+          "card": "core.system",
+          "action": "efficiency.set"
+        }
+      }
+    ]
+  },
+  "data": {
+    "title": "System",
+    "severity": {
+      "icon": "\u26A0",
+      "word": "Warning",
+      "show": true,
+      "color": "Warning"
+    },
+    "stale": false,
+    "as_of": "",
+    "b0": {
+      "severity": "",
+      "label": "CPU",
+      "value": "34 %",
+      "trend": "\u2191"
+    },
+    "b1": {
+      "severity": "",
+      "label": "RAM",
+      "value": "71 %",
+      "trend": ""
+    },
+    "b2": {
+      "severity": "\u26A0 Warning",
+      "text": "Busy: Chrome"
+    },
+    "b3": {
+      "severity": "",
+      "label": "CPU",
+      "spark": "\u2581\u2584\u2588\u2587\u2588",
+      "last": "34 %"
+    },
+    "b4": {
+      "severity": "",
+      "label": "Top apps",
+      "rows": [
+        {
+          "name": "Chrome",
+          "cpu_pct": "22 %",
+          "_key": "chrome"
+        },
+        {
+          "name": "Code",
+          "cpu_pct": "9.1 %",
+          "_key": "code"
+        },
+        {
+          "name": "Teams",
+          "cpu_pct": "3 %",
+          "_key": "teams"
+        }
+      ]
+    },
+    "b5": {
+      "severity": "",
+      "label": "Disk C:",
+      "value": "80 %",
+      "fill": 80,
+      "rest": 20,
+      "has_fill": true,
+      "has_rest": true
+    }
+  }
+}

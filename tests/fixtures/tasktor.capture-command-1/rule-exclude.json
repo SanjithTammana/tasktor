@@ -1,0 +1,6 @@
+{
+  "schema": "tasktor.capture-control/1",
+  "verb": "exclude",
+  "by_user": false,
+  "app": "zoom.exe"
+}

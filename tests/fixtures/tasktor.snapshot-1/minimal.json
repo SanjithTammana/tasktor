@@ -1,0 +1,7 @@
+{
+  "schema": "tasktor.snapshot/1",
+  "generated_at": "2026-11-04T14:02:11.5Z",
+  "seq": 1,
+  "agent": { "version": "0.1.0", "running": true },
+  "state": {}
+}

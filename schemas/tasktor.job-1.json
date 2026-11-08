@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tasktor:schema:tasktor.job-1.json",
+  "title": "Tasktor job progress file (jobs/<id>.json)",
+  "description": "Contract tasktor.job/1. Generated from the C# records in Tasktor.Contracts; do not edit by hand.",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "integer"
+    },
+    "id": {
+      "type": "string"
+    },
+    "pid": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "label": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "pct": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "done": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "total": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "unit": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "stage": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "msg": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "eta_s": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "log": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "state": {
+      "enum": [
+        "running",
+        "indeterminate",
+        "warning",
+        "error",
+        "done",
+        null
+      ]
+    },
+    "heartbeat_s": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "updated": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "paused": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "id",
+    "updated"
+  ]
+}

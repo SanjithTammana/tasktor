@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tasktor:schema:tasktor.capture-command-1.json",
+  "title": "Tasktor agent → capture host command",
+  "description": "Contract tasktor.capture-control/1. Generated from the C# records in Tasktor.Contracts; do not edit by hand.",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "string"
+    },
+    "verb": {
+      "enum": [
+        "status",
+        "pause",
+        "resume",
+        "exclude",
+        "unexclude",
+        "tab_pause",
+        "forget",
+        "search"
+      ]
+    },
+    "by_user": {
+      "type": "boolean"
+    },
+    "until": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "app": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "site": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "tab": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "block_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "since": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "query": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "verb"
+  ]
+}

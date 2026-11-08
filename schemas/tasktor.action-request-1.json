@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tasktor:schema:tasktor.action-request-1.json",
+  "title": "Tasktor action request",
+  "description": "Contract tasktor.action/1. Generated from the C# records in Tasktor.Contracts; do not edit by hand.",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "string"
+    },
+    "action": {
+      "type": "string"
+    },
+    "target": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "args": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "origin": {
+      "enum": [
+        "widget",
+        "flyout",
+        "tray",
+        "toast",
+        "cli",
+        "rule",
+        "shell",
+        "shelf",
+        "command"
+      ]
+    },
+    "confirm": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "toast": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "rule": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "action",
+    "origin"
+  ]
+}

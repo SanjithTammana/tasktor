@@ -1,0 +1,6 @@
+{
+  "schema": "tasktor.capture-control/1",
+  "verb": "pause",
+  "by_user": true,
+  "until": "2026-11-05T15:30:00Z"
+}

@@ -2,8 +2,13 @@ name: ci
 
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
+
+# One run per branch: a newer push cancels the run it replaces (fewer duplicate failure emails).
+concurrency:
+  group: ci-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -23,19 +28,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Build and test (.NET)
-        if: hashFiles('Tasktor.sln') != ''
-        run: |
-          dotnet build Tasktor.sln -c Release -warnaserror -p:EnableWindowsTargeting=true
-          dotnet test Tasktor.sln -c Release --no-build
+      - name: Build (.NET, everything except Flyout / Widget)
+        run: dotnet build Tasktor.Linux.slnf -c Release -warnaserror
+      - name: Test (.NET)
+        run: dotnet test Tasktor.Linux.slnf -c Release --no-build
       - name: Test (Python worker)
         if: hashFiles('worker/requirements.txt') != ''
         run: |
           pip install -r worker/requirements.txt
           pytest worker
-      - name: Nothing to build yet
-        if: hashFiles('Tasktor.sln') == ''
-        run: echo "No solution yet (M0 creates it)."
 
   windows:
     runs-on: windows-latest
@@ -44,8 +45,20 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-      - name: Build and test (.NET, all projects)
-        if: hashFiles('Tasktor.sln') != ''
-        run: |
-          dotnet build Tasktor.sln -c Release -warnaserror
-          dotnet test Tasktor.sln -c Release --no-build
+      - name: Build (.NET, all projects)
+        run: dotnet build Tasktor.sln -c Release -warnaserror
+      - name: Test (.NET)
+        run: dotnet test Tasktor.sln -c Release --no-build
+      - name: G-net runtime (the agent never connects, with every Module on)
+        shell: pwsh
+        run: ./scripts/gnet-runtime.ps1
+      - name: Windows integration (DPAPI, winsqlite3 WAL, pipe ACL, Job Object, capture supervision)
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        run: ./scripts/windows-integration.ps1
+      - name: G-aot (Native AOT publish of the agent, no trim / AOT warnings)
+        if: ${{ !cancelled() }}
+        run: dotnet publish src/Tasktor.Agent/Tasktor.Agent.csproj -c Release -r win-x64 -p:PublishAot=true -warnaserror -o out/agent-aot
+      - name: G-aot (Native AOT publish of the switcher shell)
+        if: ${{ !cancelled() }}
+        run: dotnet publish src/Tasktor.Shell/Tasktor.Shell.csproj -c Release -r win-x64 -p:PublishAot=true -warnaserror -o out/shell-aot

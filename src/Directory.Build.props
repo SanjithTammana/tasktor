@@ -1,0 +1,11 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+  <PropertyGroup>
+    <!-- G-net / G-capture-net: banned network APIs (see BannedSymbols.txt). Projects opt in with TasktorNoNetwork. -->
+    <TasktorNoNetwork Condition="'$(TasktorNoNetwork)' == ''">true</TasktorNoNetwork>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(TasktorNoNetwork)' == 'true'">
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+  </ItemGroup>
+</Project>

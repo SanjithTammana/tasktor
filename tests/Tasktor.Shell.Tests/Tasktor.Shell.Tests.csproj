@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UsesCore>true</UsesCore>
+    <RootNamespace>Tasktor.Shell.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Tasktor.Shell/Tasktor.Shell.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tasktor:schema:tasktor.eval-1.json",
+  "title": "Tasktor workflow model evaluation (eval.json)",
+  "description": "Contract tasktor.eval/1. Generated from the C# records in Tasktor.Contracts; do not edit by hand.",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "activated": {
+      "type": "boolean"
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "threshold": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "pass": {
+            "type": "boolean"
+          },
+          "null_value": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "report_only": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "pass"
+        ]
+      }
+    }
+  },
+  "required": [
+    "version",
+    "activated",
+    "gates"
+  ]
+}

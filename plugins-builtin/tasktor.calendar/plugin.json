@@ -1,0 +1,17 @@
+{
+  "$schema": "../../schemas/tasktor.plugin-1.json",
+  "contract": 1,
+  "id": "tasktor.calendar",
+  "name": "Calendars (ICS)",
+  "version": "1.0.0",
+  "author": "Tasktor",
+  "description": "Fetches the ICS calendar addresses you add and keeps the next 14 days for Next event, Deadlines, Meeting guard and Event mode.",
+  "command": ["{python}", "main.py"],
+  "interval": "15m",
+  "timeout": "60s",
+  "reads": ["Nothing on this PC"],
+  "network": ["The calendar addresses you add (https / webcal), nothing else"],
+  "settings": [ { "key": "urls", "label": "Calendar addresses (one per line)", "type": "secret" } ],
+  "actions": [ { "id": "refresh", "label": "Refresh", "class": "reversible" } ],
+  "min_tasktor": "1.0"
+}

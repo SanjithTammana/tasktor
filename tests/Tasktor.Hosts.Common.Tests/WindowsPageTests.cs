@@ -1,0 +1,101 @@
+using System.Text.Json.Nodes;
+using Tasktor.Hosts.Common.Deep;
+
+namespace Tasktor.Hosts.Common.Tests;
+
+/// <summary>U4 D-G3 Windows page (D-W5): the presets pull as rows with Arrange, Apply and Undo.</summary>
+public sealed class WindowsPageTests
+{
+    private static readonly JsonNode Pulled = JsonNode.Parse("""
+        { "presets": [ { "name": "Work", "slots": 3, "launches": 1, "layouts": 0, "hotkey": "Ctrl+Alt+1", "can_undo": true },
+                       { "name": "Reading", "slots": 1, "launches": 0, "layouts": 2, "hotkey": null, "can_undo": false } ] }
+        """)!;
+
+    [Fact]
+    public void Each_preset_shows_what_it_places_and_whether_it_starts_apps()
+    {
+        var s = WindowsPage.Sections(Pulled);
+        Assert.Equal(["Work", "Reading"], s.Select(x => x.Title));
+        Assert.Equal(
+            [("Windows placed", "3"), ("Starts apps", "1 of them"), ("Hotkey", "Ctrl+Alt+1")],
+            s[0].Rows.Select(r => (r.Label, r.Value!)));
+        Assert.Equal([("Windows placed", "1"), ("FancyZones layouts", "2")], s[1].Rows.Select(r => (r.Label, r.Value!)));
+    }
+
+    [Fact]
+    public void Arrange_and_apply_name_the_preset_as_their_target()
+    {
+        var work = WindowsPage.Sections(Pulled)[0];
+        Assert.Equal(["preset.arrange", "preset.apply", "preset.undo"], work.Actions.Select(a => a.Action!));
+        Assert.Equal(["Arrange", "Apply", "Undo"], work.Actions.Select(a => a.Label));
+        Assert.All(work.Actions, a => Assert.Equal("Work", a.Target!["preset"]));
+        Assert.All(work.Actions, a => Assert.Null(a.Args));
+        Assert.All(work.Actions, a => Assert.NotEqual(true, a.Destructive));
+    }
+
+    [Fact]
+    public void Undo_is_offered_only_while_there_is_something_to_undo()
+    {
+        var reading = WindowsPage.Sections(Pulled)[1];
+        Assert.Equal(["preset.arrange", "preset.apply"], reading.Actions.Select(a => a.Action!));
+    }
+
+    [Fact]
+    public void Action_ids_are_unique_within_a_section()
+    {
+        Assert.All(WindowsPage.Sections(Pulled), s => Assert.Equal(s.Actions.Count, s.Actions.Select(a => a.Id).Distinct().Count()));
+    }
+
+    [Fact]
+    public void No_presets_says_how_to_make_one_and_no_pull_is_no_page()
+    {
+        var s = WindowsPage.Sections(JsonNode.Parse("""{ "presets": [] }"""));
+        Assert.Contains("No presets yet", Assert.Single(s).Rows[0].Label, StringComparison.Ordinal);
+        Assert.Empty(WindowsPage.Sections(null));
+        Assert.Empty(WindowsPage.Sections(JsonNode.Parse("[]")));
+    }
+
+    [Fact]
+    public void A_preset_without_a_name_is_skipped()
+    {
+        var s = WindowsPage.Sections(JsonNode.Parse("""{ "presets": [ { "slots": 2 }, { "name": "Ok", "slots": 1 } ] }"""));
+        Assert.Equal(["Ok"], s.Select(x => x.Title));
+    }
+
+    [Fact]
+    public void Saving_open_windows_shows_each_window_and_the_exact_launch_before_saving()
+    {
+        var report = new Contracts.Presets.OpenWindowsReport
+        {
+            Windows =
+            [
+                new() { Id = "11", App = "code.exe", Title = "thesis - Code", Monitor = 1, Width = 1280, Height = 800, Launch = new() { Exe = "C:\\Apps\\code.exe", Args = ["--reuse-window", "D:\\my work"] } },
+                new() { Id = "12", App = "chrome.exe", Monitor = 2, Width = 900, Height = 700 },
+            ],
+        };
+        var rows = WindowsPage.SaveCandidates(report);
+        Assert.Equal(("code.exe · thesis - Code", "Monitor 1 · 1280 × 800"), (rows[0].Label, rows[0].Detail));
+        Assert.Equal("Open it if it is not running: C:\\Apps\\code.exe --reuse-window \"D:\\my work\"", rows[0].LaunchText);
+        Assert.Equal(("chrome.exe", null), (rows[1].Label, rows[1].LaunchText)); // no title, no known launch
+        var save = WindowsPage.Save(" Writing ", ["11", "12"], ["11"]);
+        Assert.Equal(("preset.save", "Writing", "11,12", "11"), (save.Action, save.Args!["name"], save.Args["windows"], save.Args["launch"]));
+    }
+
+    [Fact]
+    public void Editing_a_preset_becomes_ordered_actions_and_never_empties_it()
+    {
+        Contracts.Presets.PresetSlot Slot(string app, string? exe = null) => new() { App = new() { AppId = app }, Place = new() { Monitor = "display", Rect = new() { W = 300, H = 200 } }, Launch = exe is null ? null : new() { Exe = exe, Args = ["--x"] } };
+        var preset = new Contracts.Presets.Preset { Name = "Work", Slots = [Slot("code.exe", "C:\\code.exe"), Slot("chrome.exe"), Slot("slack.exe")] };
+        var rows = WindowsPage.EditSlots(preset);
+        Assert.Equal(("code.exe · 300 × 200", "Opens if missing: C:\\code.exe --x"), (rows[0].Label, rows[0].LaunchText));
+        Assert.Null(rows[1].LaunchText);
+
+        var edits = WindowsPage.Edits(preset, " Writing ", [true, false, false])!;
+        Assert.Equal(["preset.remove_slot:2", "preset.remove_slot:1", "preset.rename:Writing"], edits.Select(a => a.Action + ":" + (a.Args!.GetValueOrDefault("slot") ?? a.Args!["name"])));
+        Assert.All(edits, a => Assert.Equal("Work", a.Target!["preset"])); // removals first, under the old name
+        Assert.Empty(WindowsPage.Edits(preset, "Work", [true, true, true])!); // nothing changed
+        Assert.Null(WindowsPage.Edits(preset, "Work", [false, false, false])); // would empty it: delete instead
+        Assert.Equal(("preset.delete", "Work"), (WindowsPage.Delete(preset).Action, WindowsPage.Delete(preset).Target!["preset"]));
+    }
+}
+

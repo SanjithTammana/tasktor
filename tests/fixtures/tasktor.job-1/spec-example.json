@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "id": "embed-2026-11-04",
+  "pid": 12345,
+  "label": "embed corpus",
+  "pct": 42.5,
+  "done": 2380,
+  "total": 5665,
+  "unit": "docs",
+  "stage": "embedding",
+  "msg": "batch 75/178",
+  "eta_s": 1800,
+  "log": "C:/work/embed.log",
+  "state": "running",
+  "heartbeat_s": 30,
+  "updated": "2026-11-04T14:02:11Z"
+}
