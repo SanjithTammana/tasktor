@@ -187,3 +187,86 @@ public sealed class UiaWorkerTests
         public IReadOnlyList<IUiaWalkNode> Children => [];
     }
 }
+
+/// <summary>E11.3: Tasktor's own windows are never captured: every shipped exe is on the list, and UIA never reads them.</summary>
+public sealed class OwnAppsTests
+{
+    [Fact]
+    public void Every_executable_in_src_is_an_own_app()
+    {
+        var root = Tasktor.Tests.Shared.RepoPaths.Root;
+        foreach (var csproj in Directory.EnumerateFiles(Path.Combine(root, "src"), "*.csproj", SearchOption.AllDirectories))
+        {
+            var xml = System.Xml.Linq.XDocument.Load(csproj);
+            var output = xml.Descendants("OutputType").FirstOrDefault()?.Value;
+            if (output is not ("Exe" or "WinExe"))
+            {
+                continue;
+            }
+
+            var name = xml.Descendants("AssemblyName").FirstOrDefault()?.Value ?? Path.GetFileNameWithoutExtension(csproj);
+            Assert.Contains(name + ".exe", Suppressor.OwnApps, StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
+    public void Uia_never_reads_or_walks_a_tasktor_window()
+    {
+        var walked = 0;
+        var values = 0;
+        var client = new OwnClient(() => walked++);
+        var focus = new List<(FocusTarget, Sensitive<string>?, Sensitive<string>?)>();
+        var worker = new UiaWorker(client, _ => "tasktor.flyout.exe", _ => false, (_, _) => { }, (t, p, v) => focus.Add((t, p, v)), () => 0);
+        worker.OnFocus(new UiaFocusChange(3, new OwnNode(() => values++)));
+        worker.Step(10_000);
+        Assert.Equal(0, values);
+        Assert.Equal(0, walked);
+        Assert.Null(focus.Single().Item3);
+    }
+
+    private sealed class OwnClient(Action walk) : IUiaClient
+    {
+        public event Action<long>? WindowDirty { add { } remove { } }
+
+        public event Action<UiaFocusChange>? FocusChanged { add { } remove { } }
+
+        public void Watch(long window)
+        {
+        }
+
+        public IUiaWalkNode? Root(long window, bool textBodies)
+        {
+            walk();
+            return null;
+        }
+
+        public string? HitTest(int x, int y) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class OwnNode(Action read) : IUiaWalkNode
+    {
+        public UiaNodeKind Kind => UiaNodeKind.Content;
+
+        public byte Role => 4;
+
+        public bool? Offscreen => false;
+
+        public bool? Password => false;
+
+        public Sensitive<string>? Name => Sensitive.Of("Note");
+
+        public Sensitive<string>? AutomationId => null;
+
+        public Sensitive<string>? ReadValue(int maxUtf8Bytes)
+        {
+            read();
+            return Sensitive.Of("my note text");
+        }
+
+        public IReadOnlyList<IUiaWalkNode> Children => [];
+    }
+}

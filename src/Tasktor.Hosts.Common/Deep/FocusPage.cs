@@ -8,8 +8,8 @@ namespace Tasktor.Hosts.Common.Deep;
 /// <summary>
 /// U4 D-G3 Focus page (E11.1, E11.2): the running block from <c>state.focus</c> with Pause / Resume, Skip, +5 min and Stop
 /// (Next in place of Skip once a block is done), one section per preset to start from, the last blocks and the preset
-/// comparison, both from the agent's <c>focus</c> pull. The notes editor (E11.3) is not here: note text never crosses the
-/// pipe, so notes stay in their folder and on the card's pinned lines.
+/// comparison, both from the agent's <c>focus</c> pull. The notes editor (E11.3) sits under these sections in the viewer,
+/// which edits the note files itself (<c>NotesEditor</c>), so note text never crosses the pipe.
 /// </summary>
 public static class FocusPage
 {

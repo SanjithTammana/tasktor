@@ -99,7 +99,9 @@ public sealed class PrivacyGate
         ["searchapp.exe"] = RuleStrength.Ignore,
         ["widgets.exe"] = RuleStrength.Ignore,
         ["lockapp.exe"] = RuleStrength.Ignore,
-        ["tasktor-flyout.exe"] = RuleStrength.Ignore,
+        ["tasktor.flyout.exe"] = RuleStrength.Ignore,
+        ["tasktor.widget.exe"] = RuleStrength.Ignore,
+        ["tasktor-shell.exe"] = RuleStrength.Ignore,
     };
 
     /// <summary>Per-browser private-window markers in the title (C2.3; each needs its A1 probe on Windows).</summary>

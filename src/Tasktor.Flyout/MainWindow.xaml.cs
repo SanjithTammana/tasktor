@@ -387,6 +387,8 @@ public sealed partial class MainWindow : Window
         {
             PageContent.Children.Add(Text(_snapshot.Connected ? "Reading your presets…" : "Tasktor is not running.", "TasktorInk2Brush"));
         }
+
+        DrawNotes();
     }
 
     private async Task PullFocusAsync()

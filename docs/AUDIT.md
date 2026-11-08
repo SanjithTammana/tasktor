@@ -62,7 +62,7 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 | E1, E2 | Deadlines, calendar next event | Built (plugin `tasktor.calendar`) | — |
 | E8 | Bluetooth device batteries | Built (limited by Windows) | — |
 | E10 | Repo hygiene (`tasktor.repos`) | Built | its timeout was invalid until 34c64ea; recheck on a PC |
-| E11 | Focus timer + validation against tracking | Partial | **notes editor** (blocked by a privacy / contract question) |
+| E11 | Focus timer + validation against tracking | Built (Windows check pending) | timer, presets, review; notes editor in the flyout (edits the note files itself; text never crosses the pipe) |
 
 ## F. Window management
 

@@ -177,7 +177,7 @@ public sealed class UiaWorker(IUiaClient client, Func<long, string?> appOf, Func
         var app = App(change.Window);
         var e = change.Element;
         Sensitive<string>? previous = _focusedReadable ? Read(_focused) : null;
-        var readable = e.Password == false && app is not null && !blocked(app);
+        var readable = e.Password == false && app is not null && !Blocked(app);
         var name = UiaWalkLogic.Cap(e.Name?.Reveal(), UiaWalkLogic.MaxNameChars);
         var id = UiaWalkLogic.Cap(e.AutomationId?.Reveal(), UiaWalkLogic.MaxAutomationIdChars);
         var target = new FocusTarget(View(change.Window), RefMinter.Ref(0, id, e.Role, name, 0).ToString("x", CultureInfo.InvariantCulture), app ?? string.Empty)
@@ -213,7 +213,7 @@ public sealed class UiaWorker(IUiaClient client, Func<long, string?> appOf, Func
 
         foreach (var window in _scheduler.Due(now))
         {
-            if (App(window) is not { } app || blocked(app)) continue; // an excluded app is never read
+            if (App(window) is not { } app || Blocked(app)) continue; // an excluded app, or Tasktor's own window, is never read
             var start = nowMs();
             Sensitive<UiaWalk>? walk = null;
             try
@@ -257,6 +257,9 @@ public sealed class UiaWorker(IUiaClient client, Func<long, string?> appOf, Func
             return null;
         }
     }
+
+    // E11.3: Tasktor's own windows (the notes editor, the command line) are never read, like an excluded app.
+    private bool Blocked(string app) => blocked(app) || Suppressor.OwnApps.Contains(app, StringComparer.OrdinalIgnoreCase);
 
     private string? App(long window)
     {

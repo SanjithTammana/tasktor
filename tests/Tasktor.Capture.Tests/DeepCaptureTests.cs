@@ -153,7 +153,7 @@ public sealed class KeyRunTests
         {
             (Field() with { IsPassword = true }, Suppression.Password),
             (Field() with { SecureField = true }, Suppression.SecureField),
-            (Field("tasktor-flyout.exe"), Suppression.OwnWindow),
+            (Field("Tasktor.Flyout.exe"), Suppression.OwnWindow),
             (Field("keepass.exe"), Suppression.Excluded),
         })
         {

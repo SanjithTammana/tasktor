@@ -239,7 +239,7 @@ public sealed class KeyRunBuilder
 /// </summary>
 public sealed class Suppressor
 {
-    public static readonly string[] OwnApps = ["tasktor-flyout.exe", "tasktor-shell.exe", "tasktor-core.exe", "tasktor-capture.exe", "tasktor.exe"];
+    public static readonly string[] OwnApps = ["tasktor.flyout.exe", "tasktor.widget.exe", "tasktor-shell.exe", "tasktor-core.exe", "tasktor-capture.exe", "tasktor-nmh.exe", "tasktor.exe"];
 
     private readonly CaptureBlocks _blocks;
 
