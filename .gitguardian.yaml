@@ -1,0 +1,10 @@
+# GitGuardian / ggshield: test data that looks like secrets but is not.
+version: 2
+secret:
+  ignored-paths:
+    # SHA-256 checksums of the synthetic extract's own data files (integrity, not credentials).
+    - "tests/fixtures/workflow/extract/meta.json"
+  ignored-matches:
+    # A made-up token in CaptureRecorderTests that the secret scrubber must remove from a URL query.
+    - name: synthetic token for the redaction test
+      match: 3294ff7e72573ebc17ecca9ec610c38a67147beca5fbef2c94b5c756f3b15c89
