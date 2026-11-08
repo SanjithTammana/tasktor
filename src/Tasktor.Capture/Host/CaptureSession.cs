@@ -121,7 +121,9 @@ public sealed class CaptureSession : IDisposable
                 _recorder.SetSecure(secure);
             }
         }
-        if (History?.ReadNew() is { Count: > 0 } commands)
+        // Read even while the gate is closed so the tail moves past them: a line appended then (another session or a script
+        // writing the same history file) is dropped, never held until the gate reopens.
+        if (History?.ReadNew() is { Count: > 0 } commands && !_secure)
         {
             Deep.History(commands); // stamped now, to meet the Enter that ran them within a second
         }

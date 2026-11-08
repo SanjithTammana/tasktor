@@ -157,6 +157,32 @@ public sealed class CaptureSessionTests : IDisposable
     }
 
     [Fact]
+    public void History_lines_appended_while_the_gate_is_closed_are_dropped_not_held()
+    {
+        var history = Path.Combine(_dir, "secure_history.txt");
+        File.WriteAllText(history, string.Empty);
+        var blocks = new CaptureBlocks(Path.Combine(_dir, "blocks3.json"), TimeZoneInfo.Utc);
+        var vault = new RawVault(Path.Combine(_dir, "raw3"), new byte[32]);
+        using var session = new CaptureSession(new CaptureRecorder(vault, blocks, () => _clock.UtcNow), new BrowserEndpoint(blocks, () => _clock.UtcNow), _clock, _probe, () => SessionAvailability.UnlockedConnected)
+        {
+            History = new Commands.HistoryTail(history),
+        };
+
+        _probe.Next = DesktopObservation.OtherDesktop; // a secure desktop: the gate stays closed
+        session.Tick();
+        File.AppendAllText(history, "while-locked-command\n");
+        session.Tick();
+        Assert.Equal(0, session.Deep.Commands.Pending);
+
+        _probe.Next = DesktopObservation.UserDesktop;
+        _clock.UtcNow = T0.AddSeconds(5);
+        session.Tick();
+        _clock.UtcNow = T0.AddSeconds(10);
+        session.Tick();
+        Assert.DoesNotContain(vault.Read(T0.AddDays(-1), T0.AddDays(1)), r => r.Kind == RecordKind.Command);
+    }
+
+    [Fact]
     public void New_shell_history_lines_become_command_records_once_their_second_has_passed()
     {
         var history = Path.Combine(_dir, "ConsoleHost_history.txt");
