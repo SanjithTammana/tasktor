@@ -36,6 +36,8 @@ public sealed class CaptureSession : IDisposable
     private readonly CaptureRecorder _recorder;
     private SessionAvailability _lastSession = SessionAvailability.Unknown;
     private DateTimeOffset _sessionAt = DateTimeOffset.MinValue;
+    private readonly object _sessionGate = new();
+    private long _sessionGeneration;
 
     public CaptureSession(CaptureRecorder recorder, BrowserEndpoint endpoint, IClock clock, IDesktopProbe probe, Func<SessionAvailability> session)
     {
@@ -90,14 +92,32 @@ public sealed class CaptureSession : IDisposable
     public void Tick()
     {
         var now = _clock.UtcNow;
-        if (now - _sessionAt >= TimeSpan.FromSeconds(1) || now < _sessionAt)
+        long generation;
+        bool refresh;
+        SessionAvailability availability;
+        lock (_sessionGate)
         {
-            _lastSession = _session(); // the session query is an RPC: once a second; the desktop probe below catches the lock screen at once
-            _sessionAt = now;
+            generation = _sessionGeneration;
+            refresh = now - _sessionAt >= TimeSpan.FromSeconds(1) || now < _sessionAt;
+            availability = _lastSession;
         }
 
-        _secure = _guard.ShouldSuppress(_lastSession);
-        _recorder.SetSecure(_secure); // the write gate follows the check (a session notice closes it sooner: SessionChanged)
+        if (refresh) availability = _session(); // the session query is an RPC, at most once a second
+        var secure = _guard.ShouldSuppress(availability);
+        lock (_sessionGate)
+        {
+            // A notice invalidates both the session result and the desktop observation. Never reopen from a stale tick.
+            if (generation == _sessionGeneration)
+            {
+                if (refresh)
+                {
+                    _lastSession = availability;
+                    _sessionAt = now;
+                }
+                _secure = secure;
+                _recorder.SetSecure(secure);
+            }
+        }
         if (History?.ReadNew() is { Count: > 0 } commands)
         {
             Deep.History(commands); // stamped now, to meet the Enter that ran them within a second
@@ -113,9 +133,13 @@ public sealed class CaptureSession : IDisposable
     /// </summary>
     public void SessionChanged()
     {
-        _secure = true;
-        _recorder.SetSecure(true);
-        _sessionAt = DateTimeOffset.MinValue;
+        lock (_sessionGate)
+        {
+            _sessionGeneration++;
+            _secure = true;
+            _recorder.SetSecure(true);
+            _sessionAt = DateTimeOffset.MinValue;
+        }
     }
 
     /// <summary>
