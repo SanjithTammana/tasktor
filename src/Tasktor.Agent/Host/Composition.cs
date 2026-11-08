@@ -332,6 +332,19 @@ internal static class Composition
         // I11 watches are user-authored (app + title pattern); none until the flyout's picker writes them (M14).
         host.RegisterModule("windows_watch", () => host.AddFeature(new WindowWatch(ctx, windowEvents?.Subscriber())));
 
+        // F2 (U3 D-W2): the agent's half of the switcher; tasktor-shell draws it (started by its supervisor, below).
+        host.RegisterModule("switcher", () => host.AddFeature(new Core.Features.Windows.SwitcherFeedFeature(ctx, windowEvents?.Subscriber())
+        {
+            Jobs = () => [.. host.Features.OfType<Core.Features.Jobs.JobWatch>().SelectMany(w => w.Jobs).Where(j => j.Live).Select(j => new Contracts.Windows.SwitcherJob
+            {
+                Id = j.Id,
+                Label = j.Label,
+                Frozen = j.Pause == Contracts.Snapshot.PauseMode.Frozen,
+                Pids = [j.Root.Pid, .. j.Workers.Select(w => w.Pid)],
+            })],
+            Settings = () => host.Settings.Current.Windows,
+        }));
+
         host.RegisterModule("capture", () =>
         {
             // T1 agent side: the card and capture.* actions over tasktor-capture's control pipe. While that host is not

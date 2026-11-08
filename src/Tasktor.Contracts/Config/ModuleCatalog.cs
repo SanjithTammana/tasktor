@@ -18,6 +18,7 @@ public static class ModuleCatalog
         new("focus", "Focus", "Your focus sessions and the notes you write.", "On this PC: notes\\ and the focus history."),
         new("projects", "Time per project", "Your tracked activity, grouped by the project names you give it.", "On this PC, beside the tracking data."),
         new("presets", "Window presets", "The position and size of the windows you save in a preset.", "On this PC in presets.json."),
+        new("switcher", "Window switcher", "Which window was in front most recently, and your open windows with their titles, shown only while the switcher is open.", "Nothing: the order lives in memory only."),
         new("windows_watch", "Required-window watch", "Whether the windows you choose to watch are still open.", Nothing),
         new("agents", "AI agent watch", "Which coding agents run and whether they are busy.", "On this PC in agents\\, while they run."),
         new("ports", "Dev ports", "Which programs listen on network ports.", Nothing),
