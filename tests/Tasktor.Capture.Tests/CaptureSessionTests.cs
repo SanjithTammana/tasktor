@@ -140,6 +140,65 @@ public sealed class CaptureSessionTests : IDisposable
         Assert.True(_session.Stop());
         Assert.Contains(Records(), r => r.Kind == RecordKind.Media);
     }
+    [Fact]
+    public void History_seen_while_secure_is_not_recorded_after_the_desktop_reopens()
+    {
+        var history = Path.Combine(_dir, "synthetic-history.txt");
+        File.WriteAllText(history, string.Empty);
+        var blocks = new CaptureBlocks(Path.Combine(_dir, "secure-history-blocks.json"), TimeZoneInfo.Utc);
+        var vault = new RawVault(Path.Combine(_dir, "secure-history-raw"), new byte[32]);
+        using var session = new CaptureSession(new CaptureRecorder(vault, blocks, () => _clock.UtcNow),
+            new BrowserEndpoint(blocks, () => _clock.UtcNow), _clock, _probe, () => SessionAvailability.UnlockedConnected)
+        {
+            History = new Commands.HistoryTail(history),
+        };
+        session.Tick();
+        _probe.Next = DesktopObservation.OtherDesktop;
+        File.AppendAllText(history, "synthetic secure command\n");
+        session.Tick();
+        _probe.Next = DesktopObservation.UserDesktop;
+        _clock.UtcNow = T0.AddSeconds(2);
+        session.Tick(); // the first open tick: re-baselines, dropping whatever the closed period left
+        File.AppendAllText(history, "synthetic later command\n");
+        _clock.UtcNow = T0.AddSeconds(4);
+        session.Tick();
+        _clock.UtcNow = T0.AddSeconds(6);
+        session.Tick();
+        var commands = vault.Read(T0.AddDays(-1), T0.AddDays(1)).Where(r => r.Kind == RecordKind.Command).Select(r => System.Text.Encoding.UTF8.GetString(r.Body)).ToList();
+        Assert.DoesNotContain(commands, c => c.Contains("secure command", StringComparison.Ordinal));
+        Assert.Contains(commands, c => c.Contains("later command", StringComparison.Ordinal)); // capture resumes; no restart needed
+    }
+
+    [Fact]
+    public void Session_notice_discards_pending_history_and_the_first_open_tick_rebaselines()
+    {
+        var history = Path.Combine(_dir, "notice-history.txt");
+        File.WriteAllText(history, string.Empty);
+        var blocks = new CaptureBlocks(Path.Combine(_dir, "notice-blocks.json"), TimeZoneInfo.Utc);
+        var vault = new RawVault(Path.Combine(_dir, "notice-raw"), new byte[32]);
+        using var session = new CaptureSession(new CaptureRecorder(vault, blocks, () => _clock.UtcNow),
+            new BrowserEndpoint(blocks, () => _clock.UtcNow), _clock, _probe, () => SessionAvailability.UnlockedConnected)
+        {
+            History = new Commands.HistoryTail(history),
+        };
+        session.Tick();
+        File.AppendAllText(history, "synthetic pending command\n");
+        session.Tick();
+        Assert.Equal(1, session.Deep.Commands.Pending);
+        session.SessionChanged();
+        File.AppendAllText(history, "synthetic during-notice command\n"); // written around the notice: never recorded
+        _clock.UtcNow = T0.AddSeconds(2);
+        session.Tick(); // gate reopens; this read re-baselines
+        File.AppendAllText(history, "synthetic later command\n");
+        _clock.UtcNow = T0.AddSeconds(4);
+        session.Tick();
+        _clock.UtcNow = T0.AddSeconds(6);
+        session.Tick();
+        var commands = vault.Read(T0.AddDays(-1), T0.AddDays(1)).Where(r => r.Kind == RecordKind.Command).Select(r => System.Text.Encoding.UTF8.GetString(r.Body)).ToList();
+        Assert.DoesNotContain(commands, c => c.Contains("pending command", StringComparison.Ordinal)); // held at the notice: dropped
+        Assert.DoesNotContain(commands, c => c.Contains("during-notice", StringComparison.Ordinal));
+        Assert.Contains(commands, c => c.Contains("later command", StringComparison.Ordinal));
+    }
     private void Browse()
     {
         _session.Tick(); // the first check proves the user's desktop and opens the write gate

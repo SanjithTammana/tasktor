@@ -45,6 +45,9 @@ public sealed class CommandReconciler
 
     public int Pending => _typed.Count + _history.Count;
 
+    /// <summary>Discard pending commands when their capture boundary becomes uncertain.</summary>
+    public void Clear() { _typed.Clear(); _history.Clear(); }
+
     public void Typed(string app, Sensitive<string> text, DateTimeOffset at, Actor actor)
     {
         var h = new Held(at, app, text, actor);
