@@ -139,20 +139,9 @@ public sealed class CaptureSession : IDisposable
             Deep.Commands.Clear();
         }
 
+        var historyGeneration = HistoryGeneration();
         var lines = History?.ReadNew();
-        if (_secure)
-        {
-            // dropped: read while the gate is closed
-        }
-        else if (_historyRebaseline)
-        {
-            _historyRebaseline = false; // dropped: the first read after a closed period
-        }
-        else if (lines is { Count: > 0 } commands)
-        {
-            Deep.History(commands); // stamped now, to meet the Enter that ran them within a second
-        }
-
+        AcceptHistory(historyGeneration, lines);
         if (!_secure) _media.Tick(now);
         Deep.Pump();
     }
@@ -305,6 +294,26 @@ public sealed class CaptureSession : IDisposable
                 action();
             });
         }
+    }
+    // Captured before the file read so a concurrent notice cannot consume a newer rebaseline.
+    internal long HistoryGeneration()
+    {
+        lock (_sessionGate) return _sessionGeneration;
+    }
+
+    // Runs on the logic thread; a batch crossing a notice is dropped without clearing that notice's rebaseline.
+    internal void AcceptHistory(long generation, IReadOnlyList<Sensitive<string>>? lines)
+    {
+        lock (_sessionGate)
+        {
+            if (_secure || generation != _sessionGeneration) return;
+            if (_historyRebaseline)
+            {
+                _historyRebaseline = false;
+                return;
+            }
+        }
+        if (lines is { Count: > 0 }) Deep.History(lines);
     }
     private void OnLoopError(Exception ex) => LoopErrors++; // never logged: a capture exception may carry captured text
 }

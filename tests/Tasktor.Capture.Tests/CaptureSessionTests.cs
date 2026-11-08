@@ -199,6 +199,29 @@ public sealed class CaptureSessionTests : IDisposable
         Assert.DoesNotContain(commands, c => c.Contains("during-notice", StringComparison.Ordinal));
         Assert.Contains(commands, c => c.Contains("later command", StringComparison.Ordinal));
     }
+    [Fact]
+    public void A_history_read_started_before_a_notice_cannot_consume_the_new_rebaseline()
+    {
+        var history = Path.Combine(_dir, "race-history.txt");
+        File.WriteAllText(history, string.Empty);
+        var blocks = new CaptureBlocks(Path.Combine(_dir, "race-history-blocks.json"), TimeZoneInfo.Utc);
+        var vault = new RawVault(Path.Combine(_dir, "race-history-raw"), new byte[32]);
+        using var session = new CaptureSession(new CaptureRecorder(vault, blocks, () => _clock.UtcNow),
+            new BrowserEndpoint(blocks, () => _clock.UtcNow), _clock, _probe, () => SessionAvailability.UnlockedConnected)
+        {
+            History = new Commands.HistoryTail(history),
+        };
+        session.Tick();
+        var beforeNotice = session.HistoryGeneration();
+        session.SessionChanged();
+        session.AcceptHistory(beforeNotice, [Sensitive.Of("synthetic old batch")]);
+        File.AppendAllText(history, "synthetic closed-period line\n");
+        _clock.UtcNow = T0.AddSeconds(2);
+        session.Tick();
+        _clock.UtcNow = T0.AddSeconds(4);
+        session.Tick();
+        Assert.DoesNotContain(vault.Read(T0.AddDays(-1), T0.AddDays(1)), r => r.Kind == RecordKind.Command);
+    }
     private void Browse()
     {
         _session.Tick(); // the first check proves the user's desktop and opens the write gate
