@@ -269,6 +269,10 @@ public sealed class CaptureSession : IDisposable
     /// <summary>Queue one native audio peak for the media state window.</summary>
     public void PostMediaPeak(string app, DateTimeOffset at, float peak) => PostCaptured(() => _media.Peak(app, at, peak));
 
+    /// <summary>Queue the end of an app's audio sessions without inventing a playback state.</summary>
+    public void PostMediaAudioStopped(string app) => PostCaptured(() => _media.AudioStopped(app));
+    /// <summary>Queue the departure of a native media source, clearing its audible state and metadata.</summary>
+    public void PostMediaRemove(string app) => PostCaptured(() => _media.Remove(app));
     /// <summary>Queue a protected UI Automation walk for processing on the capture loop.</summary>
     public void PostUiaWalk(Sensitive<UiaWalk> walk, string app, Sensitive<string>? host) =>
         PostCaptured(() => Deep.Walk(walk.Reveal(), app, host?.Reveal(), DiffSource.Uia));
