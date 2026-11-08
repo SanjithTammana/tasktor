@@ -78,7 +78,7 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 | Row | Feature | Status | Missing |
 |---|---|---|---|
 | G1 | Widgets-board widget | **Not started** | `Tasktor.Widget` is a stub; needs MSIX (H8) |
-| G2 | Flyout → shelf, command line, deep window | Built, mostly | the command line's **dimmed desktop**; dialogs: none left |
+| G2 | Flyout → shelf, command line, deep window | Built (Windows check pending) | the command line's dimmed desktop is a layered click-through window (none in high contrast); dialogs: none left |
 | G3, G4 | Taskbar button, overlay bar | Later (spec) | — |
 | G6 | Tray icon, glance tooltip, menu | Built | — |
 | — | Toasts | Partial | tray balloons (the D-G7 fallback); real toasts with buttons need an app identity (MSIX) |

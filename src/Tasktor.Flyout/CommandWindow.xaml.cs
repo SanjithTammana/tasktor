@@ -84,6 +84,8 @@ public sealed partial class CommandWindow : Window
 
     public bool IsShown { get; private set; }
 
+    private readonly Tasktor.Windows.Shell.DimLayer _dim = new();
+
     public event Action? Hidden;
 
     /// <summary>A page result was chosen; the app opens the deep window there.</summary>
@@ -94,6 +96,14 @@ public sealed partial class CommandWindow : Window
         Refresh();
         Input.Text = string.Empty;
         Layout();
+
+        // G2 (D-G12): the dimmed desktop under the input, on the same monitor; none in high-contrast mode.
+        var monitor = DisplayArea.Primary.OuterBounds;
+        if (Tasktor.Hosts.Common.Command.DimSpec.For(monitor.X, monitor.Y, monitor.Width, monitor.Height, Tasktor.Windows.Shell.DimLayer.HighContrast()) is { } dim)
+        {
+            _dim.Show(dim.X, dim.Y, dim.W, dim.H, dim.Alpha, WinRT.Interop.WindowNative.GetWindowHandle(this));
+        }
+
         AppWindow.Show(true);
         Activate();
         IsShown = true;
@@ -108,6 +118,7 @@ public sealed partial class CommandWindow : Window
         }
 
         IsShown = false;
+        _dim.Hide();
         AppWindow.Hide();
         _command.Closed();
         Hidden?.Invoke();
