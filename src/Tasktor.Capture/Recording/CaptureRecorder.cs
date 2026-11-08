@@ -134,10 +134,43 @@ public sealed class CaptureRecorder
         return Write(null, null, null, RecordKind.Document, JsonSerializer.SerializeToUtf8Bytes(doc, RecordJsonContext.Default.ActivityDocument));
     }
 
+    private bool _secure;
+
+    /// <summary>True while nothing may be written: a secure desktop, a locked or disconnected session, or not yet known.</summary>
+    public bool Secure
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _secure;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The secure gate (C §5, D-C22: never the secure desktop). Taken under the write lock, so it is ordered with every
+    /// write: once <c>SetSecure(true)</c> returns, no record lands until it is cleared. Any thread may close it (a session
+    /// notice, first); only the capture loop clears it, after the desktop probe proves the user's own desktop.
+    /// </summary>
+    public void SetSecure(bool secure)
+    {
+        lock (_gate)
+        {
+            _secure = secure;
+        }
+    }
+
     private bool Write(string? app, string? host, string? tab, byte kind, byte[] body)
     {
         lock (_gate)
         {
+            if (_secure)
+            {
+                Skipped++;
+                return false;
+            }
+
             var now = _now();
             _blocks.Expire(now);
             if (_blocks.Blocking(now, app, host, tab) is not null)

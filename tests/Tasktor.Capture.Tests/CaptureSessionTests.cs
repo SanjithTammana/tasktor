@@ -59,6 +59,7 @@ public sealed class CaptureSessionTests : IDisposable
 
     private void Browse()
     {
+        _session.Tick(); // the first check proves the user's desktop and opens the write gate
         _endpoint.Handle("s1", new BrowserHello { At = T0, Contract = 1, Client = "nmh", Browser = "chrome", ExtensionVersion = "1.0.0" });
         _endpoint.Handle("s1", new BrowserTab { At = T0, Tab = 4, Window = 1, Host = "docs.example.com", Active = true, Audible = false, Url = "https://docs.example.com/guide", Title = "Guide" });
     }
@@ -146,4 +147,26 @@ public sealed class CaptureSessionTests : IDisposable
         Assert.Equal("invalid", control.Handle(new CaptureCommand { Verb = CaptureVerb.Search, ByUser = false, Query = "revenue" }).Refusal); // never a rule
         Assert.Equal("no_index", new CaptureControl(new CaptureBlocks(Path.Combine(_dir, "b3.json"), TimeZoneInfo.Utc), () => T0).Handle(new CaptureCommand { Verb = CaptureVerb.Search, ByUser = true, Query = "x" }).Refusal);
     }
+
+    [Fact]
+    public void Nothing_is_written_before_the_first_check_or_after_a_session_notice()
+    {
+        _endpoint.Handle("s1", new BrowserHello { At = T0, Contract = 1, Client = "nmh", Browser = "chrome", ExtensionVersion = "1.0.0" });
+        _endpoint.Handle("s1", new BrowserTab { At = T0, Tab = 4, Window = 1, Host = "docs.example.com", Active = true, Audible = false });
+        _endpoint.Handle("s1", new BrowserText { At = T0, Tab = 4, Lines = ["before any check"] });
+        _session.Loop.RunPending();
+        Assert.Empty(Records()); // the gate starts closed
+
+        _session.Tick();
+        _session.SessionChanged(); // e.g. the PC locks: closed on the notice's own thread, before the loop hears of it
+        _endpoint.Handle("s1", new BrowserText { At = T0, Tab = 4, Lines = ["while locked"] });
+        _session.Loop.RunPending();
+        Assert.DoesNotContain(Records(), r => r.Body.Contains("while locked", StringComparison.Ordinal));
+
+        _session.Tick(); // the next check proves the user's desktop again
+        _endpoint.Handle("s1", new BrowserText { At = T0, Tab = 4, Lines = ["while locked", "after unlock"] });
+        _session.Loop.RunPending();
+        Assert.Contains(Records(), r => r.Body.Contains("after unlock", StringComparison.Ordinal));
+    }
 }
+

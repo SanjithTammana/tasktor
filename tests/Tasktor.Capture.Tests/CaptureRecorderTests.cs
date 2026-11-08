@@ -73,6 +73,40 @@ public sealed class CaptureRecorderTests : IDisposable
     }
 
     [Fact]
+    public void While_secure_nothing_is_written_and_the_gate_is_ordered_with_every_write()
+    {
+        // A session notice (lock, switch user, secure desktop) closes the gate on its own thread before anything else; the
+        // gate is checked under the same lock as the write, so no record lands after the notice returns.
+        var (_, vault, rec) = World();
+        rec.SetSecure(true);
+        Assert.False(rec.Browser("chrome", 1, Ctx("docs.example.org")));
+        Assert.False(rec.Media(new MediaState("chrome.exe", "t", null, MediaStatus.Playing, 0, false)));
+        Assert.Empty(vault.Read(T0.AddDays(-1), T0.AddDays(1)));
+        Assert.True(rec.Secure);
+        rec.SetSecure(false);
+        Assert.True(rec.Browser("chrome", 1, Ctx("docs.example.org")));
+
+        var stop = false;
+        var afterGate = 0;
+        var writer = new Thread(() =>
+        {
+            while (!Volatile.Read(ref stop))
+            {
+                rec.Browser("chrome", 2, Ctx("docs.example.org"));
+            }
+        });
+        writer.Start();
+        Thread.Sleep(20);
+        rec.SetSecure(true);
+        var count = vault.Read(T0.AddDays(-1), T0.AddDays(1)).Count();
+        Thread.Sleep(50);
+        afterGate = vault.Read(T0.AddDays(-1), T0.AddDays(1)).Count() - count;
+        Volatile.Write(ref stop, true);
+        writer.Join();
+        Assert.Equal(0, afterGate);
+    }
+
+    [Fact]
     public void Every_block_kind_stops_the_write()
     {
         var (blocks, vault, rec) = World();
