@@ -117,6 +117,14 @@ public sealed class SwitcherFeedTests : IDisposable
         Assert.True(_rig.Settings.Current.Windows!.ThisDesktopOnly);
         Assert.Equal("Ctrl+Alt+Q", _rig.Settings.Current.Windows!.Hotkey); // the other setting is kept
 
+        Assert.False(Pull().ReplaceAltTab); // off by default (D-W3)
+        Assert.Equal(ActionStatus.Ok, Act("switcher.settings", new() { ["replace_alt_tab"] = "true" }).Status);
+        Assert.True(_rig.Settings.Current.Windows!.ReplaceAltTab);
+        Assert.True(Pull().ReplaceAltTab);
+        Assert.True(_rig.State.Current.Switcher!.ReplaceAltTab);
+        Assert.Equal(ActionStatus.Refused, Act("switcher.settings", new() { ["replace_alt_tab"] = "yes" }).Status);
+        Assert.Equal(ActionStatus.Refused, Act("switcher.settings", new() { ["replace_alt_tab"] = "false" }, Origin.Rule).Status); // people only
+
         Assert.Equal(ActionStatus.Refused, Act("switcher.settings", new() { ["keys"] = "Q" }).Status); // needs Ctrl, Alt or Win
         Assert.Equal(ActionStatus.Refused, Act("switcher.settings", new() { ["keys"] = "Win+Alt+T" }).Status); // the command line's
         Assert.Equal(ActionStatus.Refused, Act("switcher.settings", new() { ["keys"] = "Alt+Q" }, Origin.Rule).Status); // people only

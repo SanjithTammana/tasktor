@@ -73,6 +73,8 @@ public sealed class SettingsPageTests
         Assert.Equal(("switcher.settings", "Ctrl+Alt+Q"), (set.Action, set.Args!["keys"]));
         Assert.False(set.Args.ContainsKey("this_desktop_only"));
         Assert.Equal("true", SettingsPage.SetSwitcher(keys: null, thisDesktopOnly: true).Args!["this_desktop_only"]);
+        Assert.True(SettingsPage.Switcher(Root("""{"switcher":{"keys":"Alt+`","replace_alt_tab":true}}"""))!.ReplaceAltTab);
+        Assert.Equal("false", SettingsPage.SetSwitcher(keys: null, thisDesktopOnly: null, replaceAltTab: false).Args!["replace_alt_tab"]);
         var req = SettingsPage.SetHotkey(" ctrl+shift+space ");
         Assert.Equal(("settings.hotkey", "ctrl+shift+space"), (req.Action, req.Args!["keys"]));
     }

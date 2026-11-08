@@ -32,6 +32,7 @@ internal sealed unsafe class SwitcherWindow : IDisposable
     private int _first; // the first tile of the drawn page (more than 24 windows page, D-W4)
     private double _scale = 1.0;
     private bool _suppressChar;
+    private KeyChordHook? _altTab;
 
     /// <param name="includePid">Which processes' windows may be listed: others are skipped before their title is read.</param>
     /// <param name="reportHotkey">Tells the agent whether Windows accepted the hotkey (Settings shows a note when it did not).</param>
@@ -63,7 +64,13 @@ internal sealed unsafe class SwitcherWindow : IDisposable
             }
 
             _font = CreateFontW(-16, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 5, 0, "Segoe UI");
-            ApplyHotkey(_feed()?.Hotkey);
+            var start = _feed();
+            ApplyHotkey(start?.Hotkey);
+            if (start?.ReplaceAltTab == true)
+            {
+                _altTab = new KeyChordHook(_hwnd, () => _session.IsOpen); // opt-in (D-W3); a settings change restarts the shell
+                _altTab.Start();
+            }
             Msg msg;
             while (GetMessageW(&msg, 0, 0, 0) > 0)
             {
@@ -82,6 +89,8 @@ internal sealed unsafe class SwitcherWindow : IDisposable
 
     public void Dispose()
     {
+        _altTab?.Dispose();
+        _altTab = null;
         ClearThumbnails();
         if (_hwnd != 0)
         {
@@ -155,6 +164,9 @@ internal sealed unsafe class SwitcherWindow : IDisposable
                 _session.Cancel(); // focus went elsewhere: close without switching
                 Hide();
                 return true;
+            case KeyChordHook.WmAltTab:
+                AltTab((AltTabCommand)(int)wParam);
+                return true;
             case WmResumed:
                 if (wParam != 0)
                 {
@@ -176,6 +188,27 @@ internal sealed unsafe class SwitcherWindow : IDisposable
     }
 
     private static bool Shift() => (GetKeyState(VkShift) & 0x8000) != 0;
+
+    /// <summary>A command from the opt-in Alt+Tab hook (the hook swallowed the key; Alt's release still reaches this window).</summary>
+    private void AltTab(AltTabCommand command)
+    {
+        switch (command)
+        {
+            case AltTabCommand.Open or AltTabCommand.OpenReverse when !_session.IsOpen:
+                Open(reverse: command == AltTabCommand.OpenReverse);
+                break;
+            case AltTabCommand.Next or AltTabCommand.Open:
+                Step(+1);
+                break;
+            case AltTabCommand.Previous or AltTabCommand.OpenReverse:
+                Step(-1);
+                break;
+            case AltTabCommand.Cancel:
+                _session.Cancel();
+                Hide();
+                break;
+        }
+    }
 
     private bool Key(int vk)
     {

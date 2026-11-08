@@ -74,6 +74,7 @@ public sealed class SwitcherFeedFeature : Feature
             Workflows = workflows,
             Hotkey = Keys(),
             ThisDesktopOnly = settings?.ThisDesktopOnly == true,
+            ReplaceAltTab = settings?.ReplaceAltTab == true,
         };
     }
 
@@ -102,7 +103,7 @@ public sealed class SwitcherFeedFeature : Feature
     private string Keys() => Hotkey.Parse(Current?.Hotkey ?? DefaultKeys, out _)?.ToString() ?? DefaultKeys;
 
     private void Publish(bool? registered) =>
-        Context.UpdateState(s => s with { Switcher = new SwitcherState { Keys = Keys(), Registered = registered, ThisDesktopOnly = Current?.ThisDesktopOnly == true } });
+        Context.UpdateState(s => s with { Switcher = new SwitcherState { Keys = Keys(), Registered = registered, ThisDesktopOnly = Current?.ThisDesktopOnly == true, ReplaceAltTab = Current?.ReplaceAltTab == true } });
 
     /// <summary>
     /// <c>switcher.settings</c> (people only): <c>keys</c> (a hotkey other than the command line's) and/or
@@ -112,7 +113,8 @@ public sealed class SwitcherFeedFeature : Feature
     {
         var keysText = req.Args?.GetValueOrDefault("keys");
         var desktopText = req.Args?.GetValueOrDefault("this_desktop_only");
-        if (keysText is null && desktopText is null)
+        var altTabText = req.Args?.GetValueOrDefault("replace_alt_tab");
+        if (keysText is null && desktopText is null && altTabText is null)
         {
             return new PreparedAction { Summary = "Window switcher settings", Refusal = "Nothing to change" };
         }
@@ -133,16 +135,20 @@ public sealed class SwitcherFeedFeature : Feature
             keys = h;
         }
 
-        bool? desktop = desktopText switch { "true" => true, "false" => false, null => null, _ => (bool?)null };
-        if (desktopText is not null && desktop is null)
+        bool? desktop = desktopText switch { "true" => true, "false" => false, _ => null };
+        bool? altTab = altTabText switch { "true" => true, "false" => false, _ => null };
+        if ((desktopText is not null && desktop is null) || (altTabText is not null && altTab is null))
         {
-            return new PreparedAction { Summary = "Window switcher settings", Refusal = "this_desktop_only is true or false" };
+            return new PreparedAction { Summary = "Window switcher settings", Refusal = "Use true or false" };
         }
 
-        var restart = keys is not null && keys.ToString() != Keys();
+        // The shell registers its hotkey and installs (or not) its hook at start: either change restarts it.
+        var restart = (keys is not null && keys.ToString() != Keys()) || (altTab is { } a && a != (Current?.ReplaceAltTab == true));
         return new PreparedAction
         {
-            Summary = keys is not null ? "Window switcher shortcut " + keys : "Window switcher: " + (desktop == true ? "this desktop only" : "all desktops"),
+            Summary = keys is not null ? "Window switcher shortcut " + keys
+                : altTab is { } replace ? (replace ? "Replace Alt+Tab with the window switcher" : "Keep the Windows Alt+Tab")
+                : "Window switcher: " + (desktop == true ? "this desktop only" : "all desktops"),
             Immediate = new ActionResult { Action = req.Action, Status = ActionStatus.Ok, Message = keys is not null ? "Window switcher: " + keys : "Saved" },
             Done = _ =>
             {
@@ -152,9 +158,10 @@ public sealed class SwitcherFeedFeature : Feature
                     {
                         Hotkey = keys?.ToString() ?? c.Windows?.Hotkey,
                         ThisDesktopOnly = desktop ?? c.Windows?.ThisDesktopOnly ?? false,
+                        ReplaceAltTab = altTab ?? c.Windows?.ReplaceAltTab ?? false,
                     },
                 });
-                Publish(registered: restart ? null : Context.State().Switcher?.Registered);
+                Publish(registered: keys is not null && keys.ToString() != Context.State().Switcher?.Keys ? null : Context.State().Switcher?.Registered);
                 if (restart && Supervisor is { } sup)
                 {
                     sup.Stop(); // the shell registers its hotkey at start: a restart applies the new one

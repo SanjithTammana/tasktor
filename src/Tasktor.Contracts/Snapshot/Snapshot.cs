@@ -473,6 +473,8 @@ public sealed record SwitcherState
     public bool? Registered { get; init; }
 
     public bool ThisDesktopOnly { get; init; }
+
+    public bool ReplaceAltTab { get; init; }
 }
 
 public sealed record HotkeyState
