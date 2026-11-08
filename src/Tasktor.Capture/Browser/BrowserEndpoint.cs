@@ -43,9 +43,9 @@ public sealed class BrowserEndpoint
 
     /// <summary>
     /// A tab's visible text (C18 / §5.5) as a walk for <see cref="DeepCapture.Walk"/> with
-    /// <see cref="DiffSource.Extension"/>: (app = the browser exe, tab, walk, host). Only for a known, unblocked tab.
+    /// <see cref="DiffSource.Extension"/>: (app = the browser exe, tab, walk, host, the tab's address). Only for a known, unblocked tab.
     /// </summary>
-    public event Action<string, int, UiaWalk, Sensitive<string>?>? TextSeen;
+    public event Action<string, int, UiaWalk, Sensitive<string>?, Sensitive<string>?>? TextSeen;
 
     /// <summary>A tab's video playing / paused and where (C20.2): (app, tab, playing, position in seconds).</summary>
     public event Action<string, int, bool, double?>? MediaSeen;
@@ -91,7 +91,7 @@ public sealed class BrowserEndpoint
         var replies = new List<BrowserMessage>();
         var changed = false;
         (string Browser, int Tab, TabContext Ctx)? context = null;
-        (string App, int Tab, UiaWalk Walk, Sensitive<string>? Host)? text = null;
+        (string App, int Tab, UiaWalk Walk, Sensitive<string>? Host, Sensitive<string>? Url)? text = null;
         (string App, int Tab, bool Playing, double? Position)? media = null;
         lock (_gate)
         {
@@ -174,7 +174,7 @@ public sealed class BrowserEndpoint
                         return replies; // an unknown or blocked tab's text is dropped before it is diffed
                     }
 
-                    text = (BrowserExe[browser], x.Tab, ToWalk(browser, x.Tab, page.PageRef, x.Lines), page.Host);
+                    text = (BrowserExe[browser], x.Tab, ToWalk(browser, x.Tab, page.PageRef, x.Lines), page.Host, page.Url);
                     break;
                 case BrowserMedia m:
                     if (!_tabs.TryGetValue((browser, m.Tab), out var playing) || Blocked(browser, m.Tab, playing, now))
@@ -216,7 +216,7 @@ public sealed class BrowserEndpoint
 
         if (text is { } seen)
         {
-            TextSeen?.Invoke(seen.App, seen.Tab, seen.Walk, seen.Host);
+            TextSeen?.Invoke(seen.App, seen.Tab, seen.Walk, seen.Host, seen.Url);
         }
 
         if (media is { } m2)

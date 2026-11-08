@@ -63,6 +63,9 @@ public sealed record ActivityHit
 
     /// <summary>Personal data (what was on screen or typed): shown to the user, never logged.</summary>
     public required string Snippet { get; init; }
+
+    /// <summary>Web pages the activity showed (scrubbed http(s) addresses), first seen first: "reopen" opens one. Personal data.</summary>
+    public IReadOnlyList<string> Links { get; set; } = [];
 }
 
 /// <summary>One active capture block as the agent's card shows it.</summary>

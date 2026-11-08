@@ -100,7 +100,7 @@ public sealed class CaptureRecorder
     }
 
     /// <summary>Secrets in the query and fragment are redacted; the scheme, host and path (the page itself) are kept.</summary>
-    private string? ScrubUrl(string? url)
+    public string? ScrubUrl(string? url)
     {
         if (url is null)
         {

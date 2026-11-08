@@ -167,11 +167,10 @@ public sealed class CaptureSession : IDisposable
         }
 
         IReadOnlyList<Contracts.Capture.ActivityHit> Run() =>
-            [.. index.Search(query, since).Select(h => new Contracts.Capture.ActivityHit { Start = h.Start, End = h.End, Track = h.Track, Snippet = h.Snippet })];
+            [.. index.Search(query, since).Select(h => new Contracts.Capture.ActivityHit { Start = h.Start, End = h.End, Track = h.Track, Snippet = h.Snippet, Links = [.. h.Links] })];
         return _started && !_stopped ? Loop.InvokeAsync(Run).GetAwaiter().GetResult() : Run();
     }
 
-    /// <summary>C21.4: forget the index from <paramref name="since"/> on (the vault forgets its own records); any thread.</summary>
     /// <summary>C21.4: forget the index's activities that included an app or site (on the loop while it runs).</summary>
     public int ForgetIndex(string? app, string? host)
     {
@@ -185,6 +184,7 @@ public sealed class CaptureSession : IDisposable
             : index.Forget(app, host);
     }
 
+    /// <summary>C21.4: forget the index from <paramref name="since"/> on (the vault forgets its own records); any thread.</summary>
     public int ForgetIndex(DateTimeOffset since)
     {
         if (Index is not { } index)
@@ -204,8 +204,8 @@ public sealed class CaptureSession : IDisposable
         Index?.Dispose();
     }
 
-    private void OnText(string app, int tab, UiaWalk walk, Sensitive<string>? host) =>
-        Loop.Post(() => Deep.Walk(walk, app, host?.Reveal(), DiffSource.Extension));
+    private void OnText(string app, int tab, UiaWalk walk, Sensitive<string>? host, Sensitive<string>? url) =>
+        Loop.Post(() => Deep.Walk(walk, app, host?.Reveal(), DiffSource.Extension, url?.Reveal()));
 
     private void OnMedia(string app, int tab, bool playing, double? position) =>
         Loop.Post(() => Deep.Media(new MediaState(app, null, null, playing ? MediaStatus.Playing : MediaStatus.Paused, (long)((position ?? 0) * 1000), Audible: false)));

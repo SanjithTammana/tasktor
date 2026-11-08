@@ -240,8 +240,10 @@ public sealed class CommandController
         View = CommandIndex.Query(Text, _cards, _resolver);
         if (_hits is { } found && found.Query == Text.Trim() && found.Hits.Count > 0)
         {
+            // Enter on a hit that showed a web page reopens it (C21 "reopen from a hit"); the agent checks the address again.
             var items0 = found.Hits.Take(ActivityHits).Select(h => new CommandItem(
-                TimeZoneInfo.ConvertTime(h.Start, Zone).ToString("ddd H:mm", System.Globalization.CultureInfo.InvariantCulture) + " · " + h.Snippet)).ToList();
+                TimeZoneInfo.ConvertTime(h.Start, Zone).ToString("ddd H:mm", System.Globalization.CultureInfo.InvariantCulture) + " · " + h.Snippet,
+                h.Links.Count > 0 ? new CardAction { Id = "reopen", Label = "Reopen", Action = "activity.open", Args = new Dictionary<string, string> { ["url"] = h.Links[0] } } : null)).ToList();
             View = View with { Sections = [.. View.Sections, new CommandSection("Your activity", items0)] };
         }
 

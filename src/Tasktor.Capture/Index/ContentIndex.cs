@@ -9,7 +9,11 @@ using Tasktor.Core.Storage;
 namespace Tasktor.Capture.Index;
 
 /// <summary>One activity that matched: when it was, which track, a snippet with the matched words in brackets.</summary>
-public sealed record SearchHit(DateTimeOffset Start, DateTimeOffset End, int Track, string Snippet, double Score);
+public sealed record SearchHit(DateTimeOffset Start, DateTimeOffset End, int Track, string Snippet, double Score)
+{
+    /// <summary>The activity's web pages (scrubbed addresses), first seen first: "reopen" opens one.</summary>
+    public IReadOnlyList<string> Links { get; init; } = [];
+}
 
 /// <summary>
 /// C21 / C §9 content index over closed activity documents (already redacted and block-checked when they were recorded).
@@ -41,6 +45,7 @@ public sealed partial class ContentIndex : IDisposable
             CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(text, tokenize='unicode61 remove_diacritics 2');
             CREATE VIRTUAL TABLE IF NOT EXISTS fts_tri USING fts5(text, tokenize='trigram');
             CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS link(start_ms INTEGER NOT NULL, track INTEGER NOT NULL, ord INTEGER NOT NULL, url TEXT NOT NULL, PRIMARY KEY(start_ms, track, ord));
             """);
         if (_db.Scalar("SELECT count(*) FROM pragma_table_info('chunk') WHERE name = 'sources'") == 0)
         {
@@ -91,6 +96,8 @@ public sealed partial class ContentIndex : IDisposable
 
     public long ChunkCount => _db.Scalar("SELECT count(*) FROM chunk");
 
+    public long LinkCount => _db.Scalar("SELECT count(*) FROM link");
+
     /// <summary>Index one closed document; returns the chunks added (near-duplicates of recent ones are not).</summary>
     public int Add(ActivityDocument doc)
     {
@@ -119,6 +126,18 @@ public sealed partial class ContentIndex : IDisposable
                 }
 
                 added++;
+            }
+
+            if (added > 0)
+            {
+                // the activity's pages, kept beside its chunks (C §9 link table): a hit can reopen them
+                for (var i = 0; i < doc.Links.Count && i < ActivityDocumentBuilder.MaxLinks; i++)
+                {
+                    if (ActivityDocumentBuilder.IsWebLink(doc.Links[i]))
+                    {
+                        _db.Run("INSERT OR IGNORE INTO link(start_ms, track, ord, url) VALUES (?, ?, ?, ?)", doc.Start.ToUnixTimeMilliseconds(), doc.Track, i, doc.Links[i]);
+                    }
+                }
             }
         });
         return added;
@@ -213,8 +232,21 @@ public sealed partial class ContentIndex : IDisposable
                 DateTimeOffset.FromUnixTimeMilliseconds(kv.Value.End),
                 kv.Key.Track,
                 Snippet(kv.Value.Chunk, wordQuery, triWords),
-                kv.Value.Score)),
+                kv.Value.Score) { Links = LinksOf(kv.Key.Start, kv.Key.Track) }),
         ];
+    }
+
+    private List<string> LinksOf(long start, int track)
+    {
+        var links = new List<string>();
+        using var s = _db.Prepare("SELECT url FROM link WHERE start_ms = ? AND track = ? ORDER BY ord");
+        s.BindAll(start, track);
+        while (s.Step())
+        {
+            links.Add(s.Text(0) ?? string.Empty);
+        }
+
+        return links;
     }
 
     /// <summary>C21.4: forget activities that started in [from, to); returns how many. The vault forgets its records separately.</summary>
@@ -227,6 +259,7 @@ public sealed partial class ContentIndex : IDisposable
             _db.Run("DELETE FROM fts WHERE rowid IN (SELECT id FROM chunk WHERE start_ms >= ? AND start_ms < ?)", a, b);
             _db.Run("DELETE FROM fts_tri WHERE rowid IN (SELECT id FROM chunk WHERE start_ms >= ? AND start_ms < ?)", a, b);
             _db.Run("DELETE FROM chunk WHERE start_ms >= ? AND start_ms < ?", a, b);
+            _db.Run("DELETE FROM link WHERE start_ms >= ? AND start_ms < ?", a, b);
         });
         LoadRecent(); // a forgotten chunk must not suppress new text
         return activities;
@@ -271,6 +304,11 @@ public sealed partial class ContentIndex : IDisposable
                 _db.Run("DELETE FROM fts WHERE rowid = ?", id);
                 _db.Run("DELETE FROM fts_tri WHERE rowid = ?", id);
                 _db.Run("DELETE FROM chunk WHERE id = ?", id);
+            }
+
+            foreach (var (start, track) in activities)
+            {
+                _db.Run("DELETE FROM link WHERE start_ms = ? AND track = ?", start, track);
             }
         });
         LoadRecent();
