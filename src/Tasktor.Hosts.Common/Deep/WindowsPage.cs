@@ -98,6 +98,58 @@ public static class WindowsPage
         },
     };
 
+    /// <summary>The Edit dialog's rows: each window of the preset, with its launch when it has one.</summary>
+    public static IReadOnlyList<SaveCandidate> EditSlots(Contracts.Presets.Preset preset)
+    {
+        ArgumentNullException.ThrowIfNull(preset);
+        return
+        [
+            .. preset.Slots.Select((s, i) => new SaveCandidate(
+                i.ToString(CultureInfo.InvariantCulture),
+                s.App.AppId + " · " + ((int)s.Place.Rect.W).ToString(CultureInfo.InvariantCulture) + " × " + ((int)s.Place.Rect.H).ToString(CultureInfo.InvariantCulture),
+                s.Place.Monitor,
+                s.Launch is { } l ? "Opens if missing: " + string.Join(' ', new[] { l.Exe }.Concat(l.Args ?? []).Select(QuoteArg)) : null)),
+        ];
+    }
+
+    /// <summary>
+    /// The Edit dialog's changes as actions, in an order that stays valid: removals first, from the last window back,
+    /// under the old name, then the rename. Null when nothing would be kept (delete the preset instead).
+    /// </summary>
+    public static IReadOnlyList<CardAction>? Edits(Contracts.Presets.Preset preset, string newName, IReadOnlyList<bool> keep)
+    {
+        ArgumentNullException.ThrowIfNull(preset);
+        ArgumentNullException.ThrowIfNull(keep);
+        if (!keep.Any(k => k))
+        {
+            return null;
+        }
+
+        Dictionary<string, string> Target() => new(StringComparer.Ordinal) { ["preset"] = preset.Name };
+        var actions = new List<CardAction>();
+        for (var i = keep.Count - 1; i >= 0; i--)
+        {
+            if (!keep[i])
+            {
+                actions.Add(new CardAction { Id = "remove", Label = "Remove", Action = "preset.remove_slot", Target = Target(), Args = new Dictionary<string, string>(StringComparer.Ordinal) { ["slot"] = i.ToString(CultureInfo.InvariantCulture) } });
+            }
+        }
+
+        var name = (newName ?? string.Empty).Trim();
+        if (name.Length > 0 && name != preset.Name)
+        {
+            actions.Add(new CardAction { Id = "rename", Label = "Rename", Action = "preset.rename", Target = Target(), Args = new Dictionary<string, string>(StringComparer.Ordinal) { ["name"] = name } });
+        }
+
+        return actions;
+    }
+
+    public static CardAction Delete(Contracts.Presets.Preset preset)
+    {
+        ArgumentNullException.ThrowIfNull(preset);
+        return new CardAction { Id = "delete", Label = "Delete preset", Action = "preset.delete", Destructive = true, Target = new Dictionary<string, string>(StringComparer.Ordinal) { ["preset"] = preset.Name } };
+    }
+
     private static string QuoteArg(string a) => a.Length == 0 || a.Any(char.IsWhiteSpace) || a.Contains('"', StringComparison.Ordinal) ? "\"" + a.Replace("\"", "\\\"", StringComparison.Ordinal) + "\"" : a;
 }
 

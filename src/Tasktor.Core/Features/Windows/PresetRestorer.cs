@@ -104,6 +104,10 @@ public sealed class PresetRestorer(FeatureContext context) : Feature(context)
         Context.RegisterPull("presets", _ => PullPresets());
         Context.RegisterPull("open_windows", _ => JsonSerializer.SerializeToNode(OpenWindows(), ContractsJsonContext.Default.OpenWindowsReport));
         Context.Router.Register("preset.save", Save);
+        Context.Router.Register("preset.rename", Rename);
+        Context.Router.Register("preset.remove_slot", RemoveSlot);
+        Context.Router.Register("preset.delete", Delete);
+        Context.RegisterPull("preset", pull => PresetDetail(pull.Args?.GetValueOrDefault("name")) is { } p ? JsonSerializer.SerializeToNode(p, ContractsJsonContext.Default.Preset) : null);
         Events?.Start(e =>
         {
             _interventions.On(e); // on the source thread: a drag is visible to an in-flight restore at once
@@ -293,6 +297,63 @@ public sealed class PresetRestorer(FeatureContext context) : Feature(context)
             },
         };
     }
+
+    /// <summary>One preset with its slots and launches, for the Edit dialog (owner-approved personal data; never logged).</summary>
+    public Preset? PresetDetail(string? name) =>
+        name is null ? null : _store.Current.Presets.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    private PreparedAction EditPreset(ActionRequest req, string summary, Func<Preset, string?> check, Func<Preset, Preset?> change, string done)
+    {
+        if (PresetDetail(req.Target?.GetValueOrDefault("preset")) is not { } preset)
+        {
+            return new PreparedAction { Summary = summary, Refusal = "No such preset" };
+        }
+
+        if (check(preset) is { } why)
+        {
+            return new PreparedAction { Summary = summary, Refusal = why };
+        }
+
+        return new PreparedAction
+        {
+            Summary = summary + " " + preset.Name,
+            Run = _ => new ActionResult { Action = req.Action, Status = ActionStatus.Ok, Message = done }, // real work: a destructive edit goes through the two-step confirm
+            Done = _ =>
+            {
+                var file = _store.Current;
+                var updated = change(preset);
+                _store.Save(file with { Presets = [.. file.Presets.Select(p => ReferenceEquals(p, preset) ? updated : p).OfType<Preset>()] });
+                Context.UpdateState(s => s);
+            },
+        };
+    }
+
+    private PreparedAction Rename(ActionRequest req)
+    {
+        var name = req.Args?.GetValueOrDefault("name")?.Trim();
+        return EditPreset(
+            req,
+            "Rename",
+            p => name is not { Length: > 0 and <= 60 } ? "A preset name has 1–60 characters"
+                : _store.Current.Presets.Any(o => !ReferenceEquals(o, p) && string.Equals(o.Name, name, StringComparison.OrdinalIgnoreCase)) ? "Another preset has that name"
+                : null,
+            p => p with { Name = name! },
+            "Renamed to " + name);
+    }
+
+    private PreparedAction RemoveSlot(ActionRequest req)
+    {
+        var index = int.TryParse(req.Args?.GetValueOrDefault("slot"), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var i) ? i : -1;
+        return EditPreset(
+            req,
+            "Remove a window from",
+            p => index < 0 || index >= p.Slots.Count ? "No such window in the preset" : p.Slots.Count == 1 ? "A preset keeps at least one window: delete the preset instead" : null,
+            p => p with { Slots = [.. p.Slots.Where((_, n) => n != index)] },
+            "Removed the window");
+    }
+
+    /// <summary>Destructive (two-step): the preset is gone; arranging it can no longer be undone either.</summary>
+    private PreparedAction Delete(ActionRequest req) => EditPreset(req, "Delete preset", _ => null, _ => null, "Deleted");
 
     private JsonNode PullPresets()
     {

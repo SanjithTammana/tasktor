@@ -80,4 +80,22 @@ public sealed class WindowsPageTests
         var save = WindowsPage.Save(" Writing ", ["11", "12"], ["11"]);
         Assert.Equal(("preset.save", "Writing", "11,12", "11"), (save.Action, save.Args!["name"], save.Args["windows"], save.Args["launch"]));
     }
+
+    [Fact]
+    public void Editing_a_preset_becomes_ordered_actions_and_never_empties_it()
+    {
+        Contracts.Presets.PresetSlot Slot(string app, string? exe = null) => new() { App = new() { AppId = app }, Place = new() { Monitor = "display", Rect = new() { W = 300, H = 200 } }, Launch = exe is null ? null : new() { Exe = exe, Args = ["--x"] } };
+        var preset = new Contracts.Presets.Preset { Name = "Work", Slots = [Slot("code.exe", "C:\\code.exe"), Slot("chrome.exe"), Slot("slack.exe")] };
+        var rows = WindowsPage.EditSlots(preset);
+        Assert.Equal(("code.exe · 300 × 200", "Opens if missing: C:\\code.exe --x"), (rows[0].Label, rows[0].LaunchText));
+        Assert.Null(rows[1].LaunchText);
+
+        var edits = WindowsPage.Edits(preset, " Writing ", [true, false, false])!;
+        Assert.Equal(["preset.remove_slot:2", "preset.remove_slot:1", "preset.rename:Writing"], edits.Select(a => a.Action + ":" + (a.Args!.GetValueOrDefault("slot") ?? a.Args!["name"])));
+        Assert.All(edits, a => Assert.Equal("Work", a.Target!["preset"])); // removals first, under the old name
+        Assert.Empty(WindowsPage.Edits(preset, "Work", [true, true, true])!); // nothing changed
+        Assert.Null(WindowsPage.Edits(preset, "Work", [false, false, false])); // would empty it: delete instead
+        Assert.Equal(("preset.delete", "Work"), (WindowsPage.Delete(preset).Action, WindowsPage.Delete(preset).Target!["preset"]));
+    }
 }
+

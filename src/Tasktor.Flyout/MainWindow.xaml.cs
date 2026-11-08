@@ -438,6 +438,91 @@ public sealed partial class MainWindow : Window
         var save = new Button { Content = "Save open windows as a preset…", Margin = new Thickness(0, 12, 0, 0) };
         save.Click += async (_, _) => await SavePresetAsync();
         PageContent.Children.Add(save);
+
+        var names = (_windowsPull?["presets"] as System.Text.Json.Nodes.JsonArray ?? []).Select(n => n?["name"]?.GetValue<string>()).OfType<string>().ToList();
+        if (names.Count > 0)
+        {
+            var edits = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 8, 0, 0) };
+            foreach (var name in names)
+            {
+                var edit = new Button { Content = "Edit " + name + "…" };
+                edit.Click += async (_, _) => await EditPresetAsync(name);
+                edits.Children.Add(edit);
+            }
+
+            PageContent.Children.Add(new ScrollViewer { Content = edits, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled });
+        }
+    }
+
+    /// <summary>Edit a saved preset: its name, which windows it keeps (each with its launch shown), or delete it (two-step).</summary>
+    private async Task EditPresetAsync(string presetName)
+    {
+        Contracts.Presets.Preset? preset = null;
+        try
+        {
+            var node = await _snapshot.PullAsync("preset", new Dictionary<string, string> { ["name"] = presetName });
+            preset = node is null ? null : System.Text.Json.JsonSerializer.Deserialize(node, Contracts.ContractsJsonContext.Default.Preset);
+        }
+        catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+        }
+
+        if (preset is null)
+        {
+            await InformAsync("That preset is gone.");
+            return;
+        }
+
+        var name = new TextBox { Header = "Name", Text = preset.Name, MaxLength = 60 };
+        var body = new StackPanel { Spacing = 8 };
+        body.Children.Add(name);
+        body.Children.Add(new TextBlock { Text = "Windows it arranges (untick to remove):", Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush("TasktorInk2Brush") });
+        var keeps = new List<CheckBox>();
+        foreach (var row in WindowsPage.EditSlots(preset))
+        {
+            var keep = new CheckBox { Content = row.Label, IsChecked = true };
+            keeps.Add(keep);
+            body.Children.Add(keep);
+            if (row.LaunchText is { } launch)
+            {
+                body.Children.Add(new TextBlock { Text = launch, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(28, 0, 0, 0), FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Mono, Consolas"), Style = StyleOf("TasktorCaptionTextStyle") });
+            }
+        }
+
+        var dialog = new ContentDialog
+        {
+            Title = "Edit " + preset.Name,
+            Content = new ScrollViewer { Content = body, MaxHeight = 480 },
+            PrimaryButtonText = "Save changes",
+            SecondaryButtonText = "Delete preset…",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = Content.XamlRoot,
+        };
+        var answer = await dialog.ShowAsync(); // closed before any action runs: one dialog at a time (a confirm may follow)
+        if (answer == ContentDialogResult.Secondary)
+        {
+            await RunAsync(WindowsPage.Delete(preset)); // destructive: the agent's two-step confirm follows
+        }
+        else if (answer == ContentDialogResult.Primary)
+        {
+            if (WindowsPage.Edits(preset, name.Text, [.. keeps.Select(k => k.IsChecked == true)]) is not { } actions)
+            {
+                await InformAsync("A preset keeps at least one window. To remove them all, delete the preset.");
+                return;
+            }
+
+            foreach (var action in actions)
+            {
+                if (await RunAsync(action) is not { Ok: true })
+                {
+                    break; // the failure was shown; later edits would act on a preset that did not change as expected
+                }
+            }
+        }
+
+        _windowsAt = DateTimeOffset.MinValue;
+        Draw(_snapshot.Mirror.Cards);
     }
 
     /// <summary>
