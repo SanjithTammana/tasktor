@@ -222,6 +222,24 @@ public sealed class CaptureSessionTests : IDisposable
         session.Tick();
         Assert.DoesNotContain(vault.Read(T0.AddDays(-1), T0.AddDays(1)), r => r.Kind == RecordKind.Command);
     }
+    [Fact]
+    public void History_written_before_the_first_safe_tick_is_not_recorded()
+    {
+        var history = Path.Combine(_dir, "startup-history.txt");
+        File.WriteAllText(history, string.Empty);
+        var blocks = new CaptureBlocks(Path.Combine(_dir, "startup-blocks.json"), TimeZoneInfo.Utc);
+        var vault = new RawVault(Path.Combine(_dir, "startup-raw"), new byte[32]);
+        using var session = new CaptureSession(new CaptureRecorder(vault, blocks, () => _clock.UtcNow),
+            new BrowserEndpoint(blocks, () => _clock.UtcNow), _clock, _probe, () => SessionAvailability.UnlockedConnected)
+        {
+            History = new Commands.HistoryTail(history),
+        };
+        File.AppendAllText(history, "synthetic precheck command\n");
+        session.Tick();
+        _clock.UtcNow = T0.AddSeconds(2);
+        session.Tick();
+        Assert.DoesNotContain(vault.Read(T0.AddDays(-1), T0.AddDays(1)), r => r.Kind == RecordKind.Command);
+    }
     private void Browse()
     {
         _session.Tick(); // the first check proves the user's desktop and opens the write gate

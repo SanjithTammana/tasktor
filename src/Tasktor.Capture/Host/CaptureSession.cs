@@ -40,7 +40,7 @@ public sealed class CaptureSession : IDisposable
     private DateTimeOffset _sessionAt = DateTimeOffset.MinValue;
     private readonly object _sessionGate = new();
     private long _sessionGeneration;
-    private volatile bool _historyRebaseline;
+    private volatile bool _historyRebaseline = true; // the gate starts closed
     private int _discardCommands;
 
     public CaptureSession(CaptureRecorder recorder, BrowserEndpoint endpoint, IClock clock, IDesktopProbe probe, Func<SessionAvailability> session)
