@@ -57,6 +57,26 @@ public sealed class CaptureSessionTests : IDisposable
     private List<(byte Kind, string Body)> Records() =>
         [.. _vault.Read(T0.AddDays(-1), T0.AddDays(1)).Select(r => (r.Kind, Encoding.UTF8.GetString(r.Body)))];
 
+    [Fact]
+    public void Native_source_events_are_queued_on_the_session_loop()
+    {
+        _session.Tick();
+        _session.PostVisible(new VisibleSet(T0, 100, [new VisibleWindow(1, "synthetic.exe", 100, true)]));
+        Assert.Null(_session.Deep.Tracks.Foreground);
+        _session.Loop.RunPending();
+        Assert.Equal("synthetic.exe", _session.Deep.Tracks.Foreground);
+
+        _session.PostMedia(Sensitive.Of(new MediaState("synthetic.exe", null, null, MediaStatus.Playing, 0, false)));
+        Assert.DoesNotContain(Records(), r => r.Kind == RecordKind.Media);
+        _session.Loop.RunPending();
+        Assert.Contains(Records(), r => r.Kind == RecordKind.Media);
+
+        var walk = new UiaWalk(new ViewKey(1, 1), [new SnapLine(1, 0, 1, 0, -1)], ["synthetic text"]);
+        _session.PostUiaWalk(Sensitive.Of(walk), "synthetic.exe", null);
+        Assert.DoesNotContain(Records(), r => r.Kind == RecordKind.ViewDiff);
+        _session.Loop.RunPending();
+        Assert.Contains(Records(), r => r.Kind == RecordKind.ViewDiff && r.Body.Contains("synthetic text", StringComparison.Ordinal));
+    }
     private void Browse()
     {
         _session.Tick(); // the first check proves the user's desktop and opens the write gate
