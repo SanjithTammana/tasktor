@@ -37,6 +37,9 @@ public sealed class CaptureControl
     /// <summary>Forget records since a time; returns how many were removed (the vault).</summary>
     public Func<DateTimeOffset, long> ForgetSince { get; init; } = _ => 0;
 
+    /// <summary>C21.4: forget everything from an app (exe glob) or a site (and its subdomains), vault and index together.</summary>
+    public Func<string?, string?, long> ForgetMatching { get; init; } = (_, _) => 0;
+
     /// <summary>A tab id (or none = the active tab) → its block key (the browser endpoint knows which browser it is).</summary>
     public Func<int?, string?> ResolveTab { get; init; } = _ => null;
 
@@ -119,6 +122,9 @@ public sealed class CaptureControl
                     break;
                 case CaptureVerb.Forget when cmd.ByUser && cmd.Since is { } since && since <= now:
                     forgotten = ForgetSince(since);
+                    break;
+                case CaptureVerb.Forget when cmd.ByUser && cmd.Since is null && (cmd.App is { Length: > 0 } || cmd.Site is { Length: > 0 }):
+                    forgotten = ForgetMatching(cmd.App is { Length: > 0 } ? cmd.App : null, cmd.Site is { Length: > 0 } ? cmd.Site : null);
                     break;
                 case CaptureVerb.Forget:
                     refusal = "invalid"; // forget is destructive: only a person, never a rule

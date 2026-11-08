@@ -343,9 +343,34 @@ public sealed class CaptureFeature : Feature
             ? Command(req, "Pause for this tab", new CaptureCommand { Verb = CaptureVerb.TabPause, ByUser = ByUser(req), Tab = tab })
             : new PreparedAction { Summary = "Pause for this tab", Refusal = "Which tab?" };
 
-    /// <summary><c>since</c>: <c>15m</c>, <c>1h</c> or <c>today</c> (U4 D-G6 "forget the last …").</summary>
+    /// <summary>
+    /// <c>since</c>: <c>15m</c>, <c>1h</c> or <c>today</c> (U4 D-G6 "forget the last …"); or <c>app</c> (an exe glob) or
+    /// <c>site</c> (a hostname, with its subdomains): everything captured from it, and activities that included it whole (C21.4).
+    /// </summary>
     private PreparedAction Forget(ActionRequest req)
     {
+        var app = (req.Args?.GetValueOrDefault("app") ?? req.Target?.GetValueOrDefault("app")) is { Length: > 0 } x ? (x == Foreground ? ForegroundApp() : x)?.Trim().ToLowerInvariant() : null;
+        if (app is null && (req.Args?.GetValueOrDefault("app") ?? req.Target?.GetValueOrDefault("app")) == Foreground)
+        {
+            return new PreparedAction { Summary = "Forget", Refusal = "No app in front to forget" };
+        }
+
+        var site = req.Args?.GetValueOrDefault("site") is { Length: > 0 } y ? y.Trim().ToLowerInvariant() : null;
+        if (app is not null || site is not null)
+        {
+            if ((app is not null ? 1 : 0) + (site is not null ? 1 : 0) + (req.Args?.ContainsKey("since") == true ? 1 : 0) > 1)
+            {
+                return new PreparedAction { Summary = "Forget", Refusal = "Forget a time, an app or a site, one at a time" };
+            }
+
+            if ((app is not null && !System.Text.RegularExpressions.Regex.IsMatch(app, @"^[\w.\-*? ]{1,128}$")) || (site is not null && !Workflow.PrivacyGate.ValidHost(site)))
+            {
+                return new PreparedAction { Summary = "Forget", Refusal = "Not an app name or a hostname" };
+            }
+
+            return Command(req, "Forget everything captured from " + (app ?? site) + " (activities that included it go whole)", new CaptureCommand { Verb = CaptureVerb.Forget, ByUser = ByUser(req), App = app, Site = site });
+        }
+
         var since = req.Args?.GetValueOrDefault("since") ?? "1h";
         var now = Context.Clock.UtcNow;
         DateTimeOffset from;
@@ -419,6 +444,7 @@ public sealed class CaptureFeature : Feature
                         : new CardAction { Id = "pause", Label = "Pause 1 h", Action = "capture.pause", Args = CardKit.Target("for", "1h"), Priority = 1 },
                     new CardAction { Id = "exclude", Label = "Don't capture this app", Action = "capture.exclude", Target = CardKit.Target("app", Foreground), Priority = 2 },
                     new CardAction { Id = "forget", Label = "Forget last hour", Action = "capture.forget", Args = CardKit.Target("since", "1h"), Priority = 3, Destructive = true },
+                    new CardAction { Id = "forget_app", Label = "Forget this app", Action = "capture.forget", Target = CardKit.Target("app", Foreground), Priority = 4, Destructive = true },
                     .. ExtensionOffer is { } b
                         ? new[] { new CardAction { Id = "extension", Label = "Set up the extension", Action = "capture.extension_setup", Args = CardKit.Target("browser", b), Priority = 2 } }
                         : [],

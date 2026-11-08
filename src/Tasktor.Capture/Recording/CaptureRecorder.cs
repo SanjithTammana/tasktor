@@ -197,10 +197,33 @@ public sealed class CaptureRecorder
                 return false;
             }
 
-            _vault.Append(now, kind, body);
+            _vault.Append(now, kind, kind == RecordKind.Document ? body : RecordSource.Tag(body, apps, host)); // a document lists its own sources
             Roll(now);
             _today++;
             return true;
+        }
+    }
+
+    /// <summary>
+    /// C21.4 <c>capture.forget</c> by app (exe glob) or site (and its subdomains): every record from it, and every activity
+    /// document that included it, whole; returns how many. Records written before sources were tagged name none and stay
+    /// until the 7-day retention drops them.
+    /// </summary>
+    public long ForgetMatching(string? app, string? host)
+    {
+        if (app is null && host is null)
+        {
+            return 0;
+        }
+
+        lock (_gate)
+        {
+            var now = _now();
+            var removed = _vault.ForgetWhere(r => RecordSource.Matches(r.Body, app, host));
+            Roll(now);
+            var today = new DateTimeOffset(now.UtcDateTime.Date, TimeSpan.Zero);
+            _today = _vault.Read(today, now.AddSeconds(1)).LongCount();
+            return removed;
         }
     }
 

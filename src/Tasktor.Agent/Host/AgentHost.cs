@@ -812,8 +812,15 @@ public sealed class AgentHost : IAsyncDisposable
                 });
         });
 
+        // While the capture Module runs, its feature takes this action over (the host owns the vault's key). Without it
+        // nothing here can open the vault, so say so rather than report "forgot 0" with records still on disk.
         Router.Register("capture.forget", req =>
         {
+            if (Forgetter.ForgetCaptureSince is null)
+            {
+                return new PreparedAction { Summary = "capture.forget", Refusal = "Capture is not running: turn it on to forget a time, app or site, or forget all capture data" };
+            }
+
             var since = ParseSince(req.Args?.GetValueOrDefault("since") ?? "1h", Loop.Clock.UtcNow);
             if (since is null)
             {

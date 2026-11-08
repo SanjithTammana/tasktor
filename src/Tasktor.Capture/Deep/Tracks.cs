@@ -177,6 +177,12 @@ public sealed record ActivityDocument(int Track, DateTimeOffset Start, DateTimeO
 {
     /// <summary>Bytes cut by the 4 KB section cap.</summary>
     public long Truncated { get; init; }
+
+    /// <summary>The apps whose text, runs, commands or media are in it (C21.4 forgets the whole document by any of them).</summary>
+    public IReadOnlyList<string> Apps { get; set; } = [];
+
+    /// <summary>The sites whose text or runs are in it.</summary>
+    public IReadOnlyList<string> Hosts { get; set; } = [];
 }
 
 /// <summary>
@@ -208,9 +214,32 @@ public sealed class ActivityDocumentBuilder
         public string? LastMedia { get; set; }
 
         public long Truncated { get; set; }
+
+        public SortedSet<string> Apps { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public SortedSet<string> Hosts { get; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
     public bool IsOpen(int track) => _open.ContainsKey(track);
+
+    /// <summary>The source of what was just added to <paramref name="track"/>'s open document (no-op when none is open).</summary>
+    public void Note(int track, string? app, string? host)
+    {
+        if (!_open.TryGetValue(track, out var doc))
+        {
+            return;
+        }
+
+        if (app is { Length: > 0 })
+        {
+            doc.Apps.Add(app);
+        }
+
+        if (host is { Length: > 0 })
+        {
+            doc.Hosts.Add(host);
+        }
+    }
 
     public void Add(int track, KeyRun run, DateTimeOffset at)
     {
@@ -279,7 +308,7 @@ public sealed class ActivityDocumentBuilder
         }
 
         var end = at < doc.Last ? doc.Last : at;
-        return new ActivityDocument(track, doc.Start, end, [.. doc.Sections.Select(s => new DocSection(s.Heading, s.Text.ToString()))]) { Truncated = doc.Truncated };
+        return new ActivityDocument(track, doc.Start, end, [.. doc.Sections.Select(s => new DocSection(s.Heading, s.Text.ToString()))]) { Truncated = doc.Truncated, Apps = [.. doc.Apps], Hosts = [.. doc.Hosts] };
     }
 
     private Doc DocFor(int track, DateTimeOffset at)

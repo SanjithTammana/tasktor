@@ -260,33 +260,48 @@ public sealed class RawVault
     }
 
     /// <summary>C3.4 / D-G6 "forget the last hour": remove every record in [from, to), rewriting affected days.</summary>
-    public int Forget(DateTimeOffset from, DateTimeOffset to)
+    public int Forget(DateTimeOffset from, DateTimeOffset to) =>
+        Rewrite(day => string.CompareOrdinal(day, DayName(from)) >= 0 && string.CompareOrdinal(day, DayName(to)) <= 0, r => r.At >= from && r.At < to);
+
+    /// <summary>C21.4: remove every record <paramref name="match"/> picks, on any day, rewriting the days it touched.</summary>
+    public int ForgetWhere(Func<VaultRecord, bool> match) => Rewrite(_ => true, match);
+
+    private int Rewrite(Func<string, bool> dayInScope, Func<VaultRecord, bool> match)
     {
+        ArgumentNullException.ThrowIfNull(match);
         var removed = 0;
         foreach (var day in DayFiles().ToList())
         {
-            if (string.CompareOrdinal(day, DayName(from)) < 0 || string.CompareOrdinal(day, DayName(to)) > 0 || !File.Exists(KeyPath(day)))
+            if (!dayInScope(day) || !File.Exists(KeyPath(day)))
             {
                 continue;
             }
 
+            var (dayRemoved, dropped) = (0, 0);
             var d = Open(day, create: false);
             var keep = new List<VaultRecord>();
             foreach (var (_, r, ok) in Scan(day, d).ToList())
             {
                 if (!ok)
                 {
+                    dropped++;
                     continue; // tampered records are dropped on a rewrite
                 }
 
-                if (r!.At >= from && r.At < to)
+                if (match(r!))
                 {
-                    removed++;
+                    dayRemoved++;
                 }
                 else
                 {
-                    keep.Add(r);
+                    keep.Add(r!);
                 }
+            }
+
+            removed += dayRemoved;
+            if (dayRemoved == 0 && dropped == 0)
+            {
+                continue; // nothing to forget here and nothing tampered: leave the file as it is
             }
 
             using var ms = new MemoryStream();

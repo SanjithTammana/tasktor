@@ -197,6 +197,29 @@ public sealed class CaptureFeatureTests : IDisposable
     }
 
     [Fact]
+    public void Forget_an_app_or_site_is_two_step_and_names_what_goes()
+    {
+        var first = Act("capture.forget", args: new() { ["site"] = "Docs.Example.com" });
+        Assert.Equal(ActionStatus.NeedsConfirm, first.Status);
+        Assert.Contains("docs.example.com", first.Summary, StringComparison.Ordinal);
+        Act("capture.forget", args: new() { ["site"] = "Docs.Example.com" }, confirm: first.Token);
+        var sent = _host.Seen.Last();
+        Assert.Equal((CaptureVerb.Forget, true, null, "docs.example.com", (DateTimeOffset?)null), (sent.Verb, sent.ByUser, sent.App, sent.Site, sent.Since));
+
+        var app = Act("capture.forget", args: new() { ["app"] = "EXCEL.EXE" });
+        Act("capture.forget", args: new() { ["app"] = "EXCEL.EXE" }, confirm: app.Token);
+        Assert.Equal("excel.exe", _host.Seen.Last().App);
+        _capture.ForegroundApp = () => "Code.exe";
+        var card = _capture.Cards()[0].Actions!.Single(x => x.Id == "forget_app");
+        var front = Act(card.Action!, target: new(card.Target!));
+        Assert.Contains("code.exe", front.Summary, StringComparison.Ordinal); // the confirm names the app it resolved
+        _capture.ForegroundApp = () => null;
+        Assert.Equal(ActionStatus.Refused, Act(card.Action!, target: new(card.Target!)).Status);
+        Assert.Equal(ActionStatus.Refused, Act("capture.forget", args: new() { ["site"] = "not a host/" }).Status);
+        Assert.Equal(ActionStatus.Refused, Act("capture.forget", args: new() { ["app"] = "a.exe", ["since"] = "1h" }).Status); // one at a time
+    }
+
+    [Fact]
     public void Without_a_running_host_actions_refuse_and_the_card_says_so()
     {
         _host.Down = true;

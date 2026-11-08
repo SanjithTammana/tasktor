@@ -84,6 +84,12 @@ internal sealed class CaptureLifetime : IDisposable
                     _session?.ForgetIndex(since); // C21.4: vault and index forget together
                     return n;
                 },
+                ForgetMatching = (app, host) =>
+                {
+                    var n = recorder.ForgetMatching(app, host);
+                    _session?.ForgetIndex(app, host);
+                    return n;
+                },
             };
             control.Changed += endpoint.NotifyBlocksChanged;
 
