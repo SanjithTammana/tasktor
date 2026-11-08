@@ -64,6 +64,27 @@ public sealed class CommandLogTests : IDisposable
     }
 
     [Fact]
+    public void A_restored_old_history_file_is_never_imported()
+    {
+        var path = Path.Combine(_dir, "ConsoleHost_history.txt");
+        var backup = Path.Combine(_dir, "backup.txt");
+        File.WriteAllText(backup, "secret-era command one\nsecret-era command two\n"); // an old file the tail never saw
+        File.SetLastWriteTimeUtc(backup, DateTime.UtcNow.AddDays(-30));
+        File.WriteAllText(path, "current command\n");
+        var tail = new HistoryTail(path);
+
+        File.Copy(backup, path, overwrite: true); // a copy keeps the old last-write time
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddDays(-30));
+        Assert.Empty(tail.ReadNew());
+        File.AppendAllText(path, "after restore\n"); // the tail carries on from the restored file's end
+        Assert.Equal(["after restore"], tail.ReadNew().Select(c => c.Reveal()));
+
+        // Freshly written but holding more than could have been typed since the last read: not imported either.
+        File.WriteAllText(path, string.Join('\n', Enumerable.Range(0, HistoryTail.MaxFresh + 1).Select(i => "bulk " + i)) + "\n");
+        Assert.Empty(tail.ReadNew());
+    }
+
+    [Fact]
     public void History_wins_over_a_typed_run_within_a_second_and_each_alone_still_counts()
     {
         var r = new CommandReconciler();
