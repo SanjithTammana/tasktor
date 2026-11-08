@@ -303,6 +303,18 @@ public static unsafe partial class Win32Windows
     /// <summary>The foreground window's exe file name (e.g. <c>chrome.exe</c>), or null.</summary>
     public static string? ForegroundExe() => Sources.ProcessInfo.ForegroundPid() is var pid and > 0 ? ExeOf(pid) : null;
 
+    /// <summary>The exe file name of a window's process (lower-cased app id), or null.</summary>
+    public static string? AppOfWindow(long hwnd)
+    {
+        if (!OperatingSystem.IsWindows() || hwnd == 0)
+        {
+            return null;
+        }
+
+        GetWindowThreadProcessId((nint)hwnd, out var pid);
+        return pid == 0 ? null : ExeOf(pid)?.ToLowerInvariant();
+    }
+
     private static string? ExeOf(uint pid)
     {
         var proc = OpenProcess(ProcessQueryLimitedInformation, 0, pid);

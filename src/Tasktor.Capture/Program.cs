@@ -23,6 +23,9 @@ internal static class Program
             return bench.WithinBudget ? 0 : 1;
         }
 
+        // C18 check (real PC, #8): walks only its own fixture windows; prints pass / fail and timings.
+        if (args.Contains("--check-uia")) return UIAutomation.UiaFixtureCheck.Run(Console.Out);
+
         // C19.2 check (real PC, #7): live enumeration + geometry, timed apart; prints timings and window counts only.
         if (args.Contains("--bench-visibility"))
         {
@@ -65,6 +68,7 @@ internal sealed class CaptureLifetime : IDisposable
     private ControlPipeServer? _control;
     private Host.CaptureSession? _session;
     private Visibility.Win32VisibilitySource? _visibility;
+    private UIAutomation.UiaWalkSource? _uia;
     private Timer? _expiry, _retention;
     private bool _disposed;
     private readonly Win32RecordingIndicator _indicator;
@@ -98,7 +102,15 @@ internal sealed class CaptureLifetime : IDisposable
                 History = new Commands.HistoryTail(historyFile ?? Commands.HistoryTail.DefaultPath(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData))),
             };
             _indicator.SessionChanged += _session.SessionChanged;
+
+            // C18.1 / C17: UIA on its own MTA thread (focus with password state, debounced walks, click targets). An app or
+            // site block, a pause or a schedule stops it from reading at all; the gate drops what it posts while closed.
+            var live = _session;
+            _uia = new UIAutomation.UiaWalkSource(UIAutomation.Win32UiaClient.Create, Windows.Shell.Win32Windows.AppOfWindow,
+                app => blocks.Blocking(now(), app, null, null) is not null, (walk, app) => live.PostUiaWalk(walk, app, null), live.PostFocus);
+            _session.ClickTargets = _uia;
             _session.Start();
+            _uia.Start();
 
             // C19.2: visible windows (numbers and apps only) into the loop; the gate drops them while closed.
             var session = _session;
@@ -157,6 +169,7 @@ internal sealed class CaptureLifetime : IDisposable
         if (_control is not null) { _control.DisposeAsync().AsTask().GetAwaiter().GetResult(); _control = null; }
         if (_browser is not null) { _browser.DisposeAsync().AsTask().GetAwaiter().GetResult(); _browser = null; }
         if (_visibility is not null) { _visibility.Dispose(); _visibility = null; } // detached before the session stops
+        if (_uia is not null) { _uia.Dispose(); _uia = null; }
         if (_session is not null)
         {
             // After the sources: close the activity, then the loop. Fail closed: while a capture callback still holds the

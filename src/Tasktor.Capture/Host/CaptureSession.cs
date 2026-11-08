@@ -84,19 +84,19 @@ public sealed class CaptureSession : IDisposable
     /// <summary>
     /// C19.1: names a click's target (the UIA hit test, #8). Each click asks it once, on the thread pool, never on the loop;
     /// an answer later than <see cref="DeepCapture.ClickTargetBudgetMs"/> is cancelled, and one that comes is posted back
-    /// through the gate like any source event. Null: clicks keep no target.
+    /// through the gate like any source event. Null: clicks keep no target. Set it before <see cref="Start"/>.
     /// </summary>
     public IClickTargetResolver? ClickTargets
     {
         get => _clickTargets;
-        init
+        set
         {
             _clickTargets = value;
             Deep.ClickTargetRequested = value is null ? null : RequestClickTarget;
         }
     }
 
-    private readonly IClickTargetResolver? _clickTargets;
+    private IClickTargetResolver? _clickTargets;
 
     /// <summary>Where closed documents are read from for indexing.</summary>
     public RawVault? Vault { get; init; }
@@ -291,6 +291,13 @@ public sealed class CaptureSession : IDisposable
     public void PostMediaAudioStopped(string app) => PostCaptured(() => _media.AudioStopped(app));
     /// <summary>Queue the departure of a native media source, clearing its audible state and metadata.</summary>
     public void PostMediaRemove(string app) => PostCaptured(() => _media.Remove(app));
+    /// <summary>
+    /// Queue a focus change from UIA (C17 / C17.2): the field's identity and password state, the previous field's final
+    /// value and the new field's value (both null for a password or unknown field).
+    /// </summary>
+    public void PostFocus(FocusTarget target, Sensitive<string>? previousValue, Sensitive<string>? value) =>
+        PostCaptured(() => Deep.Focus(target, previousValue?.Reveal(), value?.Reveal()));
+
     /// <summary>Queue a protected UI Automation walk for processing on the capture loop.</summary>
     public void PostUiaWalk(Sensitive<UiaWalk> walk, string app, Sensitive<string>? host) =>
         PostCaptured(() => Deep.Walk(walk.Reveal(), app, host?.Reveal(), DiffSource.Uia));
