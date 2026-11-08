@@ -28,7 +28,7 @@ At the start of every session, and again before stopping:
    Blockers), commit it, and **push**. The push is how the main lane hears from you: it watches the lane's pull request,
    so every push, CI result and comment reaches it without the owner.
 5. To ask the main lane something, add it under **Requests** in your report and push; if `gh` is signed in, also comment
-   on the lane's pull request. Never wait idle for an answer: continue with the next issue or record a blocker.
+   on #3 (`gh pr comment 3 --body "…"`). Never wait idle for an answer: continue with the next issue or record a blocker.
 6. When an issue is done, say so in the report (and close it with `gh issue close <n> --comment "…"` if you can). The
    main lane closes it otherwise, after merging.
 
