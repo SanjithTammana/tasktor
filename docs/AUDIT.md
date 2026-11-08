@@ -78,7 +78,7 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 | Row | Feature | Status | Missing |
 |---|---|---|---|
 | G1 | Widgets-board widget | **Not started** | `Tasktor.Widget` is a stub; needs MSIX (H8) |
-| G2 | Flyout → shelf, command line, deep window | Built, mostly | the command line's **dimmed desktop**; dialogs: editing an existing preset; Settings → **Windows** (waits for F2) |
+| G2 | Flyout → shelf, command line, deep window | Built, mostly | the command line's **dimmed desktop**; dialogs: none left; Settings → **Windows** (waits for F2) |
 | G3, G4 | Taskbar button, overlay bar | Later (spec) | — |
 | G6 | Tray icon, glance tooltip, menu | Built | — |
 | — | Toasts | Partial | tray balloons (the D-G7 fallback); real toasts with buttons need an app identity (MSIX) |
@@ -89,7 +89,7 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 |---|---|---|---|
 | I1 | AI agent watch | Built | hook setup / removal from the card, diff shown in the confirm |
 | I2–I4 | Overlap, meeting, power guards | Built | — |
-| I5 | Workflow presets | Built, mostly | create from open windows with the launch review; missing: editing an existing preset, learned-workflow suggestions (L2) |
+| I5 | Workflow presets | Built, mostly | create from open windows with the launch review; create, review and edit; missing: learned-workflow suggestions (L2) |
 | I6, I7, I11, I14 | Projects, space report, window watch, connectivity | Built | I11's picker UI |
 | I13 | Event mode | Built | live on / off without a restart (deliberately left, see Interpretations) |
 
