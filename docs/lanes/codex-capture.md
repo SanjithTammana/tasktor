@@ -13,6 +13,7 @@ This update supersedes the historical status and requests below.
 
 
 ## Issue 5: switcher checks
+- PASS, partial isolation check on 1ba0e69: a headless harness invoked the production Composition with an isolated store and pipe, tray disabled, and its own process as the sole fixture PID. A live process-table lease and pull returned one fixture row and zero non-fixture rows. The temporary store was removed. This checks the sampled table, not the interactive agent UI or window-event delivery.
 - PARTIAL 1: a non-UI harness used the real SwitcherFeedFeature, HostSupervisor and Windows process control with an isolated store, unique pipe and a PID filter matching no windows. The feature started its own shell process and disabling it stopped that process. Consent was supplied programmatically and the full production agent composition and consent dialog were not exercised. An earlier standalone shell smoke also stayed up for three seconds and was force-stopped.
 - NOT RUN 1 (full module start/stop): upstream now filters the core foreground-event source before reading titles in check mode (ddfbf45). The full production check agent and UI consent remain untested.
 - NOT RUN 2 (open/order), 3 (quick tap), 4 (cycle), 5 (search), 6 (app view), 7 (close), 8 (frozen job), 9 (DPI), and 10 (hotkey conflict): these require interactive or visual verification. A Notepad launch restored an existing session rather than a synthetic window; it was not used for the check.
@@ -85,9 +86,9 @@ This update supersedes the historical status and requests below.
 - Exercise monitor add/remove and mixed DPI changes, tray appearance and Explorer restart with an isolated capture session; verify fail-closed shutdown if either indicator fails. Then verify hooks, secure desktop, UIA and media sources once implemented.
 
 ## Requests
-- Core test: please investigate the intermittent progress-file recovery failure recorded above; the earlier full baseline passed.
+- Core test: main diagnosed the progress-file test race and changed the assertion in 1ba0e69. The rebased baseline passed 513 Core, 228 Capture, 66 Agent and 110 worker tests.
 
-- Issue 5: thank you for filtering WinEventSource in ddfbf45. The production check agent still samples real process names and resource metrics. Could check mode suppress non-fixture process sampling or offer a synthetic process provider? The owner requested synthetic sensitive data and prefers command-line or API checks where possible. Interactive and visual behavior remains unverified.
+- Issue 5: main added fixture-scoped process sampling in 1ba0e69; the headless check above observed only its fixture row. The owner prefers command-line or API checks where possible. Interactive and visual behavior remains unverified.
 
 - History-transition and no-browser fixture requests were answered upstream. The strict timestamp boundaries and content-provenance limit are recorded above. The prior Core shutdown request below is resolved by 2c98548.
 
