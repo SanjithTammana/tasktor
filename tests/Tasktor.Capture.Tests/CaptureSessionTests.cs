@@ -65,6 +65,15 @@ public sealed class CaptureSessionTests : IDisposable
     }
 
     [Fact]
+    public void Stop_reports_the_logic_thread_gone_so_the_indicator_may_go()
+    {
+        _session.Start();
+        Assert.True(_session.Stop());
+        Assert.True(_session.Loop.Completion.IsCompleted);
+        Assert.True(_session.Stop()); // idempotent, same answer
+    }
+
+    [Fact]
     public void New_shell_history_lines_become_command_records_once_their_second_has_passed()
     {
         var history = Path.Combine(_dir, "ConsoleHost_history.txt");

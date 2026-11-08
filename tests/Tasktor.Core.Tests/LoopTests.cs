@@ -97,6 +97,47 @@ public sealed class LoopTests
     }
 }
 
+public sealed class LoopShutdownTests
+{
+    [Fact]
+    public async Task TryStop_reports_whether_the_thread_exited_and_Completion_waits_for_a_blocked_callback()
+    {
+        using var release = new ManualResetEventSlim();
+        using var entered = new ManualResetEventSlim();
+        var loop = new LogicLoop(new FakeClock());
+        loop.Start("test-loop");
+        loop.Post(() =>
+        {
+            entered.Set();
+            release.Wait(TimeSpan.FromSeconds(30));
+        });
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(5)));
+
+        Assert.False(loop.TryStop(TimeSpan.FromMilliseconds(100))); // the callback still holds the thread
+        Assert.False(loop.Completion.IsCompleted);
+
+        release.Set();
+        await loop.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(loop.TryStop(TimeSpan.Zero)); // already gone: true at once
+        loop.Dispose();
+    }
+
+    [Fact]
+    public void A_loop_never_started_is_complete_once_stopped_and_stop_from_its_own_thread_is_not_a_proof()
+    {
+        var idle = new LogicLoop(new FakeClock());
+        Assert.False(idle.Completion.IsCompleted);
+        Assert.True(idle.TryStop(TimeSpan.Zero));
+        Assert.True(idle.Completion.IsCompleted);
+
+        var loop = new LogicLoop(new FakeClock());
+        loop.Start();
+        var fromInside = loop.InvokeAsync(() => loop.TryStop(TimeSpan.FromSeconds(1))).GetAwaiter().GetResult();
+        Assert.False(fromInside); // a thread cannot prove its own exit
+        Assert.True(loop.Completion.Wait(TimeSpan.FromSeconds(5)));
+    }
+}
+
 public sealed class SchedulerTests
 {
     private readonly FakeClock _clock = new();

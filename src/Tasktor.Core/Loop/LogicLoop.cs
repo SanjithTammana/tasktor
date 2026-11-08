@@ -18,6 +18,7 @@ public sealed class LogicLoop : IDisposable
     private readonly IClock _clock;
     private readonly Action<Exception>? _onError;
     private Thread? _thread;
+    private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private volatile bool _stopping;
     private int _loopThreadId = -1;
 
@@ -148,15 +149,36 @@ public sealed class LogicLoop : IDisposable
         _thread.Start();
     }
 
-    /// <summary>Stop the thread after the current item; queued work is dropped.</summary>
-    public void Stop()
+    /// <summary>
+    /// Completes only after the logic thread has exited (its last callback returned), or at the first stop when it never
+    /// started. Callers that must know no callback can still run (a capture host before it removes its indicator) wait on it.
+    /// </summary>
+    public Task Completion => _completion.Task;
+
+    /// <summary>Stop the thread after the current item; queued work is dropped. Waits up to 5 s for it to exit.</summary>
+    public void Stop() => TryStop(TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    /// Stop after the current item and wait up to <paramref name="timeout"/> for the thread to exit. True only when it has
+    /// exited (or never started); false while a callback still runs, and always false when called from the loop itself
+    /// (a thread cannot join itself, so it cannot prove its own exit).
+    /// </summary>
+    public bool TryStop(TimeSpan timeout)
     {
         _stopping = true;
         Wake();
-        if (_thread is not null && Environment.CurrentManagedThreadId != _thread.ManagedThreadId)
+        if (_thread is null)
         {
-            _thread.Join(TimeSpan.FromSeconds(5));
+            _completion.TrySetResult();
+            return true;
         }
+
+        if (Environment.CurrentManagedThreadId == _thread.ManagedThreadId)
+        {
+            return false;
+        }
+
+        return _thread.Join(timeout);
     }
 
     /// <summary>Post <paramref name="work"/> and wait for its result (for callers off the loop, e.g. tests and the pipe).</summary>
@@ -189,23 +211,30 @@ public sealed class LogicLoop : IDisposable
     private void Run()
     {
         _loopThreadId = Environment.CurrentManagedThreadId;
-        while (!_stopping)
+        try
         {
-            RunDue();
-            var next = NextDue;
-            var wait = next is null ? Timeout.InfiniteTimeSpan : next.Value - _clock.UtcNow;
-            if (wait != Timeout.InfiniteTimeSpan && wait < TimeSpan.Zero)
+            while (!_stopping)
             {
-                wait = TimeSpan.Zero;
-            }
+                RunDue();
+                var next = NextDue;
+                var wait = next is null ? Timeout.InfiniteTimeSpan : next.Value - _clock.UtcNow;
+                if (wait != Timeout.InfiniteTimeSpan && wait < TimeSpan.Zero)
+                {
+                    wait = TimeSpan.Zero;
+                }
 
-            if (wait > TimeSpan.FromMinutes(5))
-            {
-                wait = TimeSpan.FromMinutes(5);
-            }
+                if (wait > TimeSpan.FromMinutes(5))
+                {
+                    wait = TimeSpan.FromMinutes(5);
+                }
 
-            _signal.Wait(wait);
-            RunPending();
+                _signal.Wait(wait);
+                RunPending();
+            }
+        }
+        finally
+        {
+            _completion.TrySetResult(); // no callback runs after this: the thread only returns from here
         }
     }
 
