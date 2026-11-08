@@ -14,7 +14,8 @@ namespace Tasktor.Capture.Commands;
 /// imported: the past stays out): it counts as new only if it was written after the last read and holds no more than
 /// <see cref="MaxFresh"/> commands, what could have been typed since; otherwise the tail just carries on from its end.
 /// The guarantee is about when lines were written, not where their text came from: nothing is imported from a file
-/// last written before this tail started (strictly) or before its previous read (within <see cref="Slack"/>). Text
+/// last written before this tail started or before its previous read (both strict: a coarse file time only makes a file
+/// look older, so it fails closed). Text
 /// copied into a freshly written file cannot be told from typed commands, so that case is capped at MaxFresh lines.
 /// </summary>
 public sealed class HistoryTail
@@ -33,8 +34,6 @@ public sealed class HistoryTail
     /// <summary>Most commands a file with no known line may hold and still count as new (recreated, not restored).</summary>
     public const int MaxFresh = 3;
 
-    /// <summary>File-time slack for "written after the last read" (coarse file-system timestamps).</summary>
-    public static readonly TimeSpan Slack = TimeSpan.FromSeconds(2);
 
     private readonly string _path;
     private readonly StringBuilder _pending = new();
@@ -119,7 +118,7 @@ public sealed class HistoryTail
         var last = commands.FindLastIndex(c => _seen.Contains(Hash(c)));
         var fresh = commands.GetRange(last + 1, commands.Count - last - 1);
         var written = File.GetLastWriteTimeUtc(_path);
-        if (last < 0 && !(commands.Count <= MaxFresh && written > _started && written >= lookedBefore - Slack))
+        if (last < 0 && !(commands.Count <= MaxFresh && written > _started && written >= lookedBefore))
         {
             fresh = []; // nothing known and not provably new (an old file restored, or more than could be typed): skip it
         }

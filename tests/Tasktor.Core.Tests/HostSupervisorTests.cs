@@ -102,6 +102,7 @@ public sealed class HostSupervisorTests : IDisposable
         Assert.Contains("tasktor-shell", spec.Exe, StringComparison.Ordinal);
         Assert.Equal(["--pipe", "tasktor-test-pipe"], spec.Args);
         Assert.Null(HostSupervisor.ShellSpec("/opt/tasktor", null).Args); // the default pipe needs no argument
+        Assert.Equal(["--pipe", "p", "--only-pid", "5", "--only-pid", "6"], HostSupervisor.ShellSpec("/opt/tasktor", "p", [5, 6]).Args);
 
         Crash();
         _rig.Advance(HostSupervisor.Backoff[0]);

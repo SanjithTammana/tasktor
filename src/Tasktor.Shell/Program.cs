@@ -25,14 +25,8 @@ internal static class Program
             return 1;
         }
 
-        string? pipe = null;
-        for (var i = 0; i < args.Length - 1; i++)
-        {
-            if (args[i] == "--pipe")
-            {
-                pipe = args[i + 1];
-            }
-        }
+        var a = ShellArgs.Parse(args);
+        var pipe = a.Pipe;
 
         using var single = new Mutex(true, "Local\\tasktor-shell-" + (pipe ?? PipeName.ForCurrentUser()), out var first);
         if (!first)
@@ -40,7 +34,7 @@ internal static class Program
             return 0;
         }
 
-        using var window = new SwitcherWindow(() => Feed(pipe), jobId => Resume(pipe, jobId));
+        using var window = new SwitcherWindow(() => Feed(pipe), jobId => Resume(pipe, jobId), a.Includes);
         return window.Run();
     }
 

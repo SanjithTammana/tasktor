@@ -22,7 +22,7 @@ namespace Tasktor.Agent.Host;
 internal static class Composition
 {
     /// <param name="tray">Show the tray icon and the edge (the real agent only; tests and CI rigs leave it off).</param>
-    public static AgentHost Create(StoreLayout store, bool tray = false)
+    public static AgentHost Create(StoreLayout store, bool tray = false, string? pipeName = null, IReadOnlyList<uint>? switcherPids = null)
     {
         var notifier = new SwitchableNotifier(); // the tray's balloons once it is up (U4 D-G7 fallback)
         var windows = OperatingSystem.IsWindows();
@@ -40,6 +40,8 @@ internal static class Composition
         var host = new AgentHost(new AgentOptions
         {
             Store = store,
+            PipeName = pipeName,
+            SwitcherPids = switcherPids ?? [],
             KeyProtection = windows ? Windows.Security.Dpapi.Protection : KeyProtection.None,
             ProcessControl = control,
             ReadProcess = windows ? processTable.ReadOne : PortableProcessTable.ReadOne,
@@ -343,7 +345,7 @@ internal static class Composition
                 Pids = [j.Root.Pid, .. j.Workers.Select(w => w.Pid)],
             })],
             Settings = () => host.Settings.Current.Windows,
-            Supervisor = windows ? new Core.Features.HostSupervisor(ctx, Core.Features.HostSupervisor.ShellSpec(AppContext.BaseDirectory, host.Options.PipeName), () => host.Consents.HasModule("switcher")) : null,
+            Supervisor = windows ? new Core.Features.HostSupervisor(ctx, Core.Features.HostSupervisor.ShellSpec(AppContext.BaseDirectory, host.Options.PipeName, host.Options.SwitcherPids), () => host.Consents.HasModule("switcher")) : null,
         }));
 
         host.RegisterModule("capture", () =>
