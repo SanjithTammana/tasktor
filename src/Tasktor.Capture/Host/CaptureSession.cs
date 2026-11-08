@@ -2,6 +2,7 @@ using Tasktor.Capture.Commands;
 using Tasktor.Capture.Browser;
 using Tasktor.Capture.Deep;
 using Tasktor.Capture.Index;
+using Tasktor.Capture.Media;
 using Tasktor.Capture.Recording;
 using Tasktor.Capture.Security;
 using Tasktor.Contracts.Platform;
@@ -34,6 +35,7 @@ public sealed class CaptureSession : IDisposable
     private bool _stopped;
     private volatile bool _secure = true;
     private readonly CaptureRecorder _recorder;
+    private readonly MediaSessionLogic _media;
     private SessionAvailability _lastSession = SessionAvailability.Unknown;
     private DateTimeOffset _sessionAt = DateTimeOffset.MinValue;
     private readonly object _sessionGate = new();
@@ -53,6 +55,7 @@ public sealed class CaptureSession : IDisposable
         // Hook ticks are milliseconds of the monotonic clock; their wall time is now minus how long ago they happened.
         var runs = new KeyRunBuilder(new KeyDecoder(), new ActorAttributor(() => []), new SecretRedactor(), suppressor.Check, ms => _clock.UtcNow - TimeSpan.FromMilliseconds(Math.Max(0, Environment.TickCount64 - ms)));
         Deep = new DeepCapture(Ring, runs, new SnapshotDiffer(), new SecretRedactor(), recorder, () => _clock.UtcNow, () => Environment.TickCount64);
+        _media = new MediaSessionLogic(media => Deep.Media(media.Reveal()));
         _recorder = recorder;
         _recorder.SetSecure(true); // closed until the first check proves the user's desktop
         _endpoint.TextSeen += OnText;
@@ -123,6 +126,7 @@ public sealed class CaptureSession : IDisposable
             Deep.History(commands); // stamped now, to meet the Enter that ran them within a second
         }
 
+        if (!_secure) _media.Tick(now);
         Deep.Pump();
     }
 
@@ -154,7 +158,7 @@ public sealed class CaptureSession : IDisposable
             return Loop.Completion.IsCompleted;
         }
 
-        _stopped = true;
+        lock (_sessionGate) _stopped = true;
         _endpoint.TextSeen -= OnText;
         _endpoint.MediaSeen -= OnMedia;
         _pump?.Dispose();
@@ -235,18 +239,43 @@ public sealed class CaptureSession : IDisposable
     }
 
     /// <summary>Queue a visibility snapshot from a source for processing on the capture loop.</summary>
-    public void PostVisible(VisibleSet set) => Loop.Post(() => Deep.Visible(set));
+    public void PostVisible(VisibleSet set) => PostCaptured(() => Deep.Visible(set));
 
     /// <summary>Queue protected media metadata from a source for processing on the capture loop.</summary>
-    public void PostMedia(Sensitive<MediaState> media) => Loop.Post(() => Deep.Media(media.Reveal()));
+    public void PostMedia(Sensitive<MediaState> media) => PostCaptured(() => Deep.Media(media.Reveal()));
+
+    /// <summary>Queue native media metadata for combination with audio peaks on the loop.</summary>
+    public void PostMediaMetadata(string app, Sensitive<string>? title, Sensitive<string>? artist, MediaStatus status, long positionMs) =>
+        PostCaptured(() => _media.Metadata(app, title, artist, status, positionMs));
+
+    /// <summary>Queue one native audio peak for the media state window.</summary>
+    public void PostMediaPeak(string app, DateTimeOffset at, float peak) => PostCaptured(() => _media.Peak(app, at, peak));
+
     /// <summary>Queue a protected UI Automation walk for processing on the capture loop.</summary>
     public void PostUiaWalk(Sensitive<UiaWalk> walk, string app, Sensitive<string>? host) =>
-        Loop.Post(() => Deep.Walk(walk.Reveal(), app, host?.Reveal(), DiffSource.Uia));
+        PostCaptured(() => Deep.Walk(walk.Reveal(), app, host?.Reveal(), DiffSource.Uia));
+
     private void OnText(string app, int tab, UiaWalk walk, Sensitive<string>? host, Sensitive<string>? url) =>
-        Loop.Post(() => Deep.Walk(walk, app, host?.Reveal(), DiffSource.Extension, url?.Reveal()));
+        PostCaptured(() => Deep.Walk(walk, app, host?.Reveal(), DiffSource.Extension, url?.Reveal()));
 
     private void OnMedia(string app, int tab, bool playing, double? position) =>
-        Loop.Post(() => Deep.Media(new MediaState(app, null, null, playing ? MediaStatus.Playing : MediaStatus.Paused, (long)((position ?? 0) * 1000), Audible: false)));
+        PostCaptured(() => Deep.Media(new MediaState(app, null, null, playing ? MediaStatus.Playing : MediaStatus.Paused, (long)((position ?? 0) * 1000), Audible: false)));
 
+    private void PostCaptured(Action action)
+    {
+        lock (_sessionGate)
+        {
+            if (_secure || _stopped) return;
+            var generation = _sessionGeneration;
+            Loop.Post(() =>
+            {
+                lock (_sessionGate)
+                {
+                    if (_secure || generation != _sessionGeneration) return;
+                }
+                action();
+            });
+        }
+    }
     private void OnLoopError(Exception ex) => LoopErrors++; // never logged: a capture exception may carry captured text
 }

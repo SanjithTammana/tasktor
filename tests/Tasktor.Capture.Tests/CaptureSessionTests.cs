@@ -110,6 +110,36 @@ public sealed class CaptureSessionTests : IDisposable
         Assert.True(indicator.ForwardSessionNotice(default));
         Assert.True(_session.SecureDesktop);
     }
+    [Fact]
+    public void Media_metadata_and_audio_peaks_are_combined_on_the_session_loop()
+    {
+        _session.Tick();
+        _session.PostMediaMetadata("synthetic.exe", null, null, MediaStatus.Playing, 100);
+        _session.PostMediaPeak("synthetic.exe", T0, 0.5f);
+        _session.PostMediaPeak("synthetic.exe", T0.AddSeconds(1), 0.5f);
+        _session.PostMediaPeak("synthetic.exe", T0.AddSeconds(2), 0.5f);
+        Assert.DoesNotContain(Records(), r => r.Kind == RecordKind.Media);
+        _session.Loop.RunPending();
+        Assert.Contains(Records(), r => r.Kind == RecordKind.Media && r.Body.Contains("\"audible\":true", StringComparison.Ordinal));
+    }
+    [Fact]
+    public void A_queued_source_event_from_before_a_notice_is_discarded_after_reopening()
+    {
+        _session.Tick();
+        _session.PostMedia(Sensitive.Of(new MediaState("synthetic.exe", "old synthetic title", null, MediaStatus.Playing, 0, false)));
+        _session.SessionChanged();
+        _session.Tick();
+        _session.Loop.RunPending();
+        Assert.DoesNotContain(Records(), r => r.Kind == RecordKind.Media);
+    }
+    [Fact]
+    public void Stop_drains_source_events_accepted_before_shutdown()
+    {
+        _session.Tick();
+        _session.PostMedia(Sensitive.Of(new MediaState("synthetic.exe", null, null, MediaStatus.Playing, 0, false)));
+        Assert.True(_session.Stop());
+        Assert.Contains(Records(), r => r.Kind == RecordKind.Media);
+    }
     private void Browse()
     {
         _session.Tick(); // the first check proves the user's desktop and opens the write gate
