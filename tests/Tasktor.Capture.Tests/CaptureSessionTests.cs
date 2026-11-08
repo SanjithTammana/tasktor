@@ -279,6 +279,36 @@ public sealed class CaptureSessionTests : IDisposable
             if (!session.Stop()) throw new InvalidOperationException("Capture is still running.");
         }
     }
+    [Fact]
+    public void Media_session_end_clears_audibility_and_departed_metadata()
+    {
+        _session.Tick();
+        _session.PostMediaMetadata("synthetic.exe", null, null, MediaStatus.Playing, 100);
+        for (var second = 0; second < 3; second++) _session.PostMediaPeak("synthetic.exe", T0.AddSeconds(second), 0.5f);
+        _session.Loop.RunPending();
+        Assert.Contains(Records(), r => r.Kind == RecordKind.Media && r.Body.Contains("\"audible\":true", StringComparison.Ordinal));
+        _session.PostMediaRemove("synthetic.exe");
+        _session.Loop.RunPending();
+        var media = Records().Where(r => r.Kind == RecordKind.Media).ToList();
+        Assert.Contains("\"audible\":false", media[^1].Body, StringComparison.Ordinal);
+        for (var second = 3; second < 6; second++) _session.PostMediaPeak("synthetic.exe", T0.AddSeconds(second), 0.5f);
+        _session.Loop.RunPending();
+        Assert.Equal(media.Count, Records().Count(r => r.Kind == RecordKind.Media));
+    }
+    [Fact]
+    public void Audio_stopping_clears_audibility_without_discarding_media_metadata()
+    {
+        _session.Tick();
+        _session.PostMediaMetadata("synthetic.exe", null, null, MediaStatus.Playing, 100);
+        for (var second = 0; second < 3; second++) _session.PostMediaPeak("synthetic.exe", T0.AddSeconds(second), 0.5f);
+        _session.Loop.RunPending();
+        _session.PostMediaAudioStopped("synthetic.exe");
+        _session.Loop.RunPending();
+        Assert.Contains("\"audible\":false", Records().Where(r => r.Kind == RecordKind.Media).Last().Body, StringComparison.Ordinal);
+        for (var second = 3; second < 6; second++) _session.PostMediaPeak("synthetic.exe", T0.AddSeconds(second), 0.5f);
+        _session.Loop.RunPending();
+        Assert.Contains("\"audible\":true", Records().Where(r => r.Kind == RecordKind.Media).Last().Body, StringComparison.Ordinal);
+    }
     private void Browse()
     {
         _session.Tick(); // the first check proves the user's desktop and opens the write gate
