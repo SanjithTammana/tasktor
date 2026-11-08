@@ -240,6 +240,45 @@ public sealed class CaptureSessionTests : IDisposable
         session.Tick();
         Assert.DoesNotContain(vault.Read(T0.AddDays(-1), T0.AddDays(1)), r => r.Kind == RecordKind.Command);
     }
+    [Fact]
+    public void A_blocked_session_keeps_the_indicator_until_the_loop_exits()
+    {
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var indicator = new TestIndicator();
+        var gate = new Tasktor.Capture.Indicator.IndicatorGate(indicator, () =>
+        {
+            _session.Start();
+            return new SessionStopLease(_session);
+        });
+        Assert.True(gate.Start());
+        _session.Loop.Post(() => { entered.Set(); release.Wait(TimeSpan.FromSeconds(30)); });
+        try
+        {
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(5)));
+            Assert.Throws<InvalidOperationException>(gate.Dispose);
+            Assert.False(indicator.Disposed);
+        }
+        finally { release.Set(); }
+        Assert.True(_session.Loop.Completion.Wait(TimeSpan.FromSeconds(5)));
+        gate.Dispose();
+        Assert.True(indicator.Disposed);
+    }
+
+    private sealed class TestIndicator : Tasktor.Capture.Indicator.IRecordingIndicator
+    {
+        public bool Disposed { get; private set; }
+        public bool Start() => true;
+        public void Dispose() => Disposed = true;
+    }
+
+    private sealed class SessionStopLease(CaptureSession session) : IDisposable
+    {
+        public void Dispose()
+        {
+            if (!session.Stop()) throw new InvalidOperationException("Capture is still running.");
+        }
+    }
     private void Browse()
     {
         _session.Tick(); // the first check proves the user's desktop and opens the write gate
