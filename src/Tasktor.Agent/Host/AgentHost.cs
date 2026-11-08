@@ -25,6 +25,9 @@ public sealed record AgentOptions
 
     public string? PipeName { get; init; }
 
+    /// <summary>For checks: the only processes whose windows the switcher may list (empty = all).</summary>
+    public IReadOnlyList<uint> SwitcherPids { get; init; } = [];
+
     public string Version { get; init; } = typeof(AgentHost).Assembly.GetName().Version?.ToString(3) ?? "0.1.0";
 
     /// <summary>Fresh single-process read for the guards (Windows: <c>Win32ProcessTable</c>).</summary>

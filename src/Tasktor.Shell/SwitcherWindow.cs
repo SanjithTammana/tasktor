@@ -31,11 +31,12 @@ internal sealed unsafe class SwitcherWindow : IDisposable
     private double _scale = 1.0;
     private bool _suppressChar;
 
-    public SwitcherWindow(Func<SwitcherFeed?> feed, Func<string, Task<bool>> resume)
+    /// <param name="includePid">Which processes' windows may be listed: others are skipped before their title is read.</param>
+    public SwitcherWindow(Func<SwitcherFeed?> feed, Func<string, Task<bool>> resume, Func<uint, bool> includePid)
     {
         _feed = feed;
         _resume = resume;
-        _session = new SwitcherSession(() => [.. Windows.Shell.Win32Windows.Enumerate().Where(w => w.Hwnd != _hwnd)]);
+        _session = new SwitcherSession(() => [.. Windows.Shell.Win32Windows.Enumerate(include: includePid).Where(w => w.Hwnd != _hwnd)]);
     }
 
     public bool HotkeyRegistered { get; private set; }

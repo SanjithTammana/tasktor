@@ -50,12 +50,26 @@ public sealed class HostSupervisor : IDisposable
         MemoryMb = 64, // D-C21: ≤ 40 MB private; the Job Object cap leaves headroom and stops a runaway
     };
 
-    /// <summary><c>tasktor-shell(.exe)</c> next to the agent; a test agent's pipe name passed through.</summary>
-    public static WorkerSpec ShellSpec(string installDir, string? pipeName) => new()
+    /// <summary>
+    /// <c>tasktor-shell(.exe)</c> next to the agent; a check agent's pipe name passed through, and for a check, the only
+    /// processes whose windows the switcher may list (it reads no other window's title).
+    /// </summary>
+    public static WorkerSpec ShellSpec(string installDir, string? pipeName, IReadOnlyList<uint>? onlyPids = null)
+    {
+        List<string> args = pipeName is null ? [] : ["--pipe", pipeName];
+        foreach (var pid in onlyPids ?? [])
+        {
+            args.AddRange(["--only-pid", pid.ToString(System.Globalization.CultureInfo.InvariantCulture)]);
+        }
+
+        return ShellSpecOf(installDir, args.Count == 0 ? null : args);
+    }
+
+    private static WorkerSpec ShellSpecOf(string installDir, IReadOnlyList<string>? args) => new()
     {
         Kind = WorkerKind.Shell,
         Exe = Path.Combine(installDir, OperatingSystem.IsWindows() ? "tasktor-shell.exe" : "tasktor-shell"),
-        Args = pipeName is null ? null : ["--pipe", pipeName],
+        Args = args,
         WorkingDir = installDir,
         MemoryMb = 64, // D-W2: idle ≤ 20 MB; thumbnails are the compositor's, not this process's
     };

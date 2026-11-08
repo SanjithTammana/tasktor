@@ -80,6 +80,25 @@ public sealed class CommandLogTests : IDisposable
     }
 
     [Fact]
+    public void A_file_written_after_start_but_before_the_previous_read_is_never_imported()
+    {
+        // The capture lane's second probe: written 205 ms after start, 518 ms before the previous read.
+        var path = Path.Combine(_dir, "ConsoleHost_history.txt");
+        var start = DateTime.UtcNow.AddMinutes(-1);
+        var now = start;
+        File.WriteAllText(path, "current command\n");
+        var tail = new HistoryTail(path, () => now);
+        var backup = Path.Combine(_dir, "backup.txt");
+        File.WriteAllText(backup, "written before the previous read\n");
+        now = start.AddMilliseconds(723);
+        Assert.Empty(tail.ReadNew()); // the previous read
+        File.Copy(backup, path, overwrite: true);
+        File.SetLastWriteTimeUtc(path, start.AddMilliseconds(205)); // after start, but before that read
+        now = start.AddSeconds(1);
+        Assert.Empty(tail.ReadNew());
+    }
+
+    [Fact]
     public void A_restored_old_history_file_is_never_imported()
     {
         var path = Path.Combine(_dir, "ConsoleHost_history.txt");

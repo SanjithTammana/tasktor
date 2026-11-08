@@ -33,8 +33,11 @@ public static unsafe partial class Win32Windows
     [ThreadStatic]
     private static List<nint>? t_found;
 
-    /// <summary>Top-level windows in z-order, with styles, cloak, frame and process; titles only in memory.</summary>
-    public static List<WindowInfo> Enumerate(Func<uint, bool>? frozen = null)
+    /// <summary>
+    /// Top-level windows in z-order, with styles, cloak, frame and process; titles only in memory. <paramref name="include"/>
+    /// skips a process's windows before anything else (its title included) is read.
+    /// </summary>
+    public static List<WindowInfo> Enumerate(Func<uint, bool>? frozen = null, Func<uint, bool>? include = null)
     {
         var list = new List<WindowInfo>();
         if (!OperatingSystem.IsWindows())
@@ -47,6 +50,11 @@ public static unsafe partial class Win32Windows
         foreach (var h in t_found)
         {
             GetWindowThreadProcessId(h, out var pid);
+            if (include is not null && !include(pid))
+            {
+                continue;
+            }
+
             var style = (long)GetWindowLongPtrW(h, GwlStyle);
             var ex = (long)GetWindowLongPtrW(h, GwlExStyle);
             var cloak = 0;
