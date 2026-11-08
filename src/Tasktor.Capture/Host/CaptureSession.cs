@@ -1,3 +1,4 @@
+using Tasktor.Capture.Commands;
 using Tasktor.Capture.Browser;
 using Tasktor.Capture.Deep;
 using Tasktor.Capture.Index;
@@ -70,6 +71,9 @@ public sealed class CaptureSession : IDisposable
     /// <summary>The C21 content index (encrypted on disk), or null when this PC cannot encrypt one: then nothing is indexed.</summary>
     public ContentIndex? Index { get; init; }
 
+    /// <summary>C22: PowerShell's history file, tailed each pump (new lines only); null when there is none to tail.</summary>
+    public HistoryTail? History { get; init; }
+
     /// <summary>Where closed documents are read from for indexing.</summary>
     public RawVault? Vault { get; init; }
 
@@ -94,6 +98,11 @@ public sealed class CaptureSession : IDisposable
 
         _secure = _guard.ShouldSuppress(_lastSession);
         _recorder.SetSecure(_secure); // the write gate follows the check (a session notice closes it sooner: SessionChanged)
+        if (History?.ReadNew() is { Count: > 0 } commands)
+        {
+            Deep.History(commands); // stamped now, to meet the Enter that ran them within a second
+        }
+
         Deep.Pump();
     }
 

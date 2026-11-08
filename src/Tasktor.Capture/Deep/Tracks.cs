@@ -222,6 +222,14 @@ public sealed class ActivityDocumentBuilder
         Append(DocFor(track, at), "typed", line + who, at);
     }
 
+    /// <summary>A command line (C22), already scrubbed: one line under "ran", inner lines of a multi-line command joined.</summary>
+    public void Add(int track, string command, Actor actor, DateTimeOffset at)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        var who = actor.Kind is ActorKind.Human or ActorKind.Unknown ? string.Empty : " (" + actor + ")";
+        Append(DocFor(track, at), "ran", command.ReplaceLineEndings(" ⏎ ") + who, at);
+    }
+
     public void Add(int track, ViewDiff diff)
     {
         ArgumentNullException.ThrowIfNull(diff);

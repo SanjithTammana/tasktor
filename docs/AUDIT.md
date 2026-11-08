@@ -46,7 +46,7 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 | C19 | Pointer: path, clicks with target, scroll, dwell, visible windows | Partial | the ring carries mouse events and the visibility logic exists; **no pointer pipeline** (clicks, dwell, scroll) and nothing drains mouse events |
 | C20 | Media: SMTC + audio sessions, side tracks | Partial | browser video wired; **SMTC / WASAPI source** uncommitted on the Codex machine |
 | C21 | Content index (FTS5 + embeddings), "Search my activity" | Built, mostly | encrypted index (SQLCipher) + search in the command line; missing: reopen links, forget by app / host, embeddings (G8) |
-| C22 | CLI command log (PSReadLine, OSC 133, shell children) | **Not started** | everything |
+| C22 | CLI command log (PSReadLine, OSC 133, shell children) | Built (C22.1) | PowerShell history tailed, reconciled with typed runs, scrubbed and recorded; missing: OSC 133 offer (C22.3), agent-run commands from B's scan (C22.4) |
 
 ## D. CLI
 

@@ -1,4 +1,6 @@
+using Tasktor.Capture.Commands;
 using Tasktor.Capture.Recording;
+using Tasktor.Contracts.Platform;
 
 namespace Tasktor.Capture.Deep;
 
@@ -45,6 +47,11 @@ public sealed class DeepCapture
 
     public FieldTruth Field { get; } = new();
 
+    /// <summary>C22: Enter-terminated runs in terminals meet shell history lines here; <see cref="Pump"/> records them.</summary>
+    public CommandReconciler Commands { get; } = new();
+
+    public long CommandsWritten { get; private set; }
+
     /// <summary>Ring entries lost to overwrite (the card reports it).</summary>
     public long Dropped => _ring.Dropped;
 
@@ -55,7 +62,13 @@ public sealed class DeepCapture
     {
         var total = DrainKeys();
         _runs.Tick(_nowMs());
-        Apply(Tracks.Tick(_now()));
+        var now = _now();
+        Apply(Tracks.Tick(now));
+        foreach (var c in Commands.Flush(now))
+        {
+            Command(c);
+        }
+
         return total;
     }
 
@@ -138,6 +151,44 @@ public sealed class DeepCapture
         }
     }
 
+    /// <summary>New shell history lines (C22.1), stamped now; they wait in <see cref="Commands"/> for a matching run.</summary>
+    public void History(IReadOnlyList<Sensitive<string>> commands)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        DrainKeys(); // the Enter that ran them is in the ring: let its run reach the reconciler first
+        var now = _now();
+        foreach (var c in commands)
+        {
+            Commands.History(c, now);
+        }
+    }
+
+    /// <summary>
+    /// Records one command: scrubbed for secrets (command lines carry tokens), checked against the blocks of its
+    /// terminal, the foreground app and, for a history-only line, both PowerShells (they share one history file), then
+    /// added to the activity document under "ran".
+    /// </summary>
+    public bool Command(CommandEvent command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        var (text, hits) = _redactor.Scrub(command.Text.Reveal());
+        List<string> apps = command.App is { } app ? [app] : ["pwsh.exe", "powershell.exe"];
+        if (Tracks.Foreground is { } fg && !apps.Contains(fg, StringComparer.OrdinalIgnoreCase))
+        {
+            apps.Add(fg);
+        }
+
+        var record = new CommandRecord(command.App, text, command.Source.ToString().ToLowerInvariant(), command.Actor.ToString(), hits.Values.Sum());
+        if (!_recorder.Command(record, apps))
+        {
+            return false;
+        }
+
+        CommandsWritten++;
+        Documents.Add(TrackOf(command.App ?? Tracks.Foreground ?? string.Empty), text, command.Actor, command.At);
+        return true;
+    }
+
     public void Visible(VisibleSet set) => Apply(Tracks.On(set));
 
     public void Foreground(string app) => Apply(Tracks.OnForeground(app, _now()));
@@ -174,6 +225,10 @@ public sealed class DeepCapture
         if (_focus is { } f && _recorder.KeyRun(run, f.App, f.Host))
         {
             Documents.Add(TrackOf(f.App), run, _now());
+            if (run.End == RunEnd.Enter && run.Text is { Length: > 0 } text && run.Suppressed == Suppression.None && CommandReconciler.IsTerminal(f.App))
+            {
+                Commands.Typed(f.App, Sensitive.Of(text), _now(), run.Actor);
+            }
         }
     }
 

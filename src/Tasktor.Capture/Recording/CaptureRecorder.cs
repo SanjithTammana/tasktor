@@ -13,6 +13,7 @@ public static class RecordKind
     public const byte ViewDiff = 3;
     public const byte Media = 4;
     public const byte Document = 5;
+    public const byte Command = 6;
 }
 
 /// <summary>
@@ -20,6 +21,9 @@ public static class RecordKind
 /// scrubbed for secrets (the address only in its query and fragment: its own path is the page, §5.3). Never field values.
 /// Page text is a separate view diff (D-C18).
 /// </summary>
+/// <summary>A logged command line (C22), scrubbed for secrets; <c>App</c> is null when only shell history saw it.</summary>
+public sealed record CommandRecord(string? App, string Text, string Source, string Actor, int Redactions = 0);
+
 public sealed record BrowserContextRecord(string Browser, int Tab, string? Host, string Field, bool Visible, bool Active, bool Queued, string? Url = null, string? Title = null, bool Private = false);
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
@@ -28,6 +32,7 @@ public sealed record BrowserContextRecord(string Browser, int Tab, string? Host,
 [JsonSerializable(typeof(ViewDiff))]
 [JsonSerializable(typeof(MediaState))]
 [JsonSerializable(typeof(ActivityDocument))]
+[JsonSerializable(typeof(CommandRecord))]
 internal sealed partial class RecordJsonContext : JsonSerializerContext;
 
 /// <summary>
@@ -134,6 +139,17 @@ public sealed class CaptureRecorder
         return Write(null, null, null, RecordKind.Document, JsonSerializer.SerializeToUtf8Bytes(doc, RecordJsonContext.Default.ActivityDocument));
     }
 
+    /// <summary>
+    /// A command line (C22). Blocked when any of <paramref name="apps"/> is: the terminal, the shell, or the foreground app
+    /// it was seen under, so excluding any one of them keeps its commands out.
+    /// </summary>
+    public bool Command(CommandRecord command, IReadOnlyList<string> apps)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(apps);
+        return WriteAny(apps, null, null, RecordKind.Command, JsonSerializer.SerializeToUtf8Bytes(command, RecordJsonContext.Default.CommandRecord));
+    }
+
     private bool _secure;
 
     /// <summary>True while nothing may be written: a secure desktop, a locked or disconnected session, or not yet known.</summary>
@@ -161,7 +177,9 @@ public sealed class CaptureRecorder
         }
     }
 
-    private bool Write(string? app, string? host, string? tab, byte kind, byte[] body)
+    private bool Write(string? app, string? host, string? tab, byte kind, byte[] body) => WriteAny([app], host, tab, kind, body);
+
+    private bool WriteAny(IReadOnlyList<string?> apps, string? host, string? tab, byte kind, byte[] body)
     {
         lock (_gate)
         {
@@ -173,7 +191,7 @@ public sealed class CaptureRecorder
 
             var now = _now();
             _blocks.Expire(now);
-            if (_blocks.Blocking(now, app, host, tab) is not null)
+            if (apps.Count == 0 ? _blocks.Blocking(now, null, host, tab) is not null : apps.Any(a => _blocks.Blocking(now, a, host, tab) is not null))
             {
                 Skipped++;
                 return false;
