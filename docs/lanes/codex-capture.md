@@ -1,6 +1,7 @@
 # Capture lane report
 
 ## Done
+- Rebased the clean capture branch onto upstream b9d259f. The committed history read, forget overload and recorder secure gate are present. No prior uncommitted integration or stash was present in this checkout.
 - Media session logic: sensitive metadata, explicit playback states and the three-of-five audible window are implemented and tested. This is pure logic, not an SMTC or WASAPI source, and is not wired.
 - Bounded UIA walk logic: traverses synthetic source trees with 400-node and depth-12 caps, rejects unknown/offscreen nodes and never requests values for password or unknown-password fields. It returns a Sensitive<UiaWalk>; it is not wired to Windows UIA.
 - Visibility geometry: pure z-order occlusion and monitor-union calculation returns the existing VisibleSet; it is not a Windows event source and is not wired.
@@ -15,6 +16,10 @@
 - Added an indicator startup gate and synthetic tests. If stopping capture throws, the gate keeps the indicator alive and permits a retry. The gate now owns the capture host lifetime.
 
 ## Checks run
+- PASS: `dotnet format Tasktor.Linux.slnf`; `dotnet build Tasktor.sln -warnaserror` completed with 0 warnings and 0 errors.
+- PASS: baseline `dotnet test` on b9d259f; all projects passed, including 209 Capture and 501 Core tests.
+- NOT RUN: issue 2 browser, secure-session and search checks; native sources remain unattached and the shutdown guarantee below is unresolved.
+- NOT RUN: issue 4 history tail, PowerShell 5, blocks, history rewrite, forget by app, forget by site and capture-off checks; no isolated live capture fixture was established. The specified history rewrite deletes the real history file and must use a disposable history fixture or an owner-controlled procedure.
 - INCONCLUSIVE: real-PC layout check found US loaded but not German or French. US synthetic translation and synthetic uncertain-run suppression passed; the probe did not change the active layout or keyboard state, install hooks, log text, or persist input. Native German/French dead-key behavior and target-app behavior were not checked. The hook remains unattached under the stated gate.
 - PASS: seven synthetic media-logic tests on the merged tree and local versioned Windows target; Linux execution remains unverified.
 - PASS: six bounded UIA walk tests on the merged tree and the local versioned Windows target. Linux execution remains unverified.
@@ -47,11 +52,13 @@
 - IN PROGRESS: secure-desktop, visible-window and media logic have synthetic tests but are not yet integrated. Upstream wires the browser T1 events to DeepCapture; remaining source and session wiring is outstanding.
 
 ## Interpretations
+- Upstream's recorder write gate addresses the previously reported in-flight write gap; notification integration and its real-PC verification remain outstanding.
 - Unsupported dead-key compositions suppress the entire key run; the Windows layout adapter remains unwired as text decoding until the real-PC check.
 - The specified aggregate watchdog signal cannot detect a single removed hook while the other continues receiving events. This is a known limitation; no additional input source is introduced.
 - The amended D-G16 indicator is the top edge of every monitor. The first indicator must fail closed before hooks are installed.
 
 ## Needs Windows verification
+- Issues 2 and 4 remain open: perform their listed PC checks using synthetic content and a disposable history fixture, then forget captured data.
 - Implement and verify SMTC plus WASAPI session notifications, AUMID-to-app resolution and audio-only activity without inventing playback status. No real media session was read by the pure-logic tests.
 - Supply and verify a native UIAutomationCore backend with a real one-second transaction timeout, safe password property-read ordering, and bounded name/automation-ID reads. The pure walker caps values but does not cap those two strings. No real UIA walk was exercised.
 - Finish every unchecked M14 shelf, theme, tray + edge, command line, deep window and lifecycle step in `docs/PROGRESS.md` with an isolated temporary `--data-dir`; remove the directory afterward.
@@ -59,17 +66,19 @@
 - Exercise monitor add/remove and mixed DPI changes, tray appearance and Explorer restart with an isolated capture session; verify fail-closed shutdown if either indicator fails. Then verify hooks, secure desktop, UIA and media sources once implemented.
 
 ## Requests
+- Please provide the Core loop shutdown completion guarantee requested below. Also advise a supported disposable history-path fixture for the real-PC history rewrite check; the documented command otherwise deletes the owner's actual history.
 - Core shutdown observability: expose a bounded stop/join result or completion task from `Tasktor.Core.Loop.LogicLoop` that is true/completed only after its thread exits, and test a blocked callback. CaptureSession cannot prove thread termination before indicator removal through the current void Stop API. Core is outside this lane; do not wire sources as if this guarantee exists.
 - Jobs watcher crash fixed upstream in df84e7b; post-merge full suite passed.
 - StoreWriter shutdown race fixed upstream in 96c9068; no open request for that issue.
 
 ## Integration in progress
-- Session notifications and guarded browser admission are under test. A notification can race an already executing recorder write after its final guard check; strict serialization remains unresolved. Do not treat secure-desktop integration as verified.
+- Historical: the prior uncommitted notification integration is absent. The upstream write gate addresses the reported write race; notification integration remains unverified.
 - Native UIA and media backends are incomplete; the visibility snapshot has not met the timing target. None is attached.
-- Upstream has advanced to b5bcb87 with an encrypted index; its session and host changes still need merging and verification.
+- Upstream through b9d259f is now in this branch; the encrypted index and host changes are present.
 
 ## Blockers
-- Secure-session notification and an already executing browser recorder write are not serialized; a notice can arrive after the last safety check and before that write. Do not ship the pending integration as a verified secure-desktop guarantee.
+- Safe source attachment is blocked on the Core loop shutdown completion guarantee: Stop performs a timed join but does not expose whether the thread exited. The previously described uncommitted native integration is absent from the checkout and stash; native UIA and media sources remain to be implemented. Issues 2 and 4 have not been completed.
+- Historical write-race blocker: upstream added a recorder write gate. Notification delivery is not wired or verified.
 - The full real-PC dead-key gate is inconclusive because German and French layouts were not loaded; do not attach the hook until the requested check passes. Loading a layout can activate it system-wide, so the probe did not change the user's keyboard configuration.
 - No current code-test blocker. Native UIA, WASAPI, secure-session notification wiring, and browser/DeepCapture wiring remain implementation work.
 
