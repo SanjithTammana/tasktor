@@ -65,6 +65,31 @@ public sealed class CaptureSessionTests : IDisposable
     }
 
     [Fact]
+    public void New_shell_history_lines_become_command_records_once_their_second_has_passed()
+    {
+        var history = Path.Combine(_dir, "ConsoleHost_history.txt");
+        File.WriteAllText(history, "from before capture\n");
+        var blocks = new CaptureBlocks(Path.Combine(_dir, "blocks2.json"), TimeZoneInfo.Utc);
+        var vault = new RawVault(Path.Combine(_dir, "raw2"), new byte[32]);
+        using var session = new CaptureSession(new CaptureRecorder(vault, blocks, () => _clock.UtcNow), new BrowserEndpoint(blocks, () => _clock.UtcNow), _clock, _probe, () => SessionAvailability.UnlockedConnected)
+        {
+            History = new Commands.HistoryTail(history),
+        };
+
+        session.Tick();
+        File.AppendAllText(history, "dotnet build\n");
+        session.Tick();
+        Assert.Equal(1, session.Deep.Commands.Pending);
+        _clock.UtcNow = T0.AddSeconds(2);
+        session.Tick();
+
+        var bodies = vault.Read(T0.AddDays(-1), T0.AddDays(1)).Where(r => r.Kind == RecordKind.Command).Select(r => Encoding.UTF8.GetString(r.Body)).ToList();
+        var only = Assert.Single(bodies);
+        Assert.Contains("dotnet build", only, StringComparison.Ordinal);
+        Assert.DoesNotContain(bodies, b => b.Contains("from before capture", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Page_text_from_the_extension_is_diffed_and_recorded_on_the_logic_loop()
     {
         Browse();

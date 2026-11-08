@@ -65,7 +65,12 @@ internal sealed class CaptureLifetime : IDisposable
             // C21: the content index exists only encrypted (OQ-C22: SQLCipher). With an engine that cannot encrypt, OpenEncrypted
             // returns null and nothing is indexed: no plain-text index of what was on screen is ever written.
             var index = Index.ContentIndex.OpenEncrypted(Path.Combine(store.CaptureDir, "index.db"), key.EncryptionKey("capture-index"));
-            _session = new Host.CaptureSession(recorder, endpoint, Core.Time.SystemClock.Instance, new Security.Win32DesktopProbe(), sessions.Read) { Index = index, Vault = vault };
+            _session = new Host.CaptureSession(recorder, endpoint, Core.Time.SystemClock.Instance, new Security.Win32DesktopProbe(), sessions.Read)
+            {
+                Index = index,
+                Vault = vault,
+                History = new Commands.HistoryTail(Commands.HistoryTail.DefaultPath(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData))),
+            };
             _session.Start();
             var control = new CaptureControl(blocks, now)
             {
