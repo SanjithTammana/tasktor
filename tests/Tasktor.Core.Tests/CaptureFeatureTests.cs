@@ -197,6 +197,21 @@ public sealed class CaptureFeatureTests : IDisposable
     }
 
     [Fact]
+    public void A_hits_page_reopens_in_the_browser_for_a_person_and_nothing_else_is_launched()
+    {
+        Assert.Equal(ActionStatus.Ok, Act("activity.open", args: new() { ["url"] = "https://docs.example.com/guide?id=7" }).Status);
+        Assert.Equal("https://docs.example.com/guide?id=7", _rig.Launched.Last());
+        var before = _rig.Launched.Count;
+        foreach (var bad in new[] { "file:///C:/Windows/System32/calc.exe", "javascript:alert(1)", "C:\\tools\\run.cmd", "ms-settings:privacy", "edit:C:\\x.json", "" })
+        {
+            Assert.Equal(ActionStatus.Refused, Act("activity.open", args: new() { ["url"] = bad }).Status);
+        }
+
+        Assert.Equal(ActionStatus.Refused, Act("activity.open", origin: Origin.Rule, args: new() { ["url"] = "https://example.com/" }, rule: "r1").Status);
+        Assert.Equal(before, _rig.Launched.Count);
+    }
+
+    [Fact]
     public void Forget_an_app_or_site_is_two_step_and_names_what_goes()
     {
         var first = Act("capture.forget", args: new() { ["site"] = "Docs.Example.com" });

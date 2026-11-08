@@ -183,6 +183,9 @@ public sealed record ActivityDocument(int Track, DateTimeOffset Start, DateTimeO
 
     /// <summary>The sites whose text or runs are in it.</summary>
     public IReadOnlyList<string> Hosts { get; set; } = [];
+
+    /// <summary>Web pages it showed (scrubbed addresses), first seen first: a search hit can reopen them (C21).</summary>
+    public IReadOnlyList<string> Links { get; set; } = [];
 }
 
 /// <summary>
@@ -194,6 +197,9 @@ public sealed record ActivityDocument(int Track, DateTimeOffset Start, DateTimeO
 public sealed class ActivityDocumentBuilder
 {
     public const int MaxSectionBytes = 4 * 1024;
+
+    /// <summary>Links kept per document (the first pages seen; a hit offers the first).</summary>
+    public const int MaxLinks = 8;
 
     private readonly Dictionary<int, Doc> _open = [];
 
@@ -218,9 +224,26 @@ public sealed class ActivityDocumentBuilder
         public SortedSet<string> Apps { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public SortedSet<string> Hosts { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public List<string> Links { get; } = [];
     }
 
     public bool IsOpen(int track) => _open.ContainsKey(track);
+
+    /// <summary>A web page the open document showed: kept once, http(s) only, at most <see cref="MaxLinks"/>.</summary>
+    public void Link(int track, string? url)
+    {
+        if (!_open.TryGetValue(track, out var doc) || doc.Links.Count >= MaxLinks || !IsWebLink(url) || doc.Links.Contains(url!, StringComparer.Ordinal))
+        {
+            return;
+        }
+
+        doc.Links.Add(url!);
+    }
+
+    /// <summary>An absolute http or https address, nothing else (a hit must never launch a file, script or other scheme).</summary>
+    public static bool IsWebLink(string? url) =>
+        url is { Length: > 0 and <= 2048 } && Uri.TryCreate(url, UriKind.Absolute, out var u) && (u.Scheme == Uri.UriSchemeHttps || u.Scheme == Uri.UriSchemeHttp) && u.Host.Length > 0;
 
     /// <summary>The source of what was just added to <paramref name="track"/>'s open document (no-op when none is open).</summary>
     public void Note(int track, string? app, string? host)
@@ -308,7 +331,7 @@ public sealed class ActivityDocumentBuilder
         }
 
         var end = at < doc.Last ? doc.Last : at;
-        return new ActivityDocument(track, doc.Start, end, [.. doc.Sections.Select(s => new DocSection(s.Heading, s.Text.ToString()))]) { Truncated = doc.Truncated, Apps = [.. doc.Apps], Hosts = [.. doc.Hosts] };
+        return new ActivityDocument(track, doc.Start, end, [.. doc.Sections.Select(s => new DocSection(s.Heading, s.Text.ToString()))]) { Truncated = doc.Truncated, Apps = [.. doc.Apps], Hosts = [.. doc.Hosts], Links = [.. doc.Links] };
     }
 
     private Doc DocFor(int track, DateTimeOffset at)

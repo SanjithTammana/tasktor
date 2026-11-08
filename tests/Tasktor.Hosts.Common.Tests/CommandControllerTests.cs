@@ -142,7 +142,7 @@ public sealed class CommandControllerTests
                 }
 
                 IReadOnlyList<Contracts.Capture.ActivityHit> hits = q == "revenue"
-                    ? [new() { Start = new DateTimeOffset(2026, 11, 6, 14, 5, 0, TimeSpan.Zero), End = new DateTimeOffset(2026, 11, 6, 14, 20, 0, TimeSpan.Zero), Snippet = "Quarterly [revenue] review" }]
+                    ? [new() { Start = new DateTimeOffset(2026, 11, 6, 14, 5, 0, TimeSpan.Zero), End = new DateTimeOffset(2026, 11, 6, 14, 20, 0, TimeSpan.Zero), Snippet = "Quarterly [revenue] review", Links = ["https://docs.example.com/q3"] }, new() { Start = new DateTimeOffset(2026, 11, 6, 9, 0, 0, TimeSpan.Zero), End = new DateTimeOffset(2026, 11, 6, 9, 30, 0, TimeSpan.Zero), Snippet = "[revenue] notes" }]
                     : [];
                 return Task.FromResult<IReadOnlyList<Contracts.Capture.ActivityHit>?>(hits);
             },
@@ -160,7 +160,10 @@ public sealed class CommandControllerTests
 
         var section = c.View.Sections.Last();
         Assert.Equal("Your activity", section.Heading);
-        Assert.Equal("Fri 14:05 · Quarterly [revenue] review", section.Items.Single().Label);
+        Assert.Equal(["Fri 14:05 · Quarterly [revenue] review", "Fri 9:00 · [revenue] notes"], section.Items.Select(i => i.Label));
+        var reopen = section.Items[0].Action!; // Enter on a hit with a page reopens it (C21)
+        Assert.Equal(("activity.open", "https://docs.example.com/q3"), (reopen.Action, reopen.Args!["url"]));
+        Assert.Null(section.Items[1].Action); // nothing to reopen: the row only reads
         lock (asked)
         {
             Assert.Equal(["revenue"], asked); // "re" is too short, and the pause means one search per settled query

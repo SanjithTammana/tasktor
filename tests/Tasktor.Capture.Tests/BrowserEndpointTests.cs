@@ -44,7 +44,7 @@ public sealed class BrowserEndpointTests : IDisposable
         var contexts = new List<(int Tab, TabContext Ctx)>();
         var texts = 0;
         ep.ContextChanged += (_, tab, ctx) => contexts.Add((tab, ctx));
-        ep.TextSeen += (_, _, _, _) => texts++;
+        ep.TextSeen += (_, _, _, _, _) => texts++;
         ep.Handle("s1", Hello());
         ep.Handle("s1", Tab(7, "example.com") with { Incognito = true });
         ep.Handle("s1", Text(7, "secret page"));
@@ -83,7 +83,7 @@ public sealed class BrowserEndpointTests : IDisposable
     {
         var (_, ep, _) = World();
         var seen = new List<(string App, int Tab, UiaWalk Walk)>();
-        ep.TextSeen += (app, tab, walk, _) => seen.Add((app, tab, walk));
+        ep.TextSeen += (app, tab, walk, _, _) => seen.Add((app, tab, walk));
         ep.Handle("s1", Hello());
         ep.Handle("s1", Page(5, "docs.example.com", "https://docs.example.com/guide?x=1", "Guide"));
         ep.Handle("s1", Text(5, "Guide", "Step one", "Step one", "  "));
@@ -112,7 +112,7 @@ public sealed class BrowserEndpointTests : IDisposable
         var (_, ep, ctl) = World();
         var texts = 0;
         var media = 0;
-        ep.TextSeen += (_, _, _, _) => texts++;
+        ep.TextSeen += (_, _, _, _, _) => texts++;
         ep.MediaSeen += (_, _, _, _) => media++;
         ep.Handle("s1", Hello());
         ep.Handle("s1", Text(9, "unknown tab"));

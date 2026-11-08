@@ -45,7 +45,7 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 | C18 | Screen text: UIA snapshots + browser text | Partial | browser text wired and recorded; **UIA source** uncommitted on the Codex machine |
 | C19 | Pointer: path, clicks with target, scroll, dwell, visible windows | Partial | the ring carries mouse events and the visibility logic exists; **no pointer pipeline** (clicks, dwell, scroll) and nothing drains mouse events |
 | C20 | Media: SMTC + audio sessions, side tracks | Partial | browser video wired; **SMTC / WASAPI source** uncommitted on the Codex machine |
-| C21 | Content index (FTS5 + embeddings), "Search my activity" | Built, mostly | encrypted index (SQLCipher) + search in the command line; forget by time, app or site (vault + index together); missing: reopen links, embeddings (G8) |
+| C21 | Content index (FTS5 + embeddings), "Search my activity" | Built, mostly | encrypted index (SQLCipher) + search in the command line; forget by time, app or site (vault + index together); reopen a hit's web page; missing: reopen files / windows (needs the UIA source), embeddings (G8) |
 | C22 | CLI command log (PSReadLine, OSC 133, shell children) | Built (C22.1) | PowerShell history tailed, reconciled with typed runs, scrubbed and recorded; missing: OSC 133 offer (C22.3), agent-run commands from B's scan (C22.4) |
 
 ## D. CLI

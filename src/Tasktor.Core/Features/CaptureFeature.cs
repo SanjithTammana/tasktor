@@ -83,6 +83,7 @@ public sealed class CaptureFeature : Feature
         Context.Router.Register("capture.tab_pause", TabPause);
         Context.Router.Register("capture.forget", Forget);
         Context.Router.Register("capture.extension_setup", Setup);
+        Context.Router.Register("activity.open", Reopen);
         // C21 "Search my activity": relayed to the capture host, which owns the encrypted index. The query and the
         // snippets are personal data: passed through, never logged. Runs on the pipe's thread, not the loop.
         Context.RegisterPull("activity", pull =>
@@ -331,6 +332,27 @@ public sealed class CaptureFeature : Feature
         }
 
         return Command(req, "Don't capture " + (app ?? site), new CaptureCommand { Verb = CaptureVerb.Exclude, ByUser = ByUser(req), App = app?.ToLowerInvariant(), Site = site?.ToLowerInvariant() });
+    }
+
+    /// <summary>
+    /// C21 "reopen" from a search hit: a page's address opens in the default browser. Only an absolute http(s) address
+    /// (the same test the capture host applied when it kept it), never a file, script or other scheme; people only.
+    /// </summary>
+    private PreparedAction Reopen(ActionRequest req)
+    {
+        var url = req.Args?.GetValueOrDefault("url");
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var u) || u.Scheme is not ("https" or "http") || u.Host.Length == 0 || url!.Length > 2048)
+        {
+            return new PreparedAction { Summary = "Reopen", Refusal = "Only a web page can be reopened" };
+        }
+
+        return new PreparedAction
+        {
+            Summary = "Reopen " + u.Host,
+            Run = _ => Context.Launch(u.AbsoluteUri)
+                ? new ActionResult { Action = req.Action, Status = ActionStatus.Ok, Message = "Opened " + u.Host }
+                : new ActionResult { Action = req.Action, Status = ActionStatus.Failed, Message = "Could not open the page" },
+        };
     }
 
     private PreparedAction Unexclude(ActionRequest req) =>

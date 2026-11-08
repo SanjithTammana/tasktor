@@ -115,7 +115,8 @@ public sealed class DeepCapture
     }
 
     /// <summary>A walk of a view (UIA or the extension): diff, redact, record, and add the accepted text to its track.</summary>
-    public ViewDiff? Walk(UiaWalk walk, string app, string? host, DiffSource source = DiffSource.Uia)
+    /// <param name="link">The page's address when the walk is a browser page (scrubbed before it is kept).</param>
+    public ViewDiff? Walk(UiaWalk walk, string app, string? host, DiffSource source = DiffSource.Uia, string? link = null)
     {
         ArgumentNullException.ThrowIfNull(walk);
         var now = _now();
@@ -136,6 +137,7 @@ public sealed class DeepCapture
         {
             Documents.Add(TrackOf(app), clean);
             Documents.Note(TrackOf(app), app, host);
+            Documents.Link(TrackOf(app), _recorder.ScrubUrl(link));
         }
 
         return clean;
