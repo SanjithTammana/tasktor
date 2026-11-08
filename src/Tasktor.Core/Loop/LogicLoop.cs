@@ -159,9 +159,9 @@ public sealed class LogicLoop : IDisposable
     public void Stop() => TryStop(TimeSpan.FromSeconds(5));
 
     /// <summary>
-    /// Stop after the current item and wait up to <paramref name="timeout"/> for the thread to exit. True only when it has
-    /// exited (or never started); false while a callback still runs, and always false when called from the loop itself
-    /// (a thread cannot join itself, so it cannot prove its own exit).
+    /// Stop after the current item and wait up to <paramref name="timeout"/> for the loop to finish. True only once no
+    /// callback can run again (the loop returned from its last one, or never started); false while a callback still runs,
+    /// and always false when called from the loop itself (it cannot prove its own exit).
     /// </summary>
     public bool TryStop(TimeSpan timeout)
     {
@@ -178,7 +178,9 @@ public sealed class LogicLoop : IDisposable
             return false;
         }
 
-        return _thread.Join(timeout);
+        // Completion, not Join: it is set once the last callback has returned, which is the guarantee callers need; the
+        // thread may still be a few instructions from exiting then, and a short Join could say "running" for that.
+        return _completion.Task.Wait(timeout);
     }
 
     /// <summary>Post <paramref name="work"/> and wait for its result (for callers off the loop, e.g. tests and the pipe).</summary>
