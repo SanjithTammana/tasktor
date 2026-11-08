@@ -17,7 +17,7 @@ try {
     $reference = [System.Security.SecurityElement]::Escape((Join-Path $repo 'src/Tasktor.Capture/Tasktor.Capture.csproj'))
     $project = @"
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup>
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows10.0.19041.0</TargetFramework><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup>
   <ItemGroup><ProjectReference Include="$reference" /></ItemGroup>
 </Project>
 "@

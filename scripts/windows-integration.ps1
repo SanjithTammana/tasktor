@@ -15,7 +15,7 @@ Every check runs and reports; the script fails at the end if any failed.
 #>
 param(
     [string]$AgentBin = 'src/Tasktor.Agent/bin/Release/net10.0-windows',
-    [string]$CaptureBin = 'src/Tasktor.Capture/bin/Release/net10.0-windows'
+    [string]$CaptureBin = 'src/Tasktor.Capture/bin/Release/net10.0-windows10.0.19041.0'
 )
 
 $ErrorActionPreference = 'Stop'

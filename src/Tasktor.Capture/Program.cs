@@ -26,6 +26,9 @@ internal static class Program
         // C18 check (real PC, #8): walks only its own fixture windows; prints pass / fail and timings.
         if (args.Contains("--check-uia")) return UIAutomation.UiaFixtureCheck.Run(Console.Out);
 
+        // C20 check (real PC, #9): its own tone and silence through its own audio session; prints pass / fail only.
+        if (args.Contains("--check-media")) return Media.MediaToneCheck.Run(Console.Out);
+
         // C19.2 check (real PC, #7): live enumeration + geometry, timed apart; prints timings and window counts only.
         if (args.Contains("--bench-visibility"))
         {
@@ -69,6 +72,8 @@ internal sealed class CaptureLifetime : IDisposable
     private Host.CaptureSession? _session;
     private Visibility.Win32VisibilitySource? _visibility;
     private UIAutomation.UiaWalkSource? _uia;
+    private Media.WasapiMeters? _meters;
+    private IDisposable? _smtc;
     private Timer? _expiry, _retention;
     private bool _disposed;
     private readonly Win32RecordingIndicator _indicator;
@@ -111,6 +116,17 @@ internal sealed class CaptureLifetime : IDisposable
             _session.ClickTargets = _uia;
             _session.Start();
             _uia.Start();
+
+            // C20.1: audible (WASAPI peaks, 1 Hz) and now-playing (SMTC); both only post, the gate drops while closed.
+            var appOfPid = (uint pid) => Windows.Shell.Win32Windows.ExeOfProcess(pid);
+            _meters = new Media.WasapiMeters(new Media.AudioMeterLogic(appOfPid, live.PostMediaPeak, live.PostMediaAudioStopped), now);
+            _meters.Start();
+            if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 19041))
+            {
+                var smtc = new Media.SmtcSource(live.PostMediaMetadata, live.PostMediaRemove);
+                _smtc = smtc;
+                _ = smtc.StartAsync();
+            }
 
             // C19.2: visible windows (numbers and apps only) into the loop; the gate drops them while closed.
             var session = _session;
@@ -170,6 +186,8 @@ internal sealed class CaptureLifetime : IDisposable
         if (_browser is not null) { _browser.DisposeAsync().AsTask().GetAwaiter().GetResult(); _browser = null; }
         if (_visibility is not null) { _visibility.Dispose(); _visibility = null; } // detached before the session stops
         if (_uia is not null) { _uia.Dispose(); _uia = null; }
+        if (_meters is not null) { _meters.Dispose(); _meters = null; }
+        if (_smtc is not null) { _smtc.Dispose(); _smtc = null; }
         if (_session is not null)
         {
             // After the sources: close the activity, then the loop. Fail closed: while a capture callback still holds the
