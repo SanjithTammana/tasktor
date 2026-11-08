@@ -43,7 +43,7 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 | C16 | Actor attribution | Built (logic) | needs the keyboard hook attached |
 | C17 | Key runs, password / secure-field suppression | Built (logic, fail closed) | **hook not attached** until the layout check on a PC |
 | C18 | Screen text: UIA snapshots + browser text | Partial | browser text wired and recorded; **UIA source** uncommitted on the Codex machine |
-| C19 | Pointer: path, clicks with target, scroll, dwell, visible windows | Partial | the ring carries mouse events and the visibility logic exists; **no pointer pipeline** (clicks, dwell, scroll) and nothing drains mouse events |
+| C19 | Pointer: path, clicks with target, scroll, dwell, visible windows | Partial | pointer shaping (≤ 10/s), clicks, wheel, recorder gating and activity documents (#6, capture lane); missing: async click-target resolution, per-activity features (C19.3), LL mouse hook adapter (unattached) + latency benchmark, native visibility producer (#7) |
 | C20 | Media: SMTC + audio sessions, side tracks | Partial | browser video wired; **SMTC / WASAPI source** uncommitted on the Codex machine |
 | C21 | Content index (FTS5 + embeddings), "Search my activity" | Built, mostly | encrypted index (SQLCipher) + search in the command line; forget by time, app or site (vault + index together); reopen a hit's web page; missing: reopen files / windows (needs the UIA source), embeddings (G8) |
 | C22 | CLI command log (PSReadLine, OSC 133, shell children) | Built (C22.1) | PowerShell history tailed, reconciled with typed runs, scrubbed and recorded; missing: OSC 133 offer (C22.3), agent-run commands from B's scan (C22.4) |
@@ -78,7 +78,7 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 | Row | Feature | Status | Missing |
 |---|---|---|---|
 | G1 | Widgets-board widget | **Not started** | `Tasktor.Widget` is a stub; needs MSIX (H8) |
-| G2 | Flyout → shelf, command line, deep window | Built, mostly | the command line's **dimmed desktop**; dialogs: none left; Settings → **Windows** (waits for F2) |
+| G2 | Flyout → shelf, command line, deep window | Built, mostly | the command line's **dimmed desktop**; dialogs: none left |
 | G3, G4 | Taskbar button, overlay bar | Later (spec) | — |
 | G6 | Tray icon, glance tooltip, menu | Built | — |
 | — | Toasts | Partial | tray balloons (the D-G7 fallback); real toasts with buttons need an app identity (MSIX) |
