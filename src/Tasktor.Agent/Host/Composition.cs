@@ -264,7 +264,9 @@ internal static class Composition
         });
 
         // One WinEventSource for C9 and I11 (it keeps one hook thread): started while either subscriber needs it.
-        var winEvents = windows ? new WinEventSource(pid => processTable.ReadOne(new ProcKey(pid, 0))) : null;
+        // Check mode (--switcher-pid): window events, titles included, only for the check's own processes.
+        Func<uint, bool>? checkPids = host.Options.SwitcherPids is { Count: > 0 } fixture ? pid => fixture.Contains(pid) : null;
+        var winEvents = windows ? new WinEventSource(pid => processTable.ReadOne(new ProcKey(pid, 0))) { IncludePid = checkPids } : null;
         var windowEvents = winEvents is null ? null : new SharedSource<Contracts.Workflow.WindowEvent>(winEvents);
 
         WorkflowTracking? tracking = null;
@@ -430,7 +432,7 @@ internal static class Composition
         {
             Events = events?.Subscriber(),
             LeaseLifecycle = source is null ? null : source.LeaseLifecycle,
-            Windows = windows ? () => Windows.Shell.Win32Windows.Enumerate(Frozen) : () => [],
+            Windows = windows ? () => Windows.Shell.Win32Windows.Enumerate(Frozen, include: host.Options.SwitcherPids is { Count: > 0 } fixture ? pid => fixture.Contains(pid) : null) : () => [],
             Monitors = windows ? Windows.Shell.Win32Windows.Monitors : () => [],
             IsFrozen = windows ? Frozen : _ => false,
             CommandLine = windows ? pid => ProcessInfo.CommandLine(new ProcKey(pid, 0)) : _ => null, // a slot's launch, shown before saving

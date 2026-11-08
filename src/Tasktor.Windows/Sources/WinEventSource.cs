@@ -44,6 +44,12 @@ public sealed unsafe partial class WinEventSource : IEventSource<WindowEvent>
 
     public WinEventSource(Func<uint, ProcessRow?> readProcess) => _readProcess = readProcess;
 
+    /// <summary>
+    /// Check mode (an isolated agent with <c>--switcher-pid</c>): only these processes' windows produce events; every other
+    /// window is dropped right after its pid is read, before the title hook moves to it or any title or exe is read.
+    /// </summary>
+    public Func<uint, bool>? IncludePid { get; init; }
+
     public string Name => "win-events";
 
     /// <summary>True when the hooks could not be installed: C1 reports "capture unavailable" and tracking stays off.</summary>
@@ -226,6 +232,11 @@ public sealed unsafe partial class WinEventSource : IEventSource<WindowEvent>
                 if (life != WindowEventKind.Shown || GetAncestor(r.Hwnd, GaRoot) == r.Hwnd)
                 {
                     GetWindowThreadProcessId(r.Hwnd, out var lpid);
+                    if (IncludePid is { } keep && !keep(lpid))
+                    {
+                        continue;
+                    }
+
                     _post?.Invoke(new WindowEvent(life, r.Hwnd, new ProcKey(lpid, 0), Environment.TickCount64, DateTimeOffset.UtcNow));
                 }
 
@@ -233,6 +244,11 @@ public sealed unsafe partial class WinEventSource : IEventSource<WindowEvent>
             }
 
             GetWindowThreadProcessId(r.Hwnd, out var pid);
+            if (IncludePid is { } include && !include(pid))
+            {
+                continue; // check mode: not a fixture window, so no title read and the title hook stays where it is
+            }
+
             var kind = r.Event switch
             {
                 EventSystemForeground => WindowEventKind.Foreground,
