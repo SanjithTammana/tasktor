@@ -28,6 +28,7 @@ public sealed class SwitcherSession
     private readonly Func<IReadOnlyList<WindowInfo>> _enumerate;
     private List<WindowInfo> _ordered = [];
     private Dictionary<uint, SwitcherJob> _jobByPid = [];
+    private IReadOnlyDictionary<long, string> _workflows = new Dictionary<long, string>();
     private string? _appId;
     private bool _stay;
     private long? _asked;
@@ -53,6 +54,7 @@ public sealed class SwitcherSession
     public void Open(SwitcherFeed feed, bool reverse = false)
     {
         ArgumentNullException.ThrowIfNull(feed);
+        _workflows = feed.Workflows;
         _jobByPid = [];
         foreach (var job in feed.Jobs)
         {
@@ -114,21 +116,28 @@ public sealed class SwitcherSession
         Refilter(resetSelection: true);
     }
 
-    /// <summary>The app view of the selected tile's app (F1's useful part), or back to all windows.</summary>
-    public void ToggleAppView()
+    /// <summary>
+    /// The next view: all windows → the selected tile's app (F1's useful part) → by workflow (only when some window has
+    /// one, D-W4) → all windows.
+    /// </summary>
+    public void CycleView()
     {
         if (!IsOpen)
         {
             return;
         }
 
-        if (View == SwitcherView.App)
-        {
-            (View, _appId) = (SwitcherView.All, null);
-        }
-        else if (Current is { } tile)
+        if (View == SwitcherView.All && Current is { } tile)
         {
             (View, _appId) = (SwitcherView.App, tile.Window.AppId);
+        }
+        else if (View == SwitcherView.App && _workflows.Count > 0)
+        {
+            (View, _appId) = (SwitcherView.Workflow, null);
+        }
+        else
+        {
+            (View, _appId) = (SwitcherView.All, null);
         }
 
         _stay = true;
@@ -174,7 +183,13 @@ public sealed class SwitcherSession
     {
         ArgumentNullException.ThrowIfNull(tile);
         var w = tile.Window;
-        var parts = new List<string> { w.Title.Reveal() is { Length: > 0 } t ? t : w.Exe ?? w.AppId };
+        var parts = new List<string>();
+        if (tile.Group is { } group)
+        {
+            parts.Add(group); // the workflow view: each tile says which group it is in
+        }
+
+        parts.Add(w.Title.Reveal() is { Length: > 0 } t ? t : w.Exe ?? w.AppId);
         if (_jobByPid.TryGetValue(w.Pid, out var job) && tile.Badges.HasFlag(TileBadges.Job))
         {
             parts.Add(job.Label);
@@ -214,7 +229,7 @@ public sealed class SwitcherSession
 
     private void Refilter(bool resetSelection = false)
     {
-        Tiles = SwitcherFilter.Tiles(_ordered, Query, View, _appId, _ => null, pid => _jobByPid.ContainsKey(pid));
+        Tiles = SwitcherFilter.Tiles(_ordered, Query, View, _appId, hwnd => _workflows.TryGetValue(hwnd, out var w) ? w : null, pid => _jobByPid.ContainsKey(pid));
         if (resetSelection)
         {
             Selected = Tiles.Count > 0 ? 0 : -1;

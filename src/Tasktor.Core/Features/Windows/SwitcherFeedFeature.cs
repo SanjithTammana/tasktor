@@ -28,6 +28,7 @@ public sealed class SwitcherFeedFeature : Feature
 
     private readonly IEventSource<WindowEvent>? _source;
     private readonly WindowList _mru = new();
+    private readonly Dictionary<long, string> _workflows = [];
     private readonly Lock _gate = new();
     private IReadOnlyList<SwitcherJob> _jobs = [];
     private IDisposable? _refresh;
@@ -58,16 +59,19 @@ public sealed class SwitcherFeedFeature : Feature
         var settings = Current;
         IReadOnlyList<long> order;
         IReadOnlyList<SwitcherJob> jobs;
+        Dictionary<long, string> workflows;
         lock (_gate)
         {
             order = _mru.Recent(MaxWindows);
             jobs = _jobs;
+            workflows = new Dictionary<long, string>(_workflows);
         }
 
         return new SwitcherFeed
         {
             Mru = order,
             Jobs = jobs,
+            Workflows = workflows,
             Hotkey = Keys(),
             ThisDesktopOnly = settings?.ThisDesktopOnly == true,
         };
@@ -205,9 +209,25 @@ public sealed class SwitcherFeedFeature : Feature
                 case WindowEventKind.Foreground:
                     _mru.Touch(e.Hwnd);
                     _mru.Trim(MaxWindows);
+                    // C's per-window workflow: the one shown as this window comes to the front (a learned workflow or
+                    // cluster, never the app fallback). Read on the loop, where the snapshot state is current.
+                    if (Context.State().Workflow is { Level: not WorkflowLevel.App, Name: { Length: > 0 } name })
+                    {
+                        _workflows[e.Hwnd] = name;
+                    }
+
+                    if (_workflows.Count > MaxWindows)
+                    {
+                        foreach (var gone in _workflows.Keys.Where(h => _mru.Rank(h) == int.MaxValue).ToList())
+                        {
+                            _workflows.Remove(gone);
+                        }
+                    }
+
                     break;
                 case WindowEventKind.Destroyed:
                     _mru.Remove(e.Hwnd);
+                    _workflows.Remove(e.Hwnd);
                     break;
             }
         }

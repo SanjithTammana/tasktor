@@ -77,10 +77,10 @@ public sealed class SwitcherSessionTests
         var s = Session();
         s.Open(Feed);
         s.Previous(); // onto chrome's window 2
-        s.ToggleAppView();
+        s.CycleView();
         Assert.Equal(SwitcherView.App, s.View);
         Assert.Equal([2L, 3L], s.Tiles.Select(t => t.Window.Hwnd));
-        s.ToggleAppView();
+        s.CycleView();
         Assert.Equal(SwitcherView.All, s.View);
         Assert.Equal(4, s.Tiles.Count);
     }
@@ -124,5 +124,28 @@ public sealed class SwitcherSessionTests
         Assert.Equal(-1, none.Selected);
         Assert.Null(none.AltReleased());
         Assert.False(none.IsOpen);
+    }
+
+    [Fact]
+    public void With_workflows_the_views_cycle_all_app_workflow_and_the_workflow_view_groups_windows()
+    {
+        var feed = Feed with { Workflows = new Dictionary<long, string> { [1] = "Thesis", [3] = "Email", [2] = "Thesis" } };
+        var s = Session();
+        s.Open(feed);
+        s.CycleView();
+        Assert.Equal(SwitcherView.App, s.View);
+        s.CycleView();
+        Assert.Equal(SwitcherView.Workflow, s.View);
+        // MRU order 2, 1, 3, 4; grouped by each group's most recent window: Thesis (2, 1), Email (3), then Other (4).
+        Assert.Equal([2L, 1L, 3L, 4L], s.Tiles.Select(t => t.Window.Hwnd));
+        Assert.Equal(["Thesis", "Thesis", "Email", "Other"], s.Tiles.Select(t => t.Group));
+        s.CycleView();
+        Assert.Equal(SwitcherView.All, s.View);
+
+        var none = Session();
+        none.Open(Feed); // no workflows known: the view is skipped
+        none.CycleView();
+        none.CycleView();
+        Assert.Equal(SwitcherView.All, none.View);
     }
 }

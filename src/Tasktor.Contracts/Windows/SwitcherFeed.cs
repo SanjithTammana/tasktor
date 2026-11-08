@@ -15,6 +15,12 @@ public sealed record SwitcherFeed
     /// <summary>The switcher's hotkey (Settings → Windows, default <c>Alt+`</c>).</summary>
     public string Hotkey { get; set; } = "Alt+`";
 
+    /// <summary>
+    /// C's workflow for each window (by handle): the one shown when the window was last in front, never the app fallback.
+    /// Empty without a learned model; the switcher's workflow view groups by it (D-W4).
+    /// </summary>
+    public IReadOnlyDictionary<long, string> Workflows { get; set; } = new Dictionary<long, string>();
+
     /// <summary>"This desktop only": windows on other virtual desktops are left out instead of badged.</summary>
     public bool ThisDesktopOnly { get; set; }
 }

@@ -8,7 +8,7 @@ namespace Tasktor.Shell;
 /// <summary>
 /// F2's window (U3 D-W2 / D-W3 / D-W4): created hidden at start so it can appear within ~100 ms, shown by the switcher
 /// hotkey (RegisterHotKey, default Alt+`, no hook) on the monitor with the cursor. While open it has keyboard focus: the
-/// hotkey or Tab moves on (Shift back), arrows move, Up / Down toggle the app view, typing searches, Enter or releasing
+/// hotkey or Tab moves on (Shift back), arrows move, Up / Down cycle the views (all, app, workflow), typing searches, Enter or releasing
 /// Alt chooses, Esc or losing focus closes. Live thumbnails are DWM's (drawn by the compositor, ≤ 24). Titles live in
 /// this process's memory only and are never logged. Blocked in GetMessage while hidden: no wake-ups.
 /// </summary>
@@ -29,6 +29,7 @@ internal sealed unsafe class SwitcherWindow : IDisposable
     private string? _hotkeyText;
     private Hotkey? _hotkey;
     private SwitcherLayout? _layout;
+    private int _first; // the first tile of the drawn page (more than 24 windows page, D-W4)
     private double _scale = 1.0;
     private bool _suppressChar;
 
@@ -146,7 +147,7 @@ internal sealed unsafe class SwitcherWindow : IDisposable
                 else if (_session.IsOpen)
                 {
                     _session.Type((char)wParam);
-                    Redraw();
+                    Relayout(); // the tiles changed: new grid and thumbnails, or a filtered tile would show another window
                 }
 
                 return true;
@@ -196,7 +197,7 @@ internal sealed unsafe class SwitcherWindow : IDisposable
                 Step(+1);
                 break;
             case VkUp or VkDown:
-                _session.ToggleAppView();
+                _session.CycleView();
                 Relayout();
                 break;
             case VkReturn:
@@ -276,7 +277,14 @@ internal sealed unsafe class SwitcherWindow : IDisposable
             _session.Previous();
         }
 
-        Redraw();
+        if (SwitcherLayout.Page(_session.Selected, _session.Tiles.Count).First != _first)
+        {
+            Relayout(); // onto another page: new tiles and thumbnails
+        }
+        else
+        {
+            Redraw();
+        }
     }
 
     private void Finish(SwitcherOutcome? outcome)
@@ -334,7 +342,9 @@ internal sealed unsafe class SwitcherWindow : IDisposable
         var work = new RectPx(info.Work.Left, info.Work.Top, info.Work.Right - info.Work.Left, info.Work.Bottom - info.Work.Top);
         var dpi = GetDpiForWindow(_hwnd);
         _scale = dpi == 0 ? 1.0 : dpi / 96.0;
-        _layout = SwitcherLayout.For(_session.Tiles.Count, work, _scale);
+        var (first, count) = SwitcherLayout.Page(_session.Selected, _session.Tiles.Count);
+        _first = first;
+        _layout = SwitcherLayout.For(count, work, _scale);
         SetWindowPos(_hwnd, -1, _layout.Window.X, _layout.Window.Y, _layout.Window.W, _layout.Window.H, SwpNoActivate);
         RegisterThumbnails();
         Redraw();
@@ -356,10 +366,10 @@ internal sealed unsafe class SwitcherWindow : IDisposable
             return;
         }
 
-        for (var i = 0; i < layout.Tiles.Count && i < _session.Tiles.Count; i++)
+        for (var i = 0; i < layout.Tiles.Count && _first + i < _session.Tiles.Count; i++)
         {
             nint thumb;
-            if (DwmRegisterThumbnail(_hwnd, (nint)_session.Tiles[i].Window.Hwnd, &thumb) != 0)
+            if (DwmRegisterThumbnail(_hwnd, (nint)_session.Tiles[_first + i].Window.Hwnd, &thumb) != 0)
             {
                 continue; // a window that went away or refuses: the tile shows its caption only
             }
@@ -412,12 +422,23 @@ internal sealed unsafe class SwitcherWindow : IDisposable
                 SetBkMode(hdc, 1);
                 SetTextColor(hdc, Rgb(0xF0, 0xF0, 0xF0));
                 var header = _session.Prompt
-                    ?? (_session.Query.Length > 0 ? "Search: " + _session.Query : _session.View == SwitcherView.App ? "This app's windows (Up / Down: all windows)" : "Switch to (type to search, Up / Down: this app's windows)");
+                    ?? (_session.Query.Length > 0 ? "Search: " + _session.Query
+                        : _session.View switch
+                        {
+                            SwitcherView.App => "This app's windows (Up / Down: next view)",
+                            SwitcherView.Workflow => "By workflow (Up / Down: all windows)",
+                            _ => "Switch to (type to search, Up / Down: this app's windows)",
+                        });
+                if (_session.Tiles.Count > SwitcherFilter.MaxTiles)
+                {
+                    header += "   (" + (_first + 1) + "–" + (_first + layout.Tiles.Count) + " of " + _session.Tiles.Count + ")";
+                }
+
                 Text(hdc, header, layout.Header);
-                for (var i = 0; i < layout.Tiles.Count && i < _session.Tiles.Count; i++)
+                for (var i = 0; i < layout.Tiles.Count && _first + i < _session.Tiles.Count; i++)
                 {
                     var cell = layout.Tiles[i];
-                    if (i == _session.Selected)
+                    if (_first + i == _session.Selected)
                     {
                         var ring = new Rect(cell.X - 3, cell.Y - 3, cell.W + 6, cell.H + 6);
                         FillRect(hdc, &ring, accent);
@@ -425,7 +446,7 @@ internal sealed unsafe class SwitcherWindow : IDisposable
 
                     var body = new Rect(cell.X, cell.Y, cell.W, cell.H);
                     FillRect(hdc, &body, tile);
-                    Text(hdc, _session.Describe(_session.Tiles[i]), SwitcherLayout.Caption(cell, _scale));
+                    Text(hdc, _session.Describe(_session.Tiles[_first + i]), SwitcherLayout.Caption(cell, _scale));
                 }
 
                 SelectObject(hdc, oldFont);
