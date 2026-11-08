@@ -63,6 +63,7 @@ namespace Tasktor.Contracts;
 [JsonSerializable(typeof(ExportManifest))]
 [JsonSerializable(typeof(PresetsFile))]
 [JsonSerializable(typeof(OpenWindowsReport))]
+[JsonSerializable(typeof(Tasktor.Contracts.Windows.SwitcherFeed))]
 [JsonSerializable(typeof(PipeMessage))]
 [JsonSerializable(typeof(Tasktor.Contracts.Capture.BrowserMessage))]
 [JsonSerializable(typeof(WorkerSpec))]

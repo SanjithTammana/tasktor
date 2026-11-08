@@ -61,6 +61,20 @@ public sealed class WindowList
         }
     }
 
+    public int Count => _nodes.Count;
+
+    /// <summary>The handles, most recent first, at most <paramref name="max"/>.</summary>
+    public IReadOnlyList<long> Recent(int max = int.MaxValue) => [.. _mru.Take(max)];
+
+    /// <summary>Forget the least recent windows beyond <paramref name="max"/> (a closed window's handle may never be seen again).</summary>
+    public void Trim(int max)
+    {
+        while (_nodes.Count > max && _mru.Last is { } last)
+        {
+            Remove(last.Value);
+        }
+    }
+
     public int Rank(long hwnd)
     {
         var i = 0;
