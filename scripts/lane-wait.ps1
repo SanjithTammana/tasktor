@@ -40,6 +40,17 @@ function Invoke-GitHub([string]$Path) {
     return Invoke-RestMethod -Uri ("https://api.github.com/" + $Path) -Headers @{ Accept = 'application/vnd.github+json' }
 }
 
+# PowerShell 7 turns JSON timestamps into DateTime; 5.1 keeps strings. Compare everything as UTC.
+function ConvertTo-Utc($Value) {
+    if ($Value -is [DateTime]) {
+        if ($Value.Kind -eq [DateTimeKind]::Unspecified) { return [DateTime]::SpecifyKind($Value, [DateTimeKind]::Utc) }
+        return $Value.ToUniversalTime()
+    }
+    return [DateTimeOffset]::Parse([string]$Value, [Globalization.CultureInfo]::InvariantCulture).UtcDateTime
+}
+
+function Format-Utc([DateTime]$Utc) { return $Utc.ToString('yyyy-MM-ddTHH:mm:ssZ', [Globalization.CultureInfo]::InvariantCulture) }
+
 function Get-BranchSha {
     $line = git ls-remote origin "refs/heads/$Branch"
     if (-not $line) { return $null }
@@ -54,9 +65,10 @@ if (Get-Command gh -ErrorAction SilentlyContinue) {
 }
 
 $stateFile = Join-Path (git rev-parse --git-dir).Trim() 'lane-wait.json'
-$now = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+$now = Format-Utc (Get-Date).ToUniversalTime()
 if (Test-Path $stateFile) {
     $state = Get-Content $stateFile -Raw | ConvertFrom-Json
+    $state.since = Format-Utc (ConvertTo-Utc $state.since)
 } else {
     # First run: start from now (the open issues are read at the start of every session anyway).
     $state = [pscustomobject]@{ since = $now; branch = (Get-BranchSha) }
@@ -66,12 +78,12 @@ if (Test-Path $stateFile) {
 
 $deadline = (Get-Date).AddMinutes($MaxMinutes)
 while ($true) {
-    $pollStart = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+    $pollStart = Format-Utc (Get-Date).ToUniversalTime()
     $found = @()
     try {
         $since = [uri]::EscapeDataString($state.since)
         foreach ($i in @(Invoke-GitHub "repos/$repo/issues?labels=$([uri]::EscapeDataString($Label))&state=open&since=$since&per_page=50")) {
-            if ([DateTime]$i.created_at -gt [DateTime]$state.since) { $found += "NEW ISSUE #$($i.number): $($i.title)" }
+            if ((ConvertTo-Utc $i.created_at) -gt (ConvertTo-Utc $state.since)) { $found += "NEW ISSUE #$($i.number): $($i.title)" }
         }
 
         foreach ($c in @(Invoke-GitHub "repos/$repo/issues/comments?since=$since&per_page=100")) {
