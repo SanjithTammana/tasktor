@@ -21,6 +21,9 @@ public sealed record SwitcherFeed
     /// </summary>
     public IReadOnlyDictionary<long, string> Workflows { get; set; } = new Dictionary<long, string>();
 
+    /// <summary>D-W3 opt-in: the shell's keyboard hook replaces Alt+Tab (it sees only Alt, Tab, Shift and Esc and keeps nothing).</summary>
+    public bool ReplaceAltTab { get; set; }
+
     /// <summary>"This desktop only": windows on other virtual desktops are left out instead of badged.</summary>
     public bool ThisDesktopOnly { get; set; }
 }

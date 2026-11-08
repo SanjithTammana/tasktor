@@ -875,6 +875,9 @@
             },
             "this_desktop_only": {
               "type": "boolean"
+            },
+            "replace_alt_tab": {
+              "type": "boolean"
             }
           },
           "required": [

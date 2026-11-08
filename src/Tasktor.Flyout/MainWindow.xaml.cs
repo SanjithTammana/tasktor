@@ -726,6 +726,20 @@ public sealed partial class MainWindow : Window
         Grid.SetColumn(toggle, 1);
         desktop.Children.Add(toggle);
         PageContent.Children.Add(desktop);
+
+        var altTab = new Grid { MinHeight = 56 };
+        altTab.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        altTab.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var altLabel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        altLabel.Children.Add(new TextBlock { Text = "Replace Alt+Tab", Style = StyleOf("TasktorBodyTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+        altLabel.Children.Add(new TextBlock { Text = SettingsPage.ReplaceAltTabNote, TextWrapping = TextWrapping.Wrap, Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush("TasktorInk3Brush") });
+        altTab.Children.Add(altLabel);
+        var altToggle = new ToggleSwitch { IsOn = sw.ReplaceAltTab, OnContent = "On", OffContent = "Off", VerticalAlignment = VerticalAlignment.Center };
+        AutomationProperties.SetName(altToggle, "Replace Alt+Tab");
+        altToggle.Toggled += async (_, _) => await RunAsync(SettingsPage.SetSwitcher(null, null, altToggle.IsOn));
+        Grid.SetColumn(altToggle, 1);
+        altTab.Children.Add(altToggle);
+        PageContent.Children.Add(altTab);
         PageContent.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
     }
 

@@ -23,7 +23,7 @@ public sealed record PluginRow(string Id, string Title, string Note, bool On, Co
 public sealed record HotkeyRow(string Keys, string? Note);
 
 /// <summary>Settings → Windows: the switcher's shortcut, "this desktop only" and a note when Windows refused the shortcut.</summary>
-public sealed record SwitcherRow(string Keys, bool ThisDesktopOnly, string? Note);
+public sealed record SwitcherRow(string Keys, bool ThisDesktopOnly, string? Note, bool ReplaceAltTab = false);
 
 /// <summary>
 /// U4 D-G3 Settings → Modules: each Module with an on / off switch. Turning one on asks first with the text of
@@ -231,11 +231,15 @@ public static class SettingsPage
             ? new SwitcherRow(
                 keys,
                 w["this_desktop_only"] is JsonValue d && d.TryGetValue<bool>(out var only) && only,
-                w["registered"] is JsonValue r && r.TryGetValue<bool>(out var ok) && !ok ? "Another program uses this shortcut. Pick another." : null)
+                w["registered"] is JsonValue r && r.TryGetValue<bool>(out var ok) && !ok ? "Another program uses this shortcut. Pick another." : null,
+                w["replace_alt_tab"] is JsonValue t && t.TryGetValue<bool>(out var alt) && alt)
             : null;
 
     /// <summary>The action that changes the switcher's shortcut and/or "this desktop only" (the agent refuses bad shortcuts in plain words).</summary>
-    public static CardAction SetSwitcher(string? keys, bool? thisDesktopOnly)
+    /// <summary>The Replace Alt+Tab switch's explanation (shown beside it; the setting is off by default).</summary>
+    public const string ReplaceAltTabNote = "Uses a keyboard hook that sees only Alt, Tab, Shift and Esc and keeps nothing. Antivirus programs sometimes flag keyboard hooks. Games in exclusive full screen keep the Windows Alt+Tab.";
+
+    public static CardAction SetSwitcher(string? keys, bool? thisDesktopOnly, bool? replaceAltTab = null)
     {
         var args = new Dictionary<string, string>(StringComparer.Ordinal);
         if (keys is not null)
@@ -246,6 +250,11 @@ public static class SettingsPage
         if (thisDesktopOnly is { } only)
         {
             args["this_desktop_only"] = only ? "true" : "false";
+        }
+
+        if (replaceAltTab is { } replace)
+        {
+            args["replace_alt_tab"] = replace ? "true" : "false";
         }
 
         return new CardAction { Id = "switcher", Label = "Window switcher", Action = "switcher.settings", Args = args };
