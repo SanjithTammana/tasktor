@@ -33,7 +33,7 @@ internal static class Program
         indicator.Failed += () => stop.TrySetResult(true);
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.TrySetResult(false); };
         AppDomain.CurrentDomain.ProcessExit += (_, _) => stop.TrySetResult(false);
-        return await IndicatorHost.RunAsync(indicator, () => new CaptureLifetime(store, stop.Task, historyFile), stop.Task).ConfigureAwait(false);
+        return await IndicatorHost.RunAsync(indicator, () => new CaptureLifetime(store, stop.Task, indicator, historyFile), stop.Task).ConfigureAwait(false);
     }
 }
 
@@ -45,9 +45,11 @@ internal sealed class CaptureLifetime : IDisposable
     private Host.CaptureSession? _session;
     private Timer? _expiry, _retention;
     private bool _disposed;
+    private readonly Win32RecordingIndicator _indicator;
 
-    public CaptureLifetime(StoreLayout store, Task<bool> stop, string? historyFile = null)
+    public CaptureLifetime(StoreLayout store, Task<bool> stop, Win32RecordingIndicator indicator, string? historyFile = null)
     {
+        _indicator = indicator;
         try
         {
             if (stop.IsCompleted) return;
@@ -73,6 +75,7 @@ internal sealed class CaptureLifetime : IDisposable
                 Vault = vault,
                 History = new Commands.HistoryTail(historyFile ?? Commands.HistoryTail.DefaultPath(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData))),
             };
+            _indicator.SessionChanged += _session.SessionChanged;
             _session.Start();
             var control = new CaptureControl(blocks, now)
             {
@@ -131,6 +134,7 @@ internal sealed class CaptureLifetime : IDisposable
             // After the sources: close the activity, then the loop. Fail closed: while a capture callback still holds the
             // loop, throw so the indicator gate keeps the indicator up and retries; a retry succeeds once the thread is gone.
             if (!_session.Stop()) throw new InvalidOperationException("The capture loop has not stopped yet.");
+            _indicator.SessionChanged -= _session.SessionChanged;
             _session.Dispose();
             _session = null;
         }
