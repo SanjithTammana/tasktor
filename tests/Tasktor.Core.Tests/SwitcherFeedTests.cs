@@ -4,6 +4,7 @@ using Tasktor.Contracts.Actions;
 using Tasktor.Contracts.Config;
 using Tasktor.Contracts.Pipe;
 using Tasktor.Contracts.Platform;
+using Tasktor.Contracts.Snapshot;
 using Tasktor.Contracts.Windows;
 using Tasktor.Contracts.Workflow;
 using Tasktor.Core.Features;
@@ -132,5 +133,31 @@ public sealed class SwitcherFeedTests : IDisposable
         Assert.False(_rig.State.Current.Switcher!.Registered);
         Act("switcher.status", new() { ["keys"] = "Ctrl+Alt+Z", ["registered"] = "true" }, Origin.Shell); // a stale report for other keys
         Assert.False(_rig.State.Current.Switcher!.Registered);
+    }
+
+    [Fact]
+    public void Each_window_keeps_the_workflow_shown_when_it_was_last_in_front_never_an_app_fallback()
+    {
+        var source = new Windows();
+        _rig.Add(new SwitcherFeedFeature(_rig.Context, source));
+        void Front(nint hwnd, string? workflow, WorkflowLevel level = WorkflowLevel.Workflow)
+        {
+            _rig.Context.UpdateState(s => s with { Workflow = workflow is null ? null : new WorkflowState { Id = "w-" + workflow, Name = workflow, Level = level } });
+            source.Post!(Win(WindowEventKind.Foreground, hwnd));
+            _rig.Loop.RunPending();
+        }
+
+        Front(1, "Thesis");
+        Front(2, "Email triage");
+        Front(3, "chrome.exe", WorkflowLevel.App); // the app fallback is not a workflow
+        Front(1, null); // no model shown now: the window keeps what it had
+        var feed = Pull();
+        Assert.Equal("Thesis", feed.Workflows[1]);
+        Assert.Equal("Email triage", feed.Workflows[2]);
+        Assert.False(feed.Workflows.ContainsKey(3));
+
+        source.Post!(Win(WindowEventKind.Destroyed, 2));
+        _rig.Loop.RunPending();
+        Assert.False(Pull().Workflows.ContainsKey(2)); // a closed window is forgotten
     }
 }

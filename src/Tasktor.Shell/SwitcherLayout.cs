@@ -49,6 +49,21 @@ internal sealed record SwitcherLayout(RectPx Window, RectPx Header, IReadOnlyLis
         return new SwitcherLayout(window, new RectPx(pad, pad, width - (pad * 2), headerH), tiles);
     }
 
+    /// <summary>
+    /// The page of at most <see cref="SwitcherFilter.MaxTiles"/> tiles that holds the selection (D-W4: "more scrolls"):
+    /// its first tile's index and how many tiles it has.
+    /// </summary>
+    public static (int First, int Count) Page(int selected, int count)
+    {
+        if (count <= 0)
+        {
+            return (0, 0);
+        }
+
+        var first = Math.Max(0, selected) / SwitcherFilter.MaxTiles * SwitcherFilter.MaxTiles;
+        return (first, Math.Min(SwitcherFilter.MaxTiles, count - first));
+    }
+
     /// <summary>The thumbnail area of a tile: everything above the caption, inset a little.</summary>
     public static RectPx Thumbnail(RectPx tile, double scale)
     {

@@ -58,4 +58,14 @@ public sealed class SwitcherLayoutTests
         Assert.Equal((100, 50), (tall.H, tall.W));
         Assert.Equal(area, SwitcherLayout.Fit(area, 0, 0)); // unknown size: the whole area
     }
+
+    [Fact]
+    public void More_than_24_windows_page_so_the_selection_is_always_drawn()
+    {
+        Assert.Equal((0, 24), SwitcherLayout.Page(selected: 5, count: 30));
+        Assert.Equal((24, 6), SwitcherLayout.Page(selected: 24, count: 30)); // the 25th window: second page, six tiles
+        Assert.Equal((24, 6), SwitcherLayout.Page(selected: 29, count: 30));
+        Assert.Equal((0, 3), SwitcherLayout.Page(selected: -1, count: 3)); // no selection: the first page
+        Assert.Equal((0, 0), SwitcherLayout.Page(selected: -1, count: 0));
+    }
 }
