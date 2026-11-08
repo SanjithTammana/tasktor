@@ -40,7 +40,7 @@ public sealed class CommandLogTests : IDisposable
     {
         var path = Path.Combine(_dir, "ConsoleHost_history.txt");
         File.WriteAllText(path, "older one\nolder two\n"); // before capture: known, never imported
-        var tail = new HistoryTail(path);
+        var tail = new HistoryTail(path, () => DateTime.UtcNow.AddMinutes(-1)); // started a minute ago: later writes are after it
         File.AppendAllText(path, "git status\n");
         Assert.Equal(["git status"], tail.ReadNew().Select(c => c.Reveal()));
 
@@ -61,6 +61,22 @@ public sealed class CommandLogTests : IDisposable
         Assert.Equal(["Get-Date"], tail.ReadNew().Select(c => c.Reveal()));
         File.AppendAllText(path, "whoami\n");
         Assert.Equal(["whoami"], tail.ReadNew().Select(c => c.Reveal())); // and the tail carries on from there
+    }
+
+    [Fact]
+    public void A_history_file_written_before_the_tail_started_is_never_imported_even_seconds_before()
+    {
+        // The capture lane's probe: both files written just before capture starts, then the unseen one restored.
+        var path = Path.Combine(_dir, "ConsoleHost_history.txt");
+        var backup = Path.Combine(_dir, "backup.txt");
+        var start = DateTime.UtcNow;
+        File.WriteAllText(backup, "pre-capture command\n");
+        File.WriteAllText(path, "current command\n");
+        File.SetLastWriteTimeUtc(backup, start.AddMilliseconds(-500)); // inside the 2 s slack, but before the start
+        var tail = new HistoryTail(path, () => start);
+        File.Copy(backup, path, overwrite: true);
+        File.SetLastWriteTimeUtc(path, start.AddMilliseconds(-500));
+        Assert.Empty(tail.ReadNew());
     }
 
     [Fact]
