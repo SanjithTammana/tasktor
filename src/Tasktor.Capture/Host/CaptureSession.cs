@@ -210,6 +210,14 @@ public sealed class CaptureSession : IDisposable
         Index?.Dispose();
     }
 
+    /// <summary>Queue a visibility snapshot from a source for processing on the capture loop.</summary>
+    public void PostVisible(VisibleSet set) => Loop.Post(() => Deep.Visible(set));
+
+    /// <summary>Queue protected media metadata from a source for processing on the capture loop.</summary>
+    public void PostMedia(Sensitive<MediaState> media) => Loop.Post(() => Deep.Media(media.Reveal()));
+    /// <summary>Queue a protected UI Automation walk for processing on the capture loop.</summary>
+    public void PostUiaWalk(Sensitive<UiaWalk> walk, string app, Sensitive<string>? host) =>
+        Loop.Post(() => Deep.Walk(walk.Reveal(), app, host?.Reveal(), DiffSource.Uia));
     private void OnText(string app, int tab, UiaWalk walk, Sensitive<string>? host, Sensitive<string>? url) =>
         Loop.Post(() => Deep.Walk(walk, app, host?.Reveal(), DiffSource.Extension, url?.Reveal()));
 
