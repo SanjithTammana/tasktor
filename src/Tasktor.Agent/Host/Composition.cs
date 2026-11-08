@@ -347,7 +347,6 @@ internal static class Composition
                 Frozen = j.Pause == Contracts.Snapshot.PauseMode.Frozen,
                 Pids = [j.Root.Pid, .. j.Workers.Select(w => w.Pid)],
             })],
-            Settings = () => host.Settings.Current.Windows,
             Supervisor = windows ? new Core.Features.HostSupervisor(ctx, Core.Features.HostSupervisor.ShellSpec(AppContext.BaseDirectory, host.Options.PipeName, host.Options.SwitcherPids), () => host.Consents.HasModule("switcher")) : null,
         }));
 

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Tasktor.Contracts;
+using Tasktor.Contracts.Actions;
 using Tasktor.Contracts.Config;
 using Tasktor.Contracts.Pipe;
 using Tasktor.Contracts.Platform;
@@ -84,5 +85,52 @@ public sealed class SwitcherFeedTests : IDisposable
         Assert.Equal(SwitcherFeedFeature.MaxWindows, feed.Mru.Count);
         Assert.Equal(SwitcherFeedFeature.MaxWindows + 50, feed.Mru[0]);
         Assert.Equal("Alt+`", feed.Hotkey);
+    }
+
+    private ActionResult Act(string action, Dictionary<string, string>? args = null, Origin origin = Origin.Flyout)
+    {
+        var r = _rig.Act(new ActionRequest { Action = action, Origin = origin, Args = args });
+        _rig.Loop.RunPending();
+        return r;
+    }
+
+    [Fact]
+    public void The_module_shows_its_settings_in_the_snapshot_and_clears_them_when_off()
+    {
+        var feed = _rig.Add(new SwitcherFeedFeature(_rig.Context, new Windows()));
+        var state = _rig.State.Current.Switcher!;
+        Assert.Equal(("Alt+`", (bool?)null, false), (state.Keys, state.Registered, state.ThisDesktopOnly)); // registered: unknown until the shell says
+        feed.Disable();
+        Assert.Null(_rig.State.Current.Switcher);
+    }
+
+    [Fact]
+    public void Settings_change_the_hotkey_and_this_desktop_only_and_refuse_bad_or_taken_keys()
+    {
+        _rig.Add(new SwitcherFeedFeature(_rig.Context, new Windows()));
+        Assert.Equal(ActionStatus.Ok, Act("switcher.settings", new() { ["keys"] = "ctrl+alt+q" }).Status);
+        Assert.Equal("Ctrl+Alt+Q", _rig.Settings.Current.Windows!.Hotkey);
+        Assert.Equal("Ctrl+Alt+Q", _rig.State.Current.Switcher!.Keys);
+
+        Assert.Equal(ActionStatus.Ok, Act("switcher.settings", new() { ["this_desktop_only"] = "true" }).Status);
+        Assert.True(_rig.Settings.Current.Windows!.ThisDesktopOnly);
+        Assert.Equal("Ctrl+Alt+Q", _rig.Settings.Current.Windows!.Hotkey); // the other setting is kept
+
+        Assert.Equal(ActionStatus.Refused, Act("switcher.settings", new() { ["keys"] = "Q" }).Status); // needs Ctrl, Alt or Win
+        Assert.Equal(ActionStatus.Refused, Act("switcher.settings", new() { ["keys"] = "Win+Alt+T" }).Status); // the command line's
+        Assert.Equal(ActionStatus.Refused, Act("switcher.settings", new() { ["keys"] = "Alt+Q" }, Origin.Rule).Status); // people only
+        Assert.Equal(ActionStatus.Refused, Act("switcher.settings", []).Status); // nothing to change
+    }
+
+    [Fact]
+    public void Only_the_shell_reports_whether_its_hotkey_registered()
+    {
+        _rig.Add(new SwitcherFeedFeature(_rig.Context, new Windows()));
+        Assert.Equal(ActionStatus.Ok, Act("switcher.status", new() { ["keys"] = "Alt+`", ["registered"] = "false" }, Origin.Shell).Status);
+        Assert.False(_rig.State.Current.Switcher!.Registered);
+        Assert.Equal(ActionStatus.Refused, Act("switcher.status", new() { ["keys"] = "Alt+`", ["registered"] = "true" }).Status); // not the shell
+        Assert.False(_rig.State.Current.Switcher!.Registered);
+        Act("switcher.status", new() { ["keys"] = "Ctrl+Alt+Z", ["registered"] = "true" }, Origin.Shell); // a stale report for other keys
+        Assert.False(_rig.State.Current.Switcher!.Registered);
     }
 }

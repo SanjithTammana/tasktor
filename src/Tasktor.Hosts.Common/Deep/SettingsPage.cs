@@ -22,6 +22,9 @@ public sealed record PluginRow(string Id, string Title, string Note, bool On, Co
 /// <summary>Settings → General: the command line's shortcut, and a note when Windows refused it.</summary>
 public sealed record HotkeyRow(string Keys, string? Note);
 
+/// <summary>Settings → Windows: the switcher's shortcut, "this desktop only" and a note when Windows refused the shortcut.</summary>
+public sealed record SwitcherRow(string Keys, bool ThisDesktopOnly, string? Note);
+
 /// <summary>
 /// U4 D-G3 Settings → Modules: each Module with an on / off switch. Turning one on asks first with the text of
 /// <see cref="Consent"/> (U1 H1: what it reads, where it is stored, what it contacts). Most Modules start and stop at
@@ -221,6 +224,32 @@ public static class SettingsPage
         Action = "settings.hotkey",
         Args = new Dictionary<string, string>(StringComparer.Ordinal) { ["keys"] = (keys ?? string.Empty).Trim() },
     };
+
+    /// <summary>Settings → Windows from the snapshot's <c>state.switcher</c>; null while the switcher Module is off.</summary>
+    public static SwitcherRow? Switcher(JsonNode? root) =>
+        root?["state"]?["switcher"] is JsonObject w && w["keys"] is JsonValue k && k.TryGetValue<string>(out var keys)
+            ? new SwitcherRow(
+                keys,
+                w["this_desktop_only"] is JsonValue d && d.TryGetValue<bool>(out var only) && only,
+                w["registered"] is JsonValue r && r.TryGetValue<bool>(out var ok) && !ok ? "Another program uses this shortcut. Pick another." : null)
+            : null;
+
+    /// <summary>The action that changes the switcher's shortcut and/or "this desktop only" (the agent refuses bad shortcuts in plain words).</summary>
+    public static CardAction SetSwitcher(string? keys, bool? thisDesktopOnly)
+    {
+        var args = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (keys is not null)
+        {
+            args["keys"] = keys.Trim();
+        }
+
+        if (thisDesktopOnly is { } only)
+        {
+            args["this_desktop_only"] = only ? "true" : "false";
+        }
+
+        return new CardAction { Id = "switcher", Label = "Window switcher", Action = "switcher.settings", Args = args };
+    }
 
     /// <summary>The consent dialog's body for <paramref name="info"/>.</summary>
     public static string Consent(ModuleInfo info)

@@ -22,6 +22,7 @@ internal sealed unsafe class SwitcherWindow : IDisposable
     private readonly SwitcherSession _session;
     private readonly Func<SwitcherFeed?> _feed;
     private readonly Func<string, Task<bool>> _resume;
+    private readonly Action<string, bool> _reportHotkey;
     private readonly List<nint> _thumbnails = [];
     private nint _hwnd;
     private nint _font;
@@ -32,10 +33,12 @@ internal sealed unsafe class SwitcherWindow : IDisposable
     private bool _suppressChar;
 
     /// <param name="includePid">Which processes' windows may be listed: others are skipped before their title is read.</param>
-    public SwitcherWindow(Func<SwitcherFeed?> feed, Func<string, Task<bool>> resume, Func<uint, bool> includePid)
+    /// <param name="reportHotkey">Tells the agent whether Windows accepted the hotkey (Settings shows a note when it did not).</param>
+    public SwitcherWindow(Func<SwitcherFeed?> feed, Func<string, Task<bool>> resume, Func<uint, bool> includePid, Action<string, bool> reportHotkey)
     {
         _feed = feed;
         _resume = resume;
+        _reportHotkey = reportHotkey;
         _session = new SwitcherSession(() => [.. Windows.Shell.Win32Windows.Enumerate(include: includePid).Where(w => w.Hwnd != _hwnd)]);
     }
 
@@ -239,6 +242,7 @@ internal sealed unsafe class SwitcherWindow : IDisposable
         if (_hotkey is { } h)
         {
             HotkeyRegistered = RegisterHotKey(_hwnd, HotkeyId, h.Modifiers | ModNoRepeat, h.VirtualKey) != 0;
+            _reportHotkey(h.ToString(), HotkeyRegistered);
         }
     }
 

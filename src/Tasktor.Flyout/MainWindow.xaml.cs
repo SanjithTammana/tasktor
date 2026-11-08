@@ -653,6 +653,8 @@ public sealed partial class MainWindow : Window
             PageContent.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
         }
 
+        DrawSwitcherSettings();
+
         PageContent.Children.Add(new TextBlock { Text = "Modules", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
         var list = new StackPanel();
         foreach (var row in SettingsPage.Modules(_modules))
@@ -678,6 +680,53 @@ public sealed partial class MainWindow : Window
         DrawRules();
         DrawPlugins();
         DrawAppearance();
+    }
+
+    /// <summary>Settings → Windows (U3 / U4): the window switcher's shortcut and "this desktop only", while its Module is on.</summary>
+    private void DrawSwitcherSettings()
+    {
+        if (SettingsPage.Switcher(_snapshot.Mirror.Root) is not { } sw)
+        {
+            return;
+        }
+
+        PageContent.Children.Add(new TextBlock { Text = "Windows", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+        var row = new Grid { MinHeight = 56, ColumnSpacing = 8 };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        text.Children.Add(new TextBlock { Text = "Window switcher shortcut", Style = StyleOf("TasktorBodyTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+        text.Children.Add(new TextBlock { Text = sw.Note ?? "For example Alt+` or Ctrl+Alt+Space", TextWrapping = TextWrapping.Wrap, Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush(sw.Note is null ? "TasktorInk3Brush" : "TasktorInkBrush") });
+        row.Children.Add(text);
+        var box = new TextBox { Text = sw.Keys, MinWidth = 180, VerticalAlignment = VerticalAlignment.Center };
+        AutomationProperties.SetName(box, "Window switcher shortcut");
+        Grid.SetColumn(box, 1);
+        row.Children.Add(box);
+        var change = new Button { Content = "Change", VerticalAlignment = VerticalAlignment.Center };
+        change.Click += async (_, _) =>
+        {
+            await RunAsync(SettingsPage.SetSwitcher(box.Text, null)); // the result (or why it was refused) shows as usual
+            Draw(_snapshot.Mirror.Cards);
+        };
+        Grid.SetColumn(change, 2);
+        row.Children.Add(change);
+        PageContent.Children.Add(row);
+
+        var desktop = new Grid { MinHeight = 56 };
+        desktop.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        desktop.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var label = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        label.Children.Add(new TextBlock { Text = "This desktop only", Style = StyleOf("TasktorBodyTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+        label.Children.Add(new TextBlock { Text = "Leave out windows on other virtual desktops instead of marking them", TextWrapping = TextWrapping.Wrap, Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush("TasktorInk3Brush") });
+        desktop.Children.Add(label);
+        var toggle = new ToggleSwitch { IsOn = sw.ThisDesktopOnly, OnContent = "On", OffContent = "Off", VerticalAlignment = VerticalAlignment.Center };
+        AutomationProperties.SetName(toggle, "This desktop only");
+        toggle.Toggled += async (_, _) => await RunAsync(SettingsPage.SetSwitcher(null, toggle.IsOn));
+        Grid.SetColumn(toggle, 1);
+        desktop.Children.Add(toggle);
+        PageContent.Children.Add(desktop);
+        PageContent.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
     }
 
     /// <summary>Settings → Appearance (U4): hide pages from the rail; Home, Your data and Settings always stay.</summary>

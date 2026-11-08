@@ -68,7 +68,7 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 
 | Row | Feature | Status | Missing |
 |---|---|---|---|
-| F2 | Window switcher (Alt+`, thumbnails, search) | Built, mostly | `tasktor-shell` window, hotkey, DWM thumbnails, search, app view, badges, Resume first, supervised; missing: workflow view, opt-in Alt+Tab hook, settings page, scroll past 24 |
+| F2 | Window switcher (Alt+`, thumbnails, search) | Built, mostly | `tasktor-shell` window, hotkey, DWM thumbnails, search, app view, badges, Resume first, supervised; settings page (shortcut, this desktop only); missing: workflow view, opt-in Alt+Tab hook, scroll past 24 |
 | F4 | "On another desktop" badge, bring here | Partial | `VirtualDesktopInfo` exists; no switcher to show it |
 | F6 | Multi-monitor / per-monitor DPI | Built (requirement) | real-PC checks |
 | F7 | `state.fullscreen` | Built | — |
