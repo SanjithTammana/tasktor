@@ -7,7 +7,7 @@ public sealed class PointerLogicTests
     [Fact]
     public void Moves_are_spaced_by_at_least_one_hundred_milliseconds()
     {
-        var logic = new PointerLogic((_, _) => null);
+        var logic = new PointerLogic();
         var samples = new List<PointerEvent>();
         for (var ms = 0; ms < 1000; ms++)
             if (logic.Process(Mouse(0x0200, ms)) is { } sample) samples.Add(sample);
@@ -16,13 +16,14 @@ public sealed class PointerLogicTests
     }
 
     [Fact]
-    public void Clicks_get_the_injected_target_and_wheel_preserves_signed_delta()
+    public void Clicks_are_decoded_without_a_target_and_wheel_preserves_signed_delta()
     {
-        var logic = new PointerLogic((x, y) => x == 4 && y == 5 ? "button: synthetic" : null);
+        var logic = new PointerLogic();
         var click = logic.Process(Mouse(0x0201, 10, 4, 5));
         Assert.NotNull(click);
         Assert.Equal(PointerEventKind.Click, click.Kind);
-        Assert.Equal("button: synthetic", click.Target);
+        Assert.Equal((4, 5, (byte)1), (click.X, click.Y, click.Button));
+        Assert.Null(click.Target); // resolved off the loop afterwards (DeepCapture.ClickTarget)
         var wheel = logic.Process(Mouse(0x020a, 11, data: unchecked((uint)(ushort)(short)-120) << 16));
         Assert.NotNull(wheel);
         Assert.Equal(PointerEventKind.Wheel, wheel.Kind);
@@ -32,7 +33,7 @@ public sealed class PointerLogicTests
     [Fact]
     public void Unknown_mouse_messages_and_keyboard_do_not_produce_pointer_events()
     {
-        var logic = new PointerLogic((_, _) => throw new InvalidOperationException());
+        var logic = new PointerLogic();
         Assert.Null(logic.Process(Mouse(0x0202, 1)));
         Assert.Null(logic.Process(new RawInput(1, 0, 0, 1, false)));
     }

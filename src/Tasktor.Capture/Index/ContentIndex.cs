@@ -46,6 +46,7 @@ public sealed partial class ContentIndex : IDisposable
             CREATE VIRTUAL TABLE IF NOT EXISTS fts_tri USING fts5(text, tokenize='trigram');
             CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS link(start_ms INTEGER NOT NULL, track INTEGER NOT NULL, ord INTEGER NOT NULL, url TEXT NOT NULL, PRIMARY KEY(start_ms, track, ord));
+            CREATE TABLE IF NOT EXISTS pointer(start_ms INTEGER NOT NULL, track INTEGER NOT NULL, sources TEXT NOT NULL, path_px REAL NOT NULL, speed_p50 REAL NOT NULL, speed_p90 REAL NOT NULL, clicks_per_min REAL NOT NULL, scrolls_per_min REAL NOT NULL, dwell_share REAL NOT NULL, PRIMARY KEY(start_ms, track));
             """);
         if (_db.Scalar("SELECT count(*) FROM pragma_table_info('chunk') WHERE name = 'sources'") == 0)
         {
@@ -98,6 +99,17 @@ public sealed partial class ContentIndex : IDisposable
 
     public long LinkCount => _db.Scalar("SELECT count(*) FROM link");
 
+    /// <summary>Activities with pointer features (C19.3).</summary>
+    public long PointerCount => _db.Scalar("SELECT count(*) FROM pointer");
+
+    /// <summary>C19.3: the pointer features of the activity that started at <paramref name="start"/> on <paramref name="track"/>.</summary>
+    public PointerFeatures? Pointer(DateTimeOffset start, int track)
+    {
+        using var s = _db.Prepare("SELECT path_px, speed_p50, speed_p90, clicks_per_min, scrolls_per_min, dwell_share FROM pointer WHERE start_ms = ? AND track = ?");
+        s.BindAll(start.ToUnixTimeMilliseconds(), track);
+        return s.Step() ? new PointerFeatures(s.Double(0), s.Double(1), s.Double(2), s.Double(3), s.Double(4), s.Double(5)) : null;
+    }
+
     /// <summary>Index one closed document; returns the chunks added (near-duplicates of recent ones are not).</summary>
     public int Add(ActivityDocument doc)
     {
@@ -126,6 +138,12 @@ public sealed partial class ContentIndex : IDisposable
                 }
 
                 added++;
+            }
+
+            if (doc.Pointer is { } p)
+            {
+                // C19.3: the features outlive the raw path (the vault keeps it 7 days); an activity without text keeps them too
+                _db.Run("INSERT OR REPLACE INTO pointer(start_ms, track, sources, path_px, speed_p50, speed_p90, clicks_per_min, scrolls_per_min, dwell_share) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", doc.Start.ToUnixTimeMilliseconds(), doc.Track, sources, p.PathLengthPx, p.SpeedP50, p.SpeedP90, p.ClicksPerMinute, p.ScrollsPerMinute, p.DwellShare);
             }
 
             if (added > 0)
@@ -260,6 +278,7 @@ public sealed partial class ContentIndex : IDisposable
             _db.Run("DELETE FROM fts_tri WHERE rowid IN (SELECT id FROM chunk WHERE start_ms >= ? AND start_ms < ?)", a, b);
             _db.Run("DELETE FROM chunk WHERE start_ms >= ? AND start_ms < ?", a, b);
             _db.Run("DELETE FROM link WHERE start_ms >= ? AND start_ms < ?", a, b);
+            _db.Run("DELETE FROM pointer WHERE start_ms >= ? AND start_ms < ?", a, b);
         });
         LoadRecent(); // a forgotten chunk must not suppress new text
         return activities;
@@ -278,21 +297,37 @@ public sealed partial class ContentIndex : IDisposable
 
         var ids = new List<long>();
         var activities = new HashSet<(long, long)>();
+        bool Hit(string? sources)
+        {
+            var hit = false;
+            foreach (var source in (sources ?? string.Empty).Split('\n'))
+            {
+                hit |= (app is not null && source.StartsWith("app:", StringComparison.Ordinal) && Core.Apps.Glob.IsMatch(app, source[4..]))
+                    || (host is not null && source.StartsWith("host:", StringComparison.Ordinal) && Recording.RecordSource.HostMatches(host, source[5..]));
+            }
+
+            return hit;
+        }
+
         using (var s = _db.Prepare("SELECT id, start_ms, track, sources FROM chunk WHERE sources <> ''"))
         {
             while (s.Step())
             {
-                var hit = false;
-                foreach (var source in (s.Text(3) ?? string.Empty).Split('\n'))
-                {
-                    hit |= (app is not null && source.StartsWith("app:", StringComparison.Ordinal) && Core.Apps.Glob.IsMatch(app, source[4..]))
-                        || (host is not null && source.StartsWith("host:", StringComparison.Ordinal) && Recording.RecordSource.HostMatches(host, source[5..]));
-                }
-
-                if (hit)
+                if (Hit(s.Text(3)))
                 {
                     ids.Add(s.Int64(0));
                     activities.Add((s.Int64(1), s.Int64(2)));
+                }
+            }
+        }
+
+        using (var s = _db.Prepare("SELECT start_ms, track, sources FROM pointer WHERE sources <> ''"))
+        {
+            while (s.Step())
+            {
+                if (Hit(s.Text(2)))
+                {
+                    activities.Add((s.Int64(0), s.Int64(1)));
                 }
             }
         }
@@ -309,6 +344,7 @@ public sealed partial class ContentIndex : IDisposable
             foreach (var (start, track) in activities)
             {
                 _db.Run("DELETE FROM link WHERE start_ms = ? AND track = ?", start, track);
+                _db.Run("DELETE FROM pointer WHERE start_ms = ? AND track = ?", start, track);
             }
         });
         LoadRecent();

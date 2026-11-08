@@ -59,11 +59,17 @@ public sealed class DeepCapturePipelineTests : IDisposable
     [Fact]
     public void Pointer_events_flow_through_recorder_and_click_documents_with_blocks_and_secure_gate()
     {
-        _deep.PointerTarget = (_, _) => "button: synthetic";
+        var asked = new List<(long Id, int X, int Y)>();
+        _deep.ClickTargetRequested = (id, x, y) => asked.Add((id, x, y));
         _deep.Focus(new FocusTarget("w", "e", "synthetic.exe") { IsPassword = false });
         _ring.Write(new RawInput(0, 0, 0, 0, false, RawInputKind.Mouse, 1, 2, 0x0201));
         _deep.Pump();
-        Assert.Single(Records(), r => r.Kind == RecordKind.Pointer);
+        Assert.Single(Records(), r => r.Kind == RecordKind.Pointer); // the click is recorded before its target is known
+        var (id, x, y) = Assert.Single(asked);
+        Assert.Equal((1, 2), (x, y));
+        _ms = 40;
+        Assert.True(_deep.ClickTarget(id, "button: synthetic"));
+        Assert.Equal(2, Records().Count(r => r.Kind == RecordKind.Pointer));
         _deep.CloseActivity();
         Assert.Contains(Records(), r => r.Kind == RecordKind.Document && r.Body.Contains("button: synthetic", StringComparison.Ordinal));
         var count = Records().Count;
@@ -72,6 +78,7 @@ public sealed class DeepCapturePipelineTests : IDisposable
         _deep.Pump();
         _deep.CloseActivity();
         Assert.Equal(count, Records().Count);
+        Assert.Single(asked); // nothing is asked about while the gate is closed
         _recorder.SetSecure(false);
         _blocks.Add(new CaptureBlock { Id = "", Kind = BlockKind.App, Value = "synthetic.exe", AddedBy = "user" });
         _ring.Write(new RawInput(0, 0, 0, 400, false, RawInputKind.Mouse, 1, 2, 0x0201));
@@ -79,6 +86,80 @@ public sealed class DeepCapturePipelineTests : IDisposable
         _deep.CloseActivity();
         Assert.Equal(count, Records().Count);
     }
+
+    [Fact]
+    public void A_click_target_counts_only_within_its_budget_and_while_the_gate_is_open()
+    {
+        var asked = new List<long>();
+        _deep.ClickTargetRequested = (id, _, _) => asked.Add(id);
+        _deep.Focus(new FocusTarget("w", "e", "synthetic.exe") { IsPassword = false });
+
+        _ms = 1000;
+        _ring.Write(new RawInput(0, 0, 0, 1000, false, RawInputKind.Mouse, 1, 2, 0x0201));
+        _deep.Pump();
+        _ms = 1000 + DeepCapture.ClickTargetBudgetMs + 1;
+        Assert.False(_deep.ClickTarget(asked[^1], "button: late"));
+
+        _ring.Write(new RawInput(0, 0, 0, _ms, false, RawInputKind.Mouse, 1, 2, 0x0201));
+        _deep.Pump();
+        _recorder.SetSecure(true);
+        Assert.False(_deep.ClickTarget(asked[^1], "button: behind the gate"));
+        _recorder.SetSecure(false);
+
+        _ms += 500;
+        _ring.Write(new RawInput(0, 0, 0, _ms, false, RawInputKind.Mouse, 1, 2, 0x0201));
+        _deep.Pump();
+        _ms += DeepCapture.ClickTargetBudgetMs + 50;
+        _deep.Pump(); // the budget expires on the loop too: nothing waits forever
+        Assert.Equal(0, _deep.PendingClicks);
+
+        _ring.Write(new RawInput(0, 0, 0, _ms, false, RawInputKind.Mouse, 1, 2, 0x0201));
+        _deep.Pump();
+        Assert.True(_deep.ClickTarget(asked[^1], "card 4111 1111 1111 1111 button"));
+        Assert.False(_deep.ClickTarget(asked[^1], "button: twice"));
+        _deep.CloseActivity();
+        var records = Records();
+        Assert.DoesNotContain(records, r => r.Body.Contains("late", StringComparison.Ordinal) || r.Body.Contains("behind the gate", StringComparison.Ordinal) || r.Body.Contains("4111 1111", StringComparison.Ordinal));
+        Assert.Contains(records, r => r.Kind == RecordKind.Document && r.Body.Contains("redacted:card", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_target_for_a_closed_activity_is_recorded_but_stays_out_of_the_next_document()
+    {
+        var asked = new List<long>();
+        _deep.ClickTargetRequested = (id, _, _) => asked.Add(id);
+        _deep.Focus(new FocusTarget("w", "e", "synthetic.exe") { IsPassword = false });
+        _ring.Write(new RawInput(0, 0, 0, 0, false, RawInputKind.Mouse, 1, 2, 0x0201));
+        _deep.Pump();
+        _ms = 10;
+        _deep.CloseActivity();
+        _deep.Walk(Walk(9, "Next activity"), "synthetic.exe", null);
+        _ms = 30;
+        Assert.True(_deep.ClickTarget(asked[^1], "button: synthetic"));
+        _deep.CloseActivity();
+        var docs = Records().Where(r => r.Kind == RecordKind.Document).ToList();
+        Assert.Equal(2, docs.Count);
+        Assert.DoesNotContain(docs, d => d.Body.Contains("button: synthetic", StringComparison.Ordinal));
+        Assert.Contains(Records(), r => r.Kind == RecordKind.Pointer && r.Body.Contains("button: synthetic", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_closed_document_carries_its_pointer_features()
+    {
+        _deep.Focus(new FocusTarget("w", "e", "synthetic.exe") { IsPassword = false });
+        for (var i = 0; i < 1000; i++)
+        {
+            _ring.Write(new RawInput(0, 0, 0, i, false, RawInputKind.Mouse, i, 0, 0x0200)); // 1000 Hz input
+        }
+
+        _ms = 1000;
+        _deep.Pump();
+        Assert.Equal(10, Records().Count(r => r.Kind == RecordKind.Pointer)); // shaped to 10 samples a second
+        _deep.CloseActivity();
+        var doc = Assert.Single(Records(), r => r.Kind == RecordKind.Document);
+        Assert.Contains("\"pointer\":{\"path_length_px\":900", doc.Body, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Typing_flows_from_the_ring_into_the_vault_and_the_activity_document()
     {

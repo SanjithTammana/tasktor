@@ -3,8 +3,18 @@ using System.Runtime.InteropServices;
 
 namespace Tasktor.Capture.Hook;
 
+/// <summary>Which low-level hooks a <see cref="LowLevelInputHook"/> installs.</summary>
+[Flags]
+public enum HookDevices
+{
+    Keyboard = 1,
+    Mouse = 2,
+    Both = Keyboard | Mouse,
+}
+
 /// <summary>
-/// One dedicated low-level keyboard and mouse hook thread. Callbacks copy one value to the supplied SPSC ring adapter
+/// One dedicated low-level keyboard and/or mouse hook thread (the mouse alone may attach before the keyboard's real-PC
+/// layout check passes). Callbacks copy one value to the supplied SPSC ring adapter
 /// and call the next hook; no decoding, allocation, waits, window inspection or logging occurs in a callback.
 /// </summary>
 public sealed unsafe partial class LowLevelInputHook : IDisposable
@@ -16,6 +26,7 @@ public sealed unsafe partial class LowLevelInputHook : IDisposable
     private static int s_active;
     private readonly IHookInputSink _sink;
     private readonly Action _postFailure;
+    private readonly HookDevices _devices;
     private readonly ManualResetEventSlim _ready = new();
     private Thread? _thread;
     private nint _keyboard, _mouse;
@@ -26,8 +37,10 @@ public sealed unsafe partial class LowLevelInputHook : IDisposable
 
     /// <param name="sink">A single-producer, allocation-free ring writer; its Write must not throw.</param>
     /// <param name="postFailure">Must only enqueue or post a failure to the capture logic thread.</param>
-    public LowLevelInputHook(IHookInputSink sink, Action postFailure)
+    public LowLevelInputHook(IHookInputSink sink, Action postFailure, HookDevices devices = HookDevices.Both)
     {
+        if (devices == 0 || (devices & ~HookDevices.Both) != 0) throw new ArgumentOutOfRangeException(nameof(devices));
+        _devices = devices;
         _sink = sink ?? throw new ArgumentNullException(nameof(sink));
         _postFailure = postFailure ?? throw new ArgumentNullException(nameof(postFailure));
     }
@@ -122,8 +135,13 @@ public sealed unsafe partial class LowLevelInputHook : IDisposable
     {
         var module = GetModuleHandleW(null);
         if (module == 0) return false;
-        _keyboard = SetWindowsHookExW(WhKeyboardLl, &KeyboardCallback, module, 0);
-        if (_keyboard == 0) return false;
+        if ((_devices & HookDevices.Keyboard) != 0)
+        {
+            _keyboard = SetWindowsHookExW(WhKeyboardLl, &KeyboardCallback, module, 0);
+            if (_keyboard == 0) return false;
+        }
+
+        if ((_devices & HookDevices.Mouse) == 0) return true;
         _mouse = SetWindowsHookExW(WhMouseLl, &MouseCallback, module, 0);
         if (_mouse != 0) return true;
         if (!TryUninstall()) _unhookFailed = true;

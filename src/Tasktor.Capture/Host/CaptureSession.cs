@@ -81,6 +81,23 @@ public sealed class CaptureSession : IDisposable
     /// <summary>C22: PowerShell's history file, tailed each pump (new lines only); null when there is none to tail.</summary>
     public HistoryTail? History { get; init; }
 
+    /// <summary>
+    /// C19.1: names a click's target (the UIA hit test, #8). Each click asks it once, on the thread pool, never on the loop;
+    /// an answer later than <see cref="DeepCapture.ClickTargetBudgetMs"/> is cancelled, and one that comes is posted back
+    /// through the gate like any source event. Null: clicks keep no target.
+    /// </summary>
+    public IClickTargetResolver? ClickTargets
+    {
+        get => _clickTargets;
+        init
+        {
+            _clickTargets = value;
+            Deep.ClickTargetRequested = value is null ? null : RequestClickTarget;
+        }
+    }
+
+    private readonly IClickTargetResolver? _clickTargets;
+
     /// <summary>Where closed documents are read from for indexing.</summary>
     public RawVault? Vault { get; init; }
 
@@ -277,6 +294,29 @@ public sealed class CaptureSession : IDisposable
     /// <summary>Queue a protected UI Automation walk for processing on the capture loop.</summary>
     public void PostUiaWalk(Sensitive<UiaWalk> walk, string app, Sensitive<string>? host) =>
         PostCaptured(() => Deep.Walk(walk.Reveal(), app, host?.Reveal(), DiffSource.Uia));
+
+    private void RequestClickTarget(long id, int x, int y)
+    {
+        var resolver = _clickTargets!;
+        _ = Task.Run(async () =>
+        {
+            using var cancel = new CancellationTokenSource(TimeSpan.FromMilliseconds(DeepCapture.ClickTargetBudgetMs));
+            Sensitive<string>? target;
+            try
+            {
+                target = await resolver.ResolveAsync(x, y, cancel.Token).WaitAsync(cancel.Token).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                return; // late or failed: the click keeps no target (never logged: it could carry what was on screen)
+            }
+
+            if (target is { } t)
+            {
+                PostCaptured(() => Deep.ClickTarget(id, t.Reveal()));
+            }
+        });
+    }
 
     private void OnText(string app, int tab, UiaWalk walk, Sensitive<string>? host, Sensitive<string>? url) =>
         PostCaptured(() => Deep.Walk(walk, app, host?.Reveal(), DiffSource.Extension, url?.Reveal()));

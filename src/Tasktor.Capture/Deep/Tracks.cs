@@ -186,6 +186,9 @@ public sealed record ActivityDocument(int Track, DateTimeOffset Start, DateTimeO
 
     /// <summary>Web pages it showed (scrubbed addresses), first seen first: a search hit can reopen them (C21).</summary>
     public IReadOnlyList<string> Links { get; set; } = [];
+
+    /// <summary>C19.3: the activity's pointer features (kept in the index after the raw path's 7 days); null without pointer input.</summary>
+    public PointerFeatures? Pointer { get; init; }
 }
 
 /// <summary>
@@ -226,9 +229,27 @@ public sealed class ActivityDocumentBuilder
         public SortedSet<string> Hosts { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public List<string> Links { get; } = [];
+
+        public PointerFeatureBuilder Pointer { get; } = new();
     }
 
     public bool IsOpen(int track) => _open.ContainsKey(track);
+
+    /// <summary>When <paramref name="track"/>'s open document started, or null when none is open (tells documents apart).</summary>
+    public DateTimeOffset? StartOf(int track) => _open.TryGetValue(track, out var doc) ? doc.Start : null;
+
+    /// <summary>Pointer input, already accepted by the recorder: it feeds the document's features (C19.3), not its text.</summary>
+    public void Add(int track, PointerEvent pointer, DateTimeOffset at)
+    {
+        ArgumentNullException.ThrowIfNull(pointer);
+        var doc = DocFor(track, at);
+        if (at > doc.Last)
+        {
+            doc.Last = at;
+        }
+
+        doc.Pointer.Add(pointer);
+    }
 
     /// <summary>A web page the open document showed: kept once, http(s) only, at most <see cref="MaxLinks"/>.</summary>
     public void Link(int track, string? url)
@@ -331,7 +352,7 @@ public sealed class ActivityDocumentBuilder
         }
 
         var end = at < doc.Last ? doc.Last : at;
-        return new ActivityDocument(track, doc.Start, end, [.. doc.Sections.Select(s => new DocSection(s.Heading, s.Text.ToString()))]) { Truncated = doc.Truncated, Apps = [.. doc.Apps], Hosts = [.. doc.Hosts], Links = [.. doc.Links] };
+        return new ActivityDocument(track, doc.Start, end, [.. doc.Sections.Select(s => new DocSection(s.Heading, s.Text.ToString()))]) { Truncated = doc.Truncated, Apps = [.. doc.Apps], Hosts = [.. doc.Hosts], Links = [.. doc.Links], Pointer = doc.Pointer.Build(end - doc.Start) };
     }
 
     private Doc DocFor(int track, DateTimeOffset at)

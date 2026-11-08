@@ -71,6 +71,68 @@ public sealed class CaptureSessionTests : IDisposable
         Assert.Contains(Records(), r => r.Kind == RecordKind.Pointer);
     }
     [Fact]
+    public void A_click_target_is_resolved_off_the_loop_and_posted_back()
+    {
+        var resolver = new Resolver();
+        using var session = NewSession(resolver);
+        session.Tick();
+        session.Deep.Focus(new FocusTarget("w", "e", "synthetic.exe") { IsPassword = false });
+        resolver.Answer = _ => Task.FromResult<Sensitive<string>?>(Sensitive.Of("button: synthetic"));
+        session.Ring.Write(new RawInput(0, 0, 0, Environment.TickCount64 + 10, false, RawInputKind.Mouse, 7, 8, 0x0201));
+        session.Tick();
+        Assert.Single(Records(), r => r.Kind == RecordKind.Pointer); // the click itself, at once
+        Assert.True(SpinWait.SpinUntil(() => { session.Loop.RunPending(); return session.Deep.ClickTargetsKept == 1; }, TimeSpan.FromSeconds(5)));
+        Assert.Equal((7, 8), resolver.Asked.Single());
+        Assert.Contains(Records(), r => r.Kind == RecordKind.Pointer && r.Body.Contains("button: synthetic", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_hung_resolver_never_blocks_the_loop_and_is_cancelled_at_the_budget()
+    {
+        var resolver = new Resolver();
+        using var session = NewSession(resolver);
+        session.Tick();
+        session.Deep.Focus(new FocusTarget("w", "e", "synthetic.exe") { IsPassword = false });
+        var cancelled = new TaskCompletionSource();
+        using var release = new ManualResetEventSlim();
+        resolver.Answer = cancel =>
+        {
+            cancel.Register(() => cancelled.TrySetResult());
+            release.Wait(); // a hit test that hangs (until the test ends)
+            return Task.FromResult<Sensitive<string>?>(Sensitive.Of("button: too late"));
+        };
+        var started = Environment.TickCount64 + 10;
+        session.Ring.Write(new RawInput(0, 0, 0, started, false, RawInputKind.Mouse, 7, 8, 0x0201));
+        session.Tick();
+        Assert.True(Environment.TickCount64 - started < 1000); // the loop went on
+        Assert.True(cancelled.Task.Wait(TimeSpan.FromSeconds(5)));
+        release.Set();
+        Thread.Sleep(50);
+        session.Loop.RunPending();
+        Assert.Equal(0, session.Deep.ClickTargetsKept);
+        Assert.DoesNotContain(Records(), r => r.Body.Contains("too late", StringComparison.Ordinal));
+    }
+
+    private CaptureSession NewSession(IClickTargetResolver resolver)
+    {
+        var blocks = new CaptureBlocks(Path.Combine(_dir, "blocks2.json"), TimeZoneInfo.Utc);
+        return new CaptureSession(new CaptureRecorder(_vault, blocks, () => _clock.UtcNow), new BrowserEndpoint(blocks, () => _clock.UtcNow), _clock, _probe, () => SessionAvailability.UnlockedConnected) { ClickTargets = resolver };
+    }
+
+    private sealed class Resolver : IClickTargetResolver
+    {
+        public Func<CancellationToken, Task<Sensitive<string>?>> Answer { get; set; } = _ => Task.FromResult<Sensitive<string>?>(null);
+
+        public System.Collections.Concurrent.ConcurrentQueue<(int, int)> Asked { get; } = new();
+
+        public Task<Sensitive<string>?> ResolveAsync(int x, int y, CancellationToken cancel)
+        {
+            Asked.Enqueue((x, y));
+            return Answer(cancel);
+        }
+    }
+
+    [Fact]
     public void Native_source_events_are_queued_on_the_session_loop()
     {
         _session.Tick();

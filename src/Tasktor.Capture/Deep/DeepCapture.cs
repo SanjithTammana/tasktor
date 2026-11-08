@@ -26,9 +26,31 @@ public sealed class DeepCapture
     private readonly RawInput[] _buffer = new RawInput[DrainChunk];
     private readonly Dictionary<ViewKey, (string App, string? Host)> _viewOwners = [];
     private FocusTarget? _focus;
-    private readonly PointerLogic _pointer;
+    private readonly PointerLogic _pointer = new();
     private long _pointerAfter = long.MinValue;
-    public Func<int, int, string?> PointerTarget { get; set; } = (_, _) => null;
+    private readonly Dictionary<long, PendingClick> _pendingClicks = [];
+    private long _nextClick;
+
+    /// <summary>C19 acceptance 2: a click's target counts only if it arrives within this budget of the click.</summary>
+    public const int ClickTargetBudgetMs = 100;
+
+    /// <summary>Clicks waiting for their target at most (older ones are dropped first; the budget expires the rest).</summary>
+    public const int MaxPendingClicks = 64;
+
+    /// <summary>
+    /// Asked once per recorded click with (id, x, y): resolve the element under the point <b>off</b> this thread and answer
+    /// with <see cref="ClickTarget"/> on it. Null: clicks keep no target. Must only start the work, never wait on it.
+    /// </summary>
+    public Action<long, int, int>? ClickTargetRequested { get; set; }
+
+    public int PendingClicks => _pendingClicks.Count;
+
+    /// <summary>Clicks whose target was asked for, and those whose target was kept (C19 acceptance 2: ≥ 90% in UIA apps).</summary>
+    public long ClickTargetsAsked { get; private set; }
+
+    public long ClickTargetsKept { get; private set; }
+
+    private sealed record PendingClick(PointerEvent Click, string App, string? Host, int Track, DateTimeOffset At, DateTimeOffset? DocStart);
 
     /// <param name="nowMs">The key clock: the same milliseconds the hook stamps on <see cref="RawInput.TimeMs"/>.</param>
     public DeepCapture(InputRing ring, KeyRunBuilder runs, SnapshotDiffer differ, SecretRedactor redactor, CaptureRecorder recorder, Func<DateTimeOffset> now, Func<long> nowMs)
@@ -41,7 +63,6 @@ public sealed class DeepCapture
         _recorder = recorder;
         _now = now;
         _nowMs = nowMs;
-        _pointer = new PointerLogic((x, y) => PointerTarget(x, y));
         _runs.RunClosed += OnRun; // runs close inside Key / Tick / Focus: _focus is still the run's target then
     }
 
@@ -65,6 +86,7 @@ public sealed class DeepCapture
     public int Pump()
     {
         var total = DrainKeys();
+        ExpireClicks(_nowMs());
         _runs.Tick(_nowMs());
         var now = _now();
         Apply(Tracks.Tick(now));
@@ -237,21 +259,63 @@ public sealed class DeepCapture
     }
 
     /// <summary>Discard pointer input stamped no later than the most recent secure-gate reopening.</summary>
-    public void PointerBoundary(long nowMs) => _pointerAfter = nowMs;
+    public void PointerBoundary(long nowMs)
+    {
+        _pointerAfter = nowMs;
+        _pendingClicks.Clear(); // a target asked for before the gate closed never lands after it
+    }
 
     private void Pointer(RawInput input)
     {
         if (_focus is not { } focus || _recorder.Secure || input.TimeMs <= _pointerAfter) return;
         if (_pointer.Process(input) is not { } pointer) return;
-        if (pointer.Target is { } target) pointer = pointer with { Target = Clean(target) };
         if (!_recorder.Pointer(pointer, focus.App, focus.Host)) return;
-        if (pointer.Kind == PointerEventKind.Click)
+        var track = TrackOf(focus.App);
+        var at = _now() - TimeSpan.FromMilliseconds(Math.Max(0, _nowMs() - pointer.TimeMs));
+        Documents.Add(track, pointer, at);
+        Documents.Note(track, focus.App, focus.Host);
+        if (pointer.Kind != PointerEventKind.Click || ClickTargetRequested is not { } request) return;
+
+        // Recorded at once; the target is asked for off the loop and joins the click if it comes within the budget.
+        if (_pendingClicks.Count >= MaxPendingClicks) _pendingClicks.Remove(_pendingClicks.Keys.Min());
+        var id = ++_nextClick;
+        _pendingClicks[id] = new PendingClick(pointer, focus.App, focus.Host, track, at, Documents.StartOf(track));
+        ClickTargetsAsked++;
+        request(id, pointer.X, pointer.Y);
+    }
+
+    /// <summary>
+    /// The answer to <see cref="ClickTargetRequested"/> (on the loop). Kept only when it arrives within
+    /// <see cref="ClickTargetBudgetMs"/> of the click, with the gate open and the click's app and site still unblocked; it is
+    /// scrubbed, recorded as the click's <see cref="PointerEventKind.Target"/>, and joins the click's document while that
+    /// document is still open. Returns whether it was recorded.
+    /// </summary>
+    public bool ClickTarget(long id, string? target)
+    {
+        if (!_pendingClicks.Remove(id, out var p) || target is not { Length: > 0 }) return false;
+        if (_recorder.Secure || p.Click.TimeMs <= _pointerAfter || _nowMs() - p.Click.TimeMs > ClickTargetBudgetMs) return false;
+        var name = Clean(target.Length > ClickEvent.MaxTarget ? target[..ClickEvent.MaxTarget] : target)!;
+        var resolved = p.Click with { Kind = PointerEventKind.Target, Target = name };
+        if (!_recorder.Pointer(resolved, p.App, p.Host)) return false;
+        ClickTargetsKept++;
+        if (p.DocStart is { } start && Documents.StartOf(p.Track) == start)
         {
-            var at = _now() - TimeSpan.FromMilliseconds(Math.Max(0, _nowMs() - pointer.TimeMs));
-            Documents.Add(TrackOf(focus.App), new ClickEvent(at, pointer.Button, pointer.X, pointer.Y, pointer.Target, new Actor(ActorKind.Unknown, null, ActorEvidence.None)));
-            Documents.Note(TrackOf(focus.App), focus.App, focus.Host);
+            Documents.Add(p.Track, new ClickEvent(p.At, p.Click.Button, p.Click.X, p.Click.Y, name, new Actor(ActorKind.Unknown, null, ActorEvidence.None)));
+            Documents.Note(p.Track, p.App, p.Host);
+        }
+
+        return true;
+    }
+
+    private void ExpireClicks(long nowMs)
+    {
+        if (_pendingClicks.Count == 0) return;
+        foreach (var (id, p) in _pendingClicks.ToArray())
+        {
+            if (nowMs - p.Click.TimeMs > ClickTargetBudgetMs) _pendingClicks.Remove(id);
         }
     }
+
     private void OnRun(KeyRun run)
     {
         if (_focus is { } f && _recorder.KeyRun(run, f.App, f.Host))

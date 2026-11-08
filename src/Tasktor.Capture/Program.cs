@@ -13,6 +13,15 @@ internal static class Program
     {
         // OQ-C22: this process's SQLite is SQLCipher (for the encrypted content index); bound before any database opens.
         SqliteDb.UseEngine("e_sqlcipher");
+
+        // C19 acceptance 3 check (real PC): times the mouse hook's per-event work at 1000 Hz for 10 s on synthetic input;
+        // prints timings only. Records nothing and needs no consent: no hook is installed.
+        if (args.Contains("--bench-hook"))
+        {
+            var bench = Hook.HookLatencyBench.Run(new Hook.RingHookSink(new InputRing()), 10_000, 1000);
+            Console.WriteLine(bench.ToString());
+            return bench.WithinBudget ? 0 : 1;
+        }
         string? dataDir = null, historyFile = null;
         for (var i = 0; i < args.Length - 1; i++)
         {
