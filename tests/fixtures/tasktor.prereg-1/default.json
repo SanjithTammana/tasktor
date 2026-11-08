@@ -54,6 +54,7 @@
     "g5_persistence": 0.8,
     "g6_clusters": 3,
     "g6b_gain": 0.05,
+    "g8_ari_gain": 0.05,
     "match_jaccard": 0.5
   },
   "assignment": {

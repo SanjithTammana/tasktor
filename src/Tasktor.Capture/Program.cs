@@ -104,6 +104,12 @@ internal sealed class CaptureLifetime : IDisposable
             {
                 Index = index,
                 Vault = vault,
+
+                // C21.2: chunk embeddings only with a local model that passed gate G8 (capture\embedding\g8.json); else words only.
+                Embedder = Index.WorkerEmbedder.TryCreate(
+                    Path.Combine(AppContext.BaseDirectory, "worker", "python", OperatingSystem.IsWindows() ? "python.exe" : "bin/python3"),
+                    Path.Combine(AppContext.BaseDirectory, "worker"),
+                    Path.Combine(store.CaptureDir, "embedding")),
                 History = new Commands.HistoryTail(historyFile ?? Commands.HistoryTail.DefaultPath(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData))),
             };
             _indicator.SessionChanged += _session.SessionChanged;

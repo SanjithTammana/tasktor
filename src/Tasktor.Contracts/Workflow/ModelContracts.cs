@@ -125,6 +125,9 @@ public sealed record GateThresholds
 
     public double G6bGain { get; init; } = 0.05;
 
+    /// <summary>D-C20 gate G8: the embedding model must beat hashed TF-IDF on the labelled check set by this much ARI.</summary>
+    public double G8AriGain { get; init; } = 0.05;
+
     public double MatchJaccard { get; init; } = 0.5;
 }
 

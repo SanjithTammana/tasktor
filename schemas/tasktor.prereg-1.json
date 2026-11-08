@@ -167,6 +167,9 @@
         "g6b_gain": {
           "type": "number"
         },
+        "g8_ari_gain": {
+          "type": "number"
+        },
         "match_jaccard": {
           "type": "number"
         }

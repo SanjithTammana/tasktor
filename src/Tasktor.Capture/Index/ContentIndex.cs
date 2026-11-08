@@ -46,6 +46,8 @@ public sealed partial class ContentIndex : IDisposable
             CREATE VIRTUAL TABLE IF NOT EXISTS fts_tri USING fts5(text, tokenize='trigram');
             CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS link(start_ms INTEGER NOT NULL, track INTEGER NOT NULL, ord INTEGER NOT NULL, url TEXT NOT NULL, PRIMARY KEY(start_ms, track, ord));
+            CREATE TABLE IF NOT EXISTS emb(chunk_id INTEGER PRIMARY KEY, start_ms INTEGER NOT NULL, q BLOB NOT NULL, s REAL NOT NULL);
+            CREATE INDEX IF NOT EXISTS emb_start ON emb(start_ms);
             CREATE TABLE IF NOT EXISTS pointer(start_ms INTEGER NOT NULL, track INTEGER NOT NULL, sources TEXT NOT NULL, path_px REAL NOT NULL, speed_p50 REAL NOT NULL, speed_p90 REAL NOT NULL, clicks_per_min REAL NOT NULL, scrolls_per_min REAL NOT NULL, dwell_share REAL NOT NULL, PRIMARY KEY(start_ms, track));
             """);
         if (_db.Scalar("SELECT count(*) FROM pragma_table_info('chunk') WHERE name = 'sources'") == 0)
@@ -98,6 +100,31 @@ public sealed partial class ContentIndex : IDisposable
     public long ChunkCount => _db.Scalar("SELECT count(*) FROM chunk");
 
     public long LinkCount => _db.Scalar("SELECT count(*) FROM link");
+
+    public long EmbeddingCount => _db.Scalar("SELECT count(*) FROM emb");
+
+    /// <summary>C21.2: chunks without an embedding yet (oldest first), with their text for the encoder. Personal data.</summary>
+    public IReadOnlyList<(long Id, string Text)> Unembedded(int limit)
+    {
+        var list = new List<(long, string)>();
+        using var s = _db.Prepare("SELECT c.id, f.text FROM chunk c JOIN fts f ON f.rowid = c.id LEFT JOIN emb e ON e.chunk_id = c.id WHERE e.chunk_id IS NULL ORDER BY c.id LIMIT ?");
+        s.BindAll(limit);
+        while (s.Step())
+        {
+            list.Add((s.Int64(0), s.Text(1) ?? string.Empty));
+        }
+
+        return list;
+    }
+
+    /// <summary>C21.2: a chunk's int8 embedding (one scale per vector). Ignored when the chunk is gone (forgotten meanwhile).</summary>
+    public void SetEmbedding(long chunk, sbyte[] q, float scale)
+    {
+        ArgumentNullException.ThrowIfNull(q);
+        var bytes = new byte[q.Length];
+        Buffer.BlockCopy(q, 0, bytes, 0, q.Length);
+        _db.Run("INSERT OR REPLACE INTO emb(chunk_id, start_ms, q, s) SELECT id, start_ms, ?, ? FROM chunk WHERE id = ?", bytes, (double)scale, chunk);
+    }
 
     /// <summary>Activities with pointer features (C19.3).</summary>
     public long PointerCount => _db.Scalar("SELECT count(*) FROM pointer");
@@ -190,9 +217,10 @@ public sealed partial class ContentIndex : IDisposable
     /// Activities matching every word of <paramref name="query"/> (or its ≥ 3-letter parts, by trigram), best first.
     /// Query text is never interpreted as FTS syntax: each word is quoted.
     /// </summary>
-    public IReadOnlyList<SearchHit> Search(string query, DateTimeOffset? from = null, DateTimeOffset? to = null, int limit = 20)
+    /// <param name="query">The query's embedding (C21.2): adds the cosine top 100 to the fusion; null searches words only.</param>
+    public IReadOnlyList<SearchHit> Search(string text, DateTimeOffset? from = null, DateTimeOffset? to = null, int limit = 20, (sbyte[] Q, float S)? query = null)
     {
-        var words = Words().Matches(query ?? string.Empty).Select(m => m.Value).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var words = Words().Matches(text ?? string.Empty).Select(m => m.Value).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         if (words.Count == 0)
         {
             return [];
@@ -221,6 +249,15 @@ public sealed partial class ContentIndex : IDisposable
 
         var fromMs = from?.ToUnixTimeMilliseconds() ?? long.MinValue;
         var toMs = to?.ToUnixTimeMilliseconds() ?? long.MaxValue;
+        if (query is { } qv)
+        {
+            var rank = 0;
+            foreach (var id in Nearest(qv.Q, fromMs, toMs))
+            {
+                scores[id] = scores.GetValueOrDefault(id) + 1.0 / (RrfK + ++rank);
+            }
+        }
+
         var best = new Dictionary<(long Start, int Track), (long Chunk, long End, double Score)>();
         foreach (var (id, score) in scores)
         {
@@ -276,6 +313,7 @@ public sealed partial class ContentIndex : IDisposable
         {
             _db.Run("DELETE FROM fts WHERE rowid IN (SELECT id FROM chunk WHERE start_ms >= ? AND start_ms < ?)", a, b);
             _db.Run("DELETE FROM fts_tri WHERE rowid IN (SELECT id FROM chunk WHERE start_ms >= ? AND start_ms < ?)", a, b);
+            _db.Run("DELETE FROM emb WHERE chunk_id IN (SELECT id FROM chunk WHERE start_ms >= ? AND start_ms < ?)", a, b);
             _db.Run("DELETE FROM chunk WHERE start_ms >= ? AND start_ms < ?", a, b);
             _db.Run("DELETE FROM link WHERE start_ms >= ? AND start_ms < ?", a, b);
             _db.Run("DELETE FROM pointer WHERE start_ms >= ? AND start_ms < ?", a, b);
@@ -338,6 +376,7 @@ public sealed partial class ContentIndex : IDisposable
             {
                 _db.Run("DELETE FROM fts WHERE rowid = ?", id);
                 _db.Run("DELETE FROM fts_tri WHERE rowid = ?", id);
+                _db.Run("DELETE FROM emb WHERE chunk_id = ?", id);
                 _db.Run("DELETE FROM chunk WHERE id = ?", id);
             }
 
@@ -352,6 +391,36 @@ public sealed partial class ContentIndex : IDisposable
     }
 
     public void Dispose() => _db.Dispose();
+
+    // Brute-force dot product over the date range's vectors (int8 · int8; one scale per vector, so the order needs only
+    // the stored scale). Positive similarity only; the top PerList.
+    private List<long> Nearest(sbyte[] q, long fromMs, long toMs)
+    {
+        var top = new List<(long Id, double Score)>();
+        using var s = _db.Prepare("SELECT chunk_id, q, s FROM emb WHERE start_ms >= ? AND start_ms < ?");
+        s.BindAll(fromMs, toMs);
+        while (s.Step())
+        {
+            var blob = s.Blob(1);
+            if (blob is null || blob.Length != q.Length)
+            {
+                continue; // another model's vectors
+            }
+
+            long dot = 0;
+            for (var i = 0; i < q.Length; i++)
+            {
+                dot += (sbyte)blob[i] * q[i];
+            }
+
+            if (dot > 0)
+            {
+                top.Add((s.Int64(0), dot * s.Double(2)));
+            }
+        }
+
+        return [.. top.OrderByDescending(t => t.Score).ThenBy(t => t.Id).Take(PerList).Select(t => t.Id)];
+    }
 
     private string Snippet(long chunk, string wordQuery, IReadOnlyList<string> triWords)
     {

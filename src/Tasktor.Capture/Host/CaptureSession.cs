@@ -98,6 +98,16 @@ public sealed class CaptureSession : IDisposable
 
     private IClickTargetResolver? _clickTargets;
 
+    /// <summary>C21.2: the chunk and query encoder (behind gate G8); null: the index is words only.</summary>
+    public IChunkEmbedder? Embedder { get; init; }
+
+    /// <summary>Chunks sent to the encoder per batch, and how long a query's vector may take before words alone answer.</summary>
+    public const int EmbedBatch = 256;
+
+    public static readonly TimeSpan QueryEmbedTimeout = TimeSpan.FromSeconds(3);
+    public static readonly TimeSpan EmbedTimeout = TimeSpan.FromMinutes(5);
+    private int _embedding;
+
     /// <summary>Where closed documents are read from for indexing.</summary>
     public RawVault? Vault { get; init; }
 
@@ -225,7 +235,50 @@ public sealed class CaptureSession : IDisposable
         if (Index is { } index && Vault is { } vault)
         {
             index.Ingest(vault, _clock.UtcNow.AddMinutes(1));
+            EmbedPending(index);
         }
+    }
+
+    /// <summary>
+    /// The new chunks' texts go to the encoder off the loop (one batch at a time); the vectors come back to the loop. A
+    /// chunk forgotten meanwhile takes none. Returns the task (tests wait on it), or null when nothing was started.
+    /// </summary>
+    public Task? EmbedPending(ContentIndex index)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        if (Embedder is not { } embedder || Interlocked.CompareExchange(ref _embedding, 1, 0) != 0) return null;
+        var pending = index.Unembedded(EmbedBatch);
+        if (pending.Count == 0)
+        {
+            Volatile.Write(ref _embedding, 0);
+            return null;
+        }
+
+        return Task.Run(async () =>
+        {
+            try
+            {
+                using var cancel = new CancellationTokenSource(EmbedTimeout);
+                if (await embedder.EmbedAsync(pending, cancel.Token).ConfigureAwait(false) is { } vectors)
+                {
+                    void Store()
+                    {
+                        foreach (var (id, q, s) in vectors) index.SetEmbedding(id, q, s);
+                    }
+
+                    if (_started && !_stopped) await Loop.InvokeAsync(() => { Store(); return true; }).ConfigureAwait(false);
+                    else Store();
+                }
+            }
+            catch (Exception)
+            {
+                // the next batch tries again; never logged (the texts are personal)
+            }
+            finally
+            {
+                Volatile.Write(ref _embedding, 0);
+            }
+        });
     }
 
     /// <summary>C21 search, run on the loop (the index is the loop's); null when there is no index.</summary>
@@ -236,8 +289,26 @@ public sealed class CaptureSession : IDisposable
             return null;
         }
 
+        // The query's vector is made here, off the loop (the caller's thread), within a short budget; without it, words only.
+        (sbyte[] Q, float S)? vector = null;
+        if (Embedder is { } embedder)
+        {
+            try
+            {
+                using var cancel = new CancellationTokenSource(QueryEmbedTimeout);
+                if (embedder.EmbedAsync([(0, query)], cancel.Token).WaitAsync(cancel.Token).GetAwaiter().GetResult() is [var v, ..])
+                {
+                    vector = (v.Q, v.S);
+                }
+            }
+            catch (Exception)
+            {
+                vector = null;
+            }
+        }
+
         IReadOnlyList<Contracts.Capture.ActivityHit> Run() =>
-            [.. index.Search(query, since).Select(h => new Contracts.Capture.ActivityHit { Start = h.Start, End = h.End, Track = h.Track, Snippet = h.Snippet, Links = [.. h.Links] })];
+            [.. index.Search(query, since, query: vector).Select(h => new Contracts.Capture.ActivityHit { Start = h.Start, End = h.End, Track = h.Track, Snippet = h.Snippet, Links = [.. h.Links] })];
         return _started && !_stopped ? Loop.InvokeAsync(Run).GetAwaiter().GetResult() : Run();
     }
 
