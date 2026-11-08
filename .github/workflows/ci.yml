@@ -59,3 +59,6 @@ jobs:
       - name: G-aot (Native AOT publish of the agent, no trim / AOT warnings)
         if: ${{ !cancelled() }}
         run: dotnet publish src/Tasktor.Agent/Tasktor.Agent.csproj -c Release -r win-x64 -p:PublishAot=true -warnaserror -o out/agent-aot
+      - name: G-aot (Native AOT publish of the switcher shell)
+        if: ${{ !cancelled() }}
+        run: dotnet publish src/Tasktor.Shell/Tasktor.Shell.csproj -c Release -r win-x64 -p:PublishAot=true -warnaserror -o out/shell-aot

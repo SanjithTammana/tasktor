@@ -51,7 +51,7 @@ public sealed class CaptureFeature : Feature
     private (string Browser, DateTimeOffset Since)? _browserInFront;
 
     /// <summary>Starts and restarts the capture host while this Module is on (D-H9); null = started elsewhere (tests, dev).</summary>
-    public CaptureSupervisor? Supervisor
+    public HostSupervisor? Supervisor
     {
         get => _supervisor;
         init
@@ -71,7 +71,7 @@ public sealed class CaptureFeature : Feature
         }
     }
 
-    private readonly CaptureSupervisor? _supervisor;
+    private readonly HostSupervisor? _supervisor;
     private IDisposable? _refresh;
 
     protected override void OnEnable()

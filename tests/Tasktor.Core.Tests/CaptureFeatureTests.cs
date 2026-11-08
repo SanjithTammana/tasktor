@@ -250,7 +250,7 @@ public sealed class CaptureFeatureTests : IDisposable
     public void Without_consent_the_supervisor_starts_nothing_and_the_card_says_so()
     {
         using var rig = new FeatureRig();
-        var sup = new CaptureSupervisor(rig.Context, CaptureSupervisor.DefaultSpec(AppContext.BaseDirectory, null), () => false);
+        var sup = new HostSupervisor(rig.Context, HostSupervisor.CaptureSpec(AppContext.BaseDirectory, null), () => false);
         var capture = rig.Add(new CaptureFeature(rig.Context, null) { Supervisor = sup });
         rig.Pump();
         Assert.False(sup.Running);
