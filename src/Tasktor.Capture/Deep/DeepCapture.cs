@@ -26,6 +26,9 @@ public sealed class DeepCapture
     private readonly RawInput[] _buffer = new RawInput[DrainChunk];
     private readonly Dictionary<ViewKey, (string App, string? Host)> _viewOwners = [];
     private FocusTarget? _focus;
+    private readonly PointerLogic _pointer;
+    private long _pointerAfter = long.MinValue;
+    public Func<int, int, string?> PointerTarget { get; set; } = (_, _) => null;
 
     /// <param name="nowMs">The key clock: the same milliseconds the hook stamps on <see cref="RawInput.TimeMs"/>.</param>
     public DeepCapture(InputRing ring, KeyRunBuilder runs, SnapshotDiffer differ, SecretRedactor redactor, CaptureRecorder recorder, Func<DateTimeOffset> now, Func<long> nowMs)
@@ -38,6 +41,7 @@ public sealed class DeepCapture
         _recorder = recorder;
         _now = now;
         _nowMs = nowMs;
+        _pointer = new PointerLogic((x, y) => PointerTarget(x, y));
         _runs.RunClosed += OnRun; // runs close inside Key / Tick / Focus: _focus is still the run's target then
     }
 
@@ -82,6 +86,7 @@ public sealed class DeepCapture
             for (var i = 0; i < n; i++)
             {
                 if (_buffer[i].Kind == RawInputKind.Keyboard) _runs.Key(_buffer[i].ExtendTick(_nowMs()));
+                else if (_buffer[i].Kind == RawInputKind.Mouse) Pointer(_buffer[i].ExtendTick(_nowMs()));
             }
 
             total += n;
@@ -231,6 +236,22 @@ public sealed class DeepCapture
         Record(Documents.Close(1, now));
     }
 
+    /// <summary>Discard pointer input stamped no later than the most recent secure-gate reopening.</summary>
+    public void PointerBoundary(long nowMs) => _pointerAfter = nowMs;
+
+    private void Pointer(RawInput input)
+    {
+        if (_focus is not { } focus || _recorder.Secure || input.TimeMs <= _pointerAfter) return;
+        if (_pointer.Process(input) is not { } pointer) return;
+        if (pointer.Target is { } target) pointer = pointer with { Target = Clean(target) };
+        if (!_recorder.Pointer(pointer, focus.App, focus.Host)) return;
+        if (pointer.Kind == PointerEventKind.Click)
+        {
+            var at = _now() - TimeSpan.FromMilliseconds(Math.Max(0, _nowMs() - pointer.TimeMs));
+            Documents.Add(TrackOf(focus.App), new ClickEvent(at, pointer.Button, pointer.X, pointer.Y, pointer.Target, new Actor(ActorKind.Unknown, null, ActorEvidence.None)));
+            Documents.Note(TrackOf(focus.App), focus.App, focus.Host);
+        }
+    }
     private void OnRun(KeyRun run)
     {
         if (_focus is { } f && _recorder.KeyRun(run, f.App, f.Host))

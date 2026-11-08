@@ -58,6 +58,19 @@ public sealed class CaptureSessionTests : IDisposable
         [.. _vault.Read(T0.AddDays(-1), T0.AddDays(1)).Select(r => (r.Kind, Encoding.UTF8.GetString(r.Body)))];
 
     [Fact]
+    public void Pointer_buffered_while_secure_is_discarded_before_reopening()
+    {
+        _session.Tick();
+        _session.Deep.Focus(new FocusTarget("w", "e", "synthetic.exe") { IsPassword = false });
+        _session.SessionChanged();
+        _session.Ring.Write(new RawInput(0, 0, 0, Environment.TickCount64 - 1, false, RawInputKind.Mouse, 1, 2, 0x0201));
+        _session.Tick();
+        Assert.DoesNotContain(Records(), r => r.Kind == RecordKind.Pointer);
+        _session.Ring.Write(new RawInput(0, 0, 0, Environment.TickCount64 + 10, false, RawInputKind.Mouse, 1, 2, 0x0201));
+        _session.Tick();
+        Assert.Contains(Records(), r => r.Kind == RecordKind.Pointer);
+    }
+    [Fact]
     public void Native_source_events_are_queued_on_the_session_loop()
     {
         _session.Tick();
