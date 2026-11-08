@@ -130,13 +130,16 @@ public sealed class CalendarFeatureTests : IDisposable
         _rig.Pump();
         var reads = _feed.Reads;
         WriteIcs("BEGIN:VEVENT\nUID:new\nDTSTART:20261104T110000Z\nSUMMARY:New\nEND:VEVENT");
-        var deadline = DateTime.UtcNow.AddSeconds(5);
-        while (_feed.Reads == reads && DateTime.UtcNow < deadline)
+        // Wait for the new event itself, not just any read: on Windows the first write's change notice can arrive late
+        // and re-read the old file, which bumps the read count before the second write has been seen.
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (next.Next?.Key.Uid != "new" && DateTime.UtcNow < deadline)
         {
             _rig.Advance(CalendarFeed.Debounce);
             Thread.Sleep(20);
         }
 
+        Assert.True(_feed.Reads > reads); // it was a re-read after the change
         Assert.Equal("new", next.Next!.Key.Uid);
         next.Disable();
         Assert.Empty(_feed.Rows);
