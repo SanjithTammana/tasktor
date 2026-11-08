@@ -30,11 +30,37 @@ public sealed class CommandLogTests : IDisposable
         File.AppendAllText(path, " line\n");
         Assert.Equal(["partial line"], tail.ReadNew().Select(c => c.Reveal())); // a line counts once it ends
 
-        File.WriteAllText(path, "x\n"); // cleared or rotated: start over from its end, import nothing
-        Assert.Empty(tail.ReadNew());
         File.AppendAllText(path, "dotnet test\n");
         Assert.Equal(["dotnet test"], tail.ReadNew().Select(c => c.Reveal()));
         Assert.Empty(new HistoryTail(Path.Combine(_dir, "missing.txt")).ReadNew());
+    }
+
+    [Fact]
+    public void A_trimmed_history_imports_nothing_old_and_a_recreated_one_keeps_its_first_new_command()
+    {
+        var path = Path.Combine(_dir, "ConsoleHost_history.txt");
+        File.WriteAllText(path, "older one\nolder two\n"); // before capture: known, never imported
+        var tail = new HistoryTail(path);
+        File.AppendAllText(path, "git status\n");
+        Assert.Equal(["git status"], tail.ReadNew().Select(c => c.Reveal()));
+
+        // PSReadLine trims the file to its newest entries (all seen before): nothing is imported.
+        File.WriteAllText(path, "older two\ngit status\n");
+        Assert.Empty(tail.ReadNew());
+        // ...and what is appended after the trim is new.
+        File.AppendAllText(path, "dotnet build\n");
+        Assert.Equal(["dotnet build"], tail.ReadNew().Select(c => c.Reveal()));
+
+        // A trim and a new command between two reads: only the command after the last known line.
+        File.WriteAllText(path, "git status\ndotnet build\nnpm test\n");
+        Assert.Equal(["npm test"], tail.ReadNew().Select(c => c.Reveal()));
+
+        // The file deleted and recreated by the next command: nothing in it was seen, so all of it is new.
+        File.Delete(path);
+        File.WriteAllText(path, "Get-Date\n");
+        Assert.Equal(["Get-Date"], tail.ReadNew().Select(c => c.Reveal()));
+        File.AppendAllText(path, "whoami\n");
+        Assert.Equal(["whoami"], tail.ReadNew().Select(c => c.Reveal())); // and the tail carries on from there
     }
 
     [Fact]
