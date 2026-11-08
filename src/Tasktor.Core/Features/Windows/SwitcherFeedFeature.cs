@@ -41,6 +41,9 @@ public sealed class SwitcherFeedFeature : Feature
 
     public Func<WindowsSettings?> Settings { get; init; } = () => null;
 
+    /// <summary>Starts <c>tasktor-shell</c> while this Module is on and stops it when it goes off (D-W2, D-H9).</summary>
+    public HostSupervisor? Supervisor { get; init; }
+
     public SwitcherFeed Feed()
     {
         var settings = Settings();
@@ -66,12 +69,14 @@ public sealed class SwitcherFeedFeature : Feature
         _source?.Start(e => Context.Loop.Post(() => On(e)));
         RefreshJobs();
         _refresh = Context.Loop.Every(JobsEvery, RefreshJobs);
+        Supervisor?.Start();
         // The shell asks when it opens: answered on the pipe thread from a copy taken under the lock.
         Context.RegisterPull("switcher", _ => JsonSerializer.SerializeToNode(Feed(), ContractsJsonContext.Default.SwitcherFeed));
     }
 
     protected override void OnDisable()
     {
+        Supervisor?.Stop();
         _source?.Stop();
         _refresh?.Dispose();
         _refresh = null;

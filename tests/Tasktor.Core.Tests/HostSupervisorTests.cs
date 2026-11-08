@@ -7,7 +7,7 @@ using Tasktor.Tests.Shared;
 namespace Tasktor.Core.Tests;
 
 /// <summary>U1 D-H9: the agent starts tasktor-capture only while wanted and consented, restarts a crash ≤ 3 / hour with backoff, then reports.</summary>
-public sealed class CaptureSupervisorTests : IDisposable
+public sealed class HostSupervisorTests : IDisposable
 {
     private readonly FeatureRig _rig = new();
     private readonly FakeWorkers _workers = new();
@@ -15,7 +15,7 @@ public sealed class CaptureSupervisorTests : IDisposable
     private readonly FeatureContext _context;
     private bool _consent = true;
 
-    public CaptureSupervisorTests()
+    public HostSupervisorTests()
     {
         var c = _rig.Context;
         _context = new FeatureContext
@@ -77,8 +77,8 @@ public sealed class CaptureSupervisorTests : IDisposable
         }
     }
 
-    private CaptureSupervisor Supervisor() =>
-        new(_context, CaptureSupervisor.DefaultSpec("/opt/tasktor", "/data"), () => _consent);
+    private HostSupervisor Supervisor() =>
+        new(_context, HostSupervisor.CaptureSpec("/opt/tasktor", "/data"), () => _consent);
 
     private void Settle()
     {
@@ -93,6 +93,25 @@ public sealed class CaptureSupervisorTests : IDisposable
     }
 
     [Fact]
+    public void Starts_the_switcher_shell_with_a_test_agents_pipe_and_restarts_a_crash()
+    {
+        using var sup = new HostSupervisor(_context, HostSupervisor.ShellSpec("/opt/tasktor", "tasktor-test-pipe"), () => _consent);
+        sup.Start();
+        var spec = Assert.Single(_workers.Started);
+        Assert.Equal(WorkerKind.Shell, spec.Kind);
+        Assert.Contains("tasktor-shell", spec.Exe, StringComparison.Ordinal);
+        Assert.Equal(["--pipe", "tasktor-test-pipe"], spec.Args);
+        Assert.Null(HostSupervisor.ShellSpec("/opt/tasktor", null).Args); // the default pipe needs no argument
+
+        Crash();
+        _rig.Advance(HostSupervisor.Backoff[0]);
+        Settle();
+        Assert.Equal(2, _workers.Started.Count);
+        sup.Stop();
+        Assert.False(sup.Running);
+    }
+
+    [Fact]
     public void Starts_a_capture_worker_in_the_install_dir_with_the_store_root()
     {
         using var sup = Supervisor();
@@ -104,7 +123,7 @@ public sealed class CaptureSupervisorTests : IDisposable
         Assert.Equal(["--data-dir", "/data"], spec.Args);
         Assert.True(sup.Running);
         Assert.Null(sup.Failure);
-        Assert.Throws<ArgumentException>(() => new CaptureSupervisor(_context, spec with { Kind = WorkerKind.Plugin }, () => true));
+        Assert.Throws<ArgumentException>(() => new HostSupervisor(_context, spec with { Kind = WorkerKind.Plugin }, () => true));
     }
 
     [Fact]
@@ -125,11 +144,11 @@ public sealed class CaptureSupervisorTests : IDisposable
         sup.Changed += () => changes++;
         sup.Start();
 
-        for (var i = 0; i < CaptureSupervisor.MaxRestartsPerHour; i++)
+        for (var i = 0; i < HostSupervisor.MaxRestartsPerHour; i++)
         {
             Crash();
             Assert.False(sup.Running);
-            var delay = CaptureSupervisor.Backoff[i];
+            var delay = HostSupervisor.Backoff[i];
             _rig.Advance(delay - TimeSpan.FromSeconds(1));
             Assert.Equal(i + 1, _workers.Started.Count); // not before the backoff
             _rig.Advance(TimeSpan.FromSeconds(1));
@@ -178,7 +197,7 @@ public sealed class CaptureSupervisorTests : IDisposable
         Assert.Null(sup.Failure);
 
         sup.Start();
-        Crash(code: CaptureSupervisor.ExitNoConsent);
+        Crash(code: HostSupervisor.ExitNoConsent);
         _rig.Advance(TimeSpan.FromMinutes(5), TimeSpan.FromSeconds(5));
         Assert.Equal(2, _workers.Started.Count);
         Assert.Equal("refused", sup.Failure);

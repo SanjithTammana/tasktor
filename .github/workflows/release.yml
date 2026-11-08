@@ -41,11 +41,12 @@ jobs:
       - name: G-aot — publish the agent with Native AOT (no trim / AOT warnings)
         run: dotnet publish src/Tasktor.Agent/Tasktor.Agent.csproj -c Release -r win-x64 -p:PublishAot=true -warnaserror -o out/agent
 
-      - name: Publish the CLI and the capture host
+      - name: Publish the CLI, the capture host, the native host and the shell
         run: |
           dotnet publish src/Tasktor.Cli/Tasktor.Cli.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -warnaserror -o out/cli
           dotnet publish src/Tasktor.Capture/Tasktor.Capture.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -warnaserror -o out/capture
           dotnet publish src/Tasktor.Nmh/Tasktor.Nmh.csproj -c Release -r win-x64 -p:PublishAot=true -warnaserror -o out/nmh
+          dotnet publish src/Tasktor.Shell/Tasktor.Shell.csproj -c Release -r win-x64 -p:PublishAot=true -warnaserror -o out/shell
 
       - name: Publish the flyout (shelf, command line, deep window)
         # WinUI 3 with the Windows App SDK self-contained: it runs without an installed runtime. The agent starts it
@@ -64,6 +65,7 @@ jobs:
           Copy-Item out/capture/e_sqlcipher.dll $root   # SQLCipher for the encrypted content index (OQ-C22)
           Copy-Item THIRD-PARTY-NOTICES.md $root
           Copy-Item out/nmh/tasktor-nmh.exe $root
+          Copy-Item out/shell/tasktor-shell.exe $root   # the switcher's window process (U3 D-W2)
           # The companion extension, loaded unpacked (C §5.5); its tests and package file stay out.
           New-Item -ItemType Directory -Force "$root/extension" | Out-Null
           Copy-Item extension/* "$root/extension" -Exclude "*.test.js", "package.json"

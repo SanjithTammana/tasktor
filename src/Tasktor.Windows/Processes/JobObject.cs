@@ -88,7 +88,7 @@ public sealed partial class JobObject : IDisposable
             throw new InvalidOperationException("Could not put the worker in a Job Object");
         }
 
-        if (spec.Kind != WorkerKind.Capture)
+        if (spec.Kind is not (WorkerKind.Capture or WorkerKind.Shell)) // hosts the user waits on keep normal priority
         {
             try
             {

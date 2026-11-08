@@ -4,13 +4,13 @@ using Tasktor.Contracts.Platform;
 namespace Tasktor.Core.Features;
 
 /// <summary>
-/// U1 D-H9 supervision of <c>tasktor-capture</c>: the agent starts it with <see cref="IProcessControl.StartWorker"/> (kind
-/// capture: a kill-on-close Job Object, so capture never outlives the agent) only while the Capture Module is on and its
-/// consent exists, restarts a crashed host at most <see cref="MaxRestartsPerHour"/> times an hour with backoff, then stops
+/// U1 D-H9 supervision of a host process: <c>tasktor-capture</c> (Capture Module) or <c>tasktor-shell</c> (switcher Module,
+/// U3 D-W2). The agent starts it with <see cref="IProcessControl.StartWorker"/> (a kill-on-close Job Object, so the host
+/// never outlives the agent) only while its Module is on and its consent exists, restarts a crashed host at most <see cref="MaxRestartsPerHour"/> times an hour with backoff, then stops
 /// and reports <see cref="Failure"/> for the error card. A deliberate exit (code 0: another instance or a clean stop;
 /// <see cref="ExitNoConsent"/>) is never restarted. Loop-only; the exit arrives as a task continuation posted to the loop.
 /// </summary>
-public sealed class CaptureSupervisor : IDisposable
+public sealed class HostSupervisor : IDisposable
 {
     public const int MaxRestartsPerHour = 3;
 
@@ -27,12 +27,12 @@ public sealed class CaptureSupervisor : IDisposable
     private IDisposable? _pending;
     private bool _wanted;
 
-    public CaptureSupervisor(FeatureContext context, WorkerSpec spec, Func<bool> consented)
+    public HostSupervisor(FeatureContext context, WorkerSpec spec, Func<bool> consented)
     {
         ArgumentNullException.ThrowIfNull(spec);
-        if (spec.Kind != WorkerKind.Capture)
+        if (spec.Kind is not (WorkerKind.Capture or WorkerKind.Shell))
         {
-            throw new ArgumentException("the capture supervisor starts capture workers only", nameof(spec));
+            throw new ArgumentException("the host supervisor starts the capture host or the shell only", nameof(spec));
         }
 
         _context = context;
@@ -41,13 +41,23 @@ public sealed class CaptureSupervisor : IDisposable
     }
 
     /// <summary>The default spec: <c>tasktor-capture(.exe)</c> next to the agent, its store root passed through.</summary>
-    public static WorkerSpec DefaultSpec(string installDir, string? dataDir) => new()
+    public static WorkerSpec CaptureSpec(string installDir, string? dataDir) => new()
     {
         Kind = WorkerKind.Capture,
         Exe = Path.Combine(installDir, OperatingSystem.IsWindows() ? "tasktor-capture.exe" : "tasktor-capture"),
         Args = dataDir is null ? null : ["--data-dir", dataDir],
         WorkingDir = installDir,
         MemoryMb = 64, // D-C21: ≤ 40 MB private; the Job Object cap leaves headroom and stops a runaway
+    };
+
+    /// <summary><c>tasktor-shell(.exe)</c> next to the agent; a test agent's pipe name passed through.</summary>
+    public static WorkerSpec ShellSpec(string installDir, string? pipeName) => new()
+    {
+        Kind = WorkerKind.Shell,
+        Exe = Path.Combine(installDir, OperatingSystem.IsWindows() ? "tasktor-shell.exe" : "tasktor-shell"),
+        Args = pipeName is null ? null : ["--pipe", pipeName],
+        WorkingDir = installDir,
+        MemoryMb = 64, // D-W2: idle ≤ 20 MB; thumbnails are the compositor's, not this process's
     };
 
     public bool Running => _handle is not null;
@@ -86,6 +96,8 @@ public sealed class CaptureSupervisor : IDisposable
 
     public void Dispose() => Stop();
 
+    private string Event(string what) => (_spec.Kind == WorkerKind.Shell ? "shell." : "capture.") + what;
+
     private void Launch()
     {
         _pending = null;
@@ -113,7 +125,7 @@ public sealed class CaptureSupervisor : IDisposable
         }
         catch (Exception e) when (e is IOException or InvalidOperationException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
         {
-            _context.Log.Warn("capture.start_failed", Logging.LogField.Of("error", e.GetType().Name));
+            _context.Log.Warn(Event("start_failed"), Logging.LogField.Of("error", e.GetType().Name));
             Fail("start_failed");
             return;
         }
@@ -121,7 +133,7 @@ public sealed class CaptureSupervisor : IDisposable
         _handle = handle;
         Starts++;
         Failure = null;
-        _context.Log.Info("capture.started", Logging.LogField.Of("starts", Starts));
+        _context.Log.Info(Event("started"), Logging.LogField.Of("starts", Starts));
         Changed?.Invoke();
         // No thread waits for the host's lifetime: the exit completes a task and the continuation posts it to the loop.
         Task<WorkerExit> wait;
@@ -154,7 +166,7 @@ public sealed class CaptureSupervisor : IDisposable
             return;
         }
 
-        _context.Log.Warn("capture.exited", Logging.LogField.Of("code", code ?? -1));
+        _context.Log.Warn(Event("exited"), Logging.LogField.Of("code", code ?? -1));
         if (code == 0)
         {
             Changed?.Invoke(); // deliberate: another instance is running, or it stopped cleanly
@@ -184,7 +196,7 @@ public sealed class CaptureSupervisor : IDisposable
     private void Fail(string why)
     {
         Failure = why;
-        _context.Log.Warn("capture.not_running", Logging.LogField.Of("reason", why));
+        _context.Log.Warn(Event("not_running"), Logging.LogField.Of("reason", why));
         Changed?.Invoke();
     }
 }

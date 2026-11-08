@@ -10,6 +10,9 @@ public enum WorkerKind
     [JsonStringEnumMemberName("content")] Content,
     [JsonStringEnumMemberName("capture")] Capture,
     [JsonStringEnumMemberName("plugin")] Plugin,
+
+    /// <summary><c>tasktor-shell</c>, the switcher's window process (U3 D-W2): normal priority, it answers a key press.</summary>
+    [JsonStringEnumMemberName("shell")] Shell,
 }
 
 /// <summary>Closed set of control messages for Tasktor's children and polite-pause jobs (D-H9 condition 3, B-H5).</summary>
