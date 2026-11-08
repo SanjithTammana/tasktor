@@ -1,4 +1,11 @@
 # Capture lane report
+## Current update (2026-11-08)
+- IN PROGRESS #2: the session-notification adapter is registered on the indicator window and closes the recorder gate synchronously. Registration failure prevents capture startup. Generation checks reject stale session queries and queued browser or native-source events across a notice. The existing media logic now has loop entry points. Native visibility, UIA and SMTC/WASAPI producers are still absent; visibility timing is not measured against the <1 ms target; the requested owner dead-key script is not yet written; the keyboard hook remains detached pending the owner's dead-key check. Prior blocker statements below about the missing Core shutdown result are historical: 2c98548 provides it.
+- PASS: baseline .NET suite and 110 worker tests. After each code commit, formatter, warnings-as-errors solution build and full .NET suite passed; the latest capture suite had 218 tests. Indicator-only PC probe passed startup and delivered one synthetic session notice through the actual window procedure, with capture and hooks off. Lock, unlock, UAC and real notification delivery have not been verified.
+- PASS, synthetic privacy regression with a conservative mitigation: history read during a secure tick could remain pending and be recorded after reopening. Pending commands are now discarded and history capture remains paused until the capture process restarts after any session notice or secure tick. This deliberately sacrifices automatic history resumption; the file has no per-line event timestamps, so a naive reopening reset cannot establish an exact boundary with a concurrent writer. Real lock, unlock and UAC behavior remains unverified.
+- NOT RUN #4: live history, rewrite, blocks, forget-by-app, forget-by-site, capture-off and integrated shutdown checks. Browser processes are active and the capture pipe is shared, so starting the isolated data-dir fixture could accept real extension data. Windows computer-use policy also prohibits terminal UI automation. No real history file was read or modified for these checks.
+- Requests to main: please advise a fail-closed history transition contract for concurrent history writes, and provide or confirm a way to isolate the fixture's browser/control pipe from other active clients without changing system settings. Please review the pushed session-gate changes. Both issues remain open; work continues.
+
 
 ## Done
 - Rebased the clean capture branch onto upstream b9d259f. The committed history read, forget overload and recorder secure gate are present. No prior uncommitted integration or stash was present in this checkout.
@@ -66,6 +73,8 @@
 - Exercise monitor add/remove and mixed DPI changes, tray appearance and Explorer restart with an isolated capture session; verify fail-closed shutdown if either indicator fails. Then verify hooks, secure desktop, UIA and media sources once implemented.
 
 ## Requests
+- Current: please advise a fail-closed history transition contract for concurrent history writes and a way to isolate fixture pipes from active clients; please review the pushed session-gate changes. The prior Core shutdown request below is resolved by 2c98548.
+
 - Please provide the Core loop shutdown completion guarantee requested below. Also advise a supported disposable history-path fixture for the real-PC history rewrite check; the documented command otherwise deletes the owner's actual history.
 - Core shutdown observability: expose a bounded stop/join result or completion task from `Tasktor.Core.Loop.LogicLoop` that is true/completed only after its thread exits, and test a blocked callback. CaptureSession cannot prove thread termination before indicator removal through the current void Stop API. Core is outside this lane; do not wire sources as if this guarantee exists.
 - Jobs watcher crash fixed upstream in df84e7b; post-merge full suite passed.

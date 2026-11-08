@@ -40,6 +40,8 @@ public sealed class CaptureSession : IDisposable
     private DateTimeOffset _sessionAt = DateTimeOffset.MinValue;
     private readonly object _sessionGate = new();
     private long _sessionGeneration;
+    private volatile bool _historyRebaseline;
+    private int _discardCommands;
 
     public CaptureSession(CaptureRecorder recorder, BrowserEndpoint endpoint, IClock clock, IDesktopProbe probe, Func<SessionAvailability> session)
     {
@@ -121,9 +123,32 @@ public sealed class CaptureSession : IDisposable
                 _recorder.SetSecure(secure);
             }
         }
-        // Read even while the gate is closed so the tail moves past them: a line appended then (another session or a script
-        // writing the same history file) is dropped, never held until the gate reopens.
-        if (History?.ReadNew() is { Count: > 0 } commands && !_secure)
+        // C22 history across a closed gate (secure desktop, lock, switch user). History lines carry no timestamps, so the
+        // boundary is the read itself: the file is read on every tick so its tail moves on; lines read while the gate is
+        // closed are dropped, and so is everything read on the first open tick after it (written before that tick, so
+        // possibly during the closed period). Commands held for pairing are dropped too. Lines first read after that
+        // were written on the user's own desktop and are recorded as usual. Fail closed, without pausing until restart.
+        if (_secure)
+        {
+            _historyRebaseline = true;
+            Interlocked.Exchange(ref _discardCommands, 1);
+        }
+
+        if (Interlocked.Exchange(ref _discardCommands, 0) != 0)
+        {
+            Deep.Commands.Clear();
+        }
+
+        var lines = History?.ReadNew();
+        if (_secure)
+        {
+            // dropped: read while the gate is closed
+        }
+        else if (_historyRebaseline)
+        {
+            _historyRebaseline = false; // dropped: the first read after a closed period
+        }
+        else if (lines is { Count: > 0 } commands)
         {
             Deep.History(commands); // stamped now, to meet the Enter that ran them within a second
         }
@@ -142,6 +167,8 @@ public sealed class CaptureSession : IDisposable
         lock (_sessionGate)
         {
             _sessionGeneration++;
+            _historyRebaseline = true;
+            Interlocked.Exchange(ref _discardCommands, 1);
             _secure = true;
             _recorder.SetSecure(true);
             _sessionAt = DateTimeOffset.MinValue;

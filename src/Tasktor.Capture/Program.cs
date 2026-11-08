@@ -21,6 +21,10 @@ internal static class Program
             if (args[i] == "--history-file") historyFile = Path.GetFullPath(args[i + 1]);
         }
 
+        // Checks on a PC whose browsers are running: accept no browser data at all (no browser pipe, no offline queue),
+        // so a fixture run never records the owner's real browsing.
+        var browser = !args.Contains("--no-browser");
+
         using var single = new Mutex(true, (OperatingSystem.IsWindows() ? "Local\\" : string.Empty) + PipeName.ForCapture(), out var first);
         if (!first) return 0;
         var store = StoreLayout.Resolve(dataDir, AppContext.BaseDirectory);
@@ -33,7 +37,7 @@ internal static class Program
         indicator.Failed += () => stop.TrySetResult(true);
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.TrySetResult(false); };
         AppDomain.CurrentDomain.ProcessExit += (_, _) => stop.TrySetResult(false);
-        return await IndicatorHost.RunAsync(indicator, () => new CaptureLifetime(store, stop.Task, indicator, historyFile), stop.Task).ConfigureAwait(false);
+        return await IndicatorHost.RunAsync(indicator, () => new CaptureLifetime(store, stop.Task, indicator, historyFile, browser), stop.Task).ConfigureAwait(false);
     }
 }
 
@@ -47,7 +51,7 @@ internal sealed class CaptureLifetime : IDisposable
     private bool _disposed;
     private readonly Win32RecordingIndicator _indicator;
 
-    public CaptureLifetime(StoreLayout store, Task<bool> stop, Win32RecordingIndicator indicator, string? historyFile = null)
+    public CaptureLifetime(StoreLayout store, Task<bool> stop, Win32RecordingIndicator indicator, string? historyFile = null, bool browser = true)
     {
         _indicator = indicator;
         try
@@ -99,7 +103,7 @@ internal sealed class CaptureLifetime : IDisposable
             control.Changed += endpoint.NotifyBlocksChanged;
 
             if (stop.IsCompleted) return;
-            var (queued, _) = QueueDrain.Drain(Path.Combine(store.CaptureDir, "nmh-queue.jsonl"));
+            var (queued, _) = browser ? QueueDrain.Drain(Path.Combine(store.CaptureDir, "nmh-queue.jsonl")) : ([], 0);
             foreach (var m in queued)
             {
                 if (stop.IsCompleted) break;
@@ -108,9 +112,9 @@ internal sealed class CaptureLifetime : IDisposable
             }
 
             if (stop.IsCompleted) return;
-            _browser = new CapturePipeServer(endpoint);
+            _browser = browser ? new CapturePipeServer(endpoint) : null;
             _control = new ControlPipeServer(control);
-            _browser.Start();
+            _browser?.Start();
             _control.Start();
             _expiry = new Timer(_ => endpoint.NotifyBlocksChanged(), null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
             _retention = new Timer(_ => vault.Purge(now()), null, TimeSpan.FromHours(1), TimeSpan.FromHours(1));
