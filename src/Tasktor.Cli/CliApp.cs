@@ -33,6 +33,7 @@ public static partial class CliApp
           summary [--since 7d] [--json]             numbers-only workflow summary
           open [--card <id>]                        open the flyout
           forget learned|tracking|capture|all [--since 15m|1h|today] [--yes]
+          forget capture --app EXE | --site HOST [--yes]   everything captured from it
           export data [--to DIR] [--since 30d] [--format csv|jsonl|both] [--include-raw] [--include-capture] [--yes]
           settings export <zip> [--include-learned] [--include-notes] | settings import <zip> --yes | settings reset --yes
           preset apply|arrange <name>
@@ -337,7 +338,10 @@ public static partial class CliApp
             return Bad(io, "forget: learned, tracking, capture or all");
         }
 
-        Dictionary<string, string>? args = a.Opt("--since") is { } since ? new() { ["since"] = since } : null;
+        Dictionary<string, string>? args = a.Opt("--since") is { } since ? new() { ["since"] = since }
+            : what == "capture" && a.Opt("--app") is { } app ? new() { ["app"] = app }
+            : what == "capture" && a.Opt("--site") is { } site ? new() { ["site"] = site }
+            : null;
         return await Act(io, a, what == "capture" && args is not null ? "capture.forget" : "forget", new() { ["what"] = what }, args).ConfigureAwait(false);
     }
 

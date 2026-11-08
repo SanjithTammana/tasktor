@@ -135,6 +135,7 @@ public sealed class DeepCapture
         if (_recorder.View(clean, app, host))
         {
             Documents.Add(TrackOf(app), clean);
+            Documents.Note(TrackOf(app), app, host);
         }
 
         return clean;
@@ -148,6 +149,7 @@ public sealed class DeepCapture
         if (_recorder.Media(media) && TrackFor(media.App) is { } track)
         {
             Documents.Add(track, media, now);
+            Documents.Note(track, media.App, null);
         }
     }
 
@@ -185,7 +187,13 @@ public sealed class DeepCapture
         }
 
         CommandsWritten++;
-        Documents.Add(TrackOf(command.App ?? Tracks.Foreground ?? string.Empty), text, command.Actor, command.At);
+        var track = TrackOf(command.App ?? Tracks.Foreground ?? string.Empty);
+        Documents.Add(track, text, command.Actor, command.At);
+        foreach (var a in apps)
+        {
+            Documents.Note(track, a, null);
+        }
+
         return true;
     }
 
@@ -214,6 +222,7 @@ public sealed class DeepCapture
             if (_recorder.View(clean, owner.App, owner.Host))
             {
                 Documents.Add(TrackOf(owner.App), clean);
+                Documents.Note(TrackOf(owner.App), owner.App, owner.Host);
             }
         }
 
@@ -225,6 +234,7 @@ public sealed class DeepCapture
         if (_focus is { } f && _recorder.KeyRun(run, f.App, f.Host))
         {
             Documents.Add(TrackOf(f.App), run, _now());
+            Documents.Note(TrackOf(f.App), f.App, f.Host);
             if (run.End == RunEnd.Enter && run.Text is { Length: > 0 } text && run.Suppressed == Suppression.None && CommandReconciler.IsTerminal(f.App))
             {
                 Commands.Typed(f.App, Sensitive.Of(text), _now(), run.Actor);

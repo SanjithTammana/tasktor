@@ -172,6 +172,19 @@ public sealed class CaptureSession : IDisposable
     }
 
     /// <summary>C21.4: forget the index from <paramref name="since"/> on (the vault forgets its own records); any thread.</summary>
+    /// <summary>C21.4: forget the index's activities that included an app or site (on the loop while it runs).</summary>
+    public int ForgetIndex(string? app, string? host)
+    {
+        if (Index is not { } index)
+        {
+            return 0;
+        }
+
+        return _started && !_stopped
+            ? Loop.InvokeAsync(() => index.Forget(app, host)).GetAwaiter().GetResult()
+            : index.Forget(app, host);
+    }
+
     public int ForgetIndex(DateTimeOffset since)
     {
         if (Index is not { } index)

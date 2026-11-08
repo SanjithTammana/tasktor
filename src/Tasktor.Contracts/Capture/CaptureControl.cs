@@ -33,10 +33,10 @@ public sealed record CaptureCommand
     /// <summary>Pause until this time; null with <see cref="CaptureVerb.Pause"/> = until resumed.</summary>
     public DateTimeOffset? Until { get; init; }
 
-    /// <summary>Exclude: an app exe glob.</summary>
+    /// <summary>Exclude: an app exe glob. Forget (without <see cref="Since"/>): everything captured from it.</summary>
     public string? App { get; init; }
 
-    /// <summary>Exclude: a hostname (and its subdomains).</summary>
+    /// <summary>Exclude: a hostname (and its subdomains). Forget (without <see cref="Since"/>): everything captured from it.</summary>
     public string? Site { get; init; }
 
     /// <summary>Tab pause: the browser tab id.</summary>

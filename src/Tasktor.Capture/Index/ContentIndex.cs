@@ -42,6 +42,17 @@ public sealed partial class ContentIndex : IDisposable
             CREATE VIRTUAL TABLE IF NOT EXISTS fts_tri USING fts5(text, tokenize='trigram');
             CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value INTEGER NOT NULL);
             """);
+        if (_db.Scalar("SELECT count(*) FROM pragma_table_info('chunk') WHERE name = 'sources'") == 0)
+        {
+            _db.Exec("ALTER TABLE chunk ADD COLUMN sources TEXT NOT NULL DEFAULT ''"); // an index made before C21.4
+        }
+
+        LoadRecent();
+    }
+
+    private void LoadRecent()
+    {
+        _recent.Clear();
         using var s = _db.Prepare("SELECT simhash FROM chunk ORDER BY id DESC LIMIT " + DedupeWindow.ToString(CultureInfo.InvariantCulture));
         var newestFirst = new List<ulong>();
         while (s.Step())
@@ -85,6 +96,7 @@ public sealed partial class ContentIndex : IDisposable
     {
         ArgumentNullException.ThrowIfNull(doc);
         var text = string.Join('\n', doc.Sections.Where(s => s.Text.Length > 0).Select(s => s.Heading + ": " + s.Text));
+        var sources = string.Join('\n', doc.Apps.Select(x => "app:" + x).Concat(doc.Hosts.Select(x => "host:" + x)));
         var added = 0;
         _db.Transaction(() =>
         {
@@ -96,7 +108,7 @@ public sealed partial class ContentIndex : IDisposable
                     continue;
                 }
 
-                _db.Run("INSERT INTO chunk(start_ms, end_ms, track, simhash) VALUES (?, ?, ?, ?)", doc.Start.ToUnixTimeMilliseconds(), doc.End.ToUnixTimeMilliseconds(), doc.Track, unchecked((long)hash));
+                _db.Run("INSERT INTO chunk(start_ms, end_ms, track, simhash, sources) VALUES (?, ?, ?, ?, ?)", doc.Start.ToUnixTimeMilliseconds(), doc.End.ToUnixTimeMilliseconds(), doc.Track, unchecked((long)hash), sources);
                 var id = _db.LastInsertRowId;
                 _db.Run("INSERT INTO fts(rowid, text) VALUES (?, ?)", id, chunk);
                 _db.Run("INSERT INTO fts_tri(rowid, text) VALUES (?, ?)", id, chunk);
@@ -216,14 +228,53 @@ public sealed partial class ContentIndex : IDisposable
             _db.Run("DELETE FROM fts_tri WHERE rowid IN (SELECT id FROM chunk WHERE start_ms >= ? AND start_ms < ?)", a, b);
             _db.Run("DELETE FROM chunk WHERE start_ms >= ? AND start_ms < ?", a, b);
         });
-        _recent.Clear(); // rebuilt lazily from what remains: a forgotten chunk must not suppress new text
-        using var s = _db.Prepare("SELECT simhash FROM (SELECT id, simhash FROM chunk ORDER BY id DESC LIMIT " + DedupeWindow.ToString(CultureInfo.InvariantCulture) + ") ORDER BY id");
-        while (s.Step())
+        LoadRecent(); // a forgotten chunk must not suppress new text
+        return activities;
+    }
+
+    /// <summary>
+    /// C21.4: forget every activity that included <paramref name="app"/> (an exe glob) or <paramref name="host"/> (and its
+    /// subdomains), whole; returns how many. The vault forgets its records separately.
+    /// </summary>
+    public int Forget(string? app, string? host)
+    {
+        if (app is null && host is null)
         {
-            _recent.Enqueue(unchecked((ulong)s.Int64(0)));
+            return 0;
         }
 
-        return activities;
+        var ids = new List<long>();
+        var activities = new HashSet<(long, long)>();
+        using (var s = _db.Prepare("SELECT id, start_ms, track, sources FROM chunk WHERE sources <> ''"))
+        {
+            while (s.Step())
+            {
+                var hit = false;
+                foreach (var source in (s.Text(3) ?? string.Empty).Split('\n'))
+                {
+                    hit |= (app is not null && source.StartsWith("app:", StringComparison.Ordinal) && Core.Apps.Glob.IsMatch(app, source[4..]))
+                        || (host is not null && source.StartsWith("host:", StringComparison.Ordinal) && Recording.RecordSource.HostMatches(host, source[5..]));
+                }
+
+                if (hit)
+                {
+                    ids.Add(s.Int64(0));
+                    activities.Add((s.Int64(1), s.Int64(2)));
+                }
+            }
+        }
+
+        _db.Transaction(() =>
+        {
+            foreach (var id in ids)
+            {
+                _db.Run("DELETE FROM fts WHERE rowid = ?", id);
+                _db.Run("DELETE FROM fts_tri WHERE rowid = ?", id);
+                _db.Run("DELETE FROM chunk WHERE id = ?", id);
+            }
+        });
+        LoadRecent();
+        return activities.Count;
     }
 
     public void Dispose() => _db.Dispose();
