@@ -40,6 +40,8 @@ public sealed class CaptureSession : IDisposable
     private DateTimeOffset _sessionAt = DateTimeOffset.MinValue;
     private readonly object _sessionGate = new();
     private long _sessionGeneration;
+    private volatile bool _historyDisabled;
+    private int _discardCommands;
 
     public CaptureSession(CaptureRecorder recorder, BrowserEndpoint endpoint, IClock clock, IDesktopProbe probe, Func<SessionAvailability> session)
     {
@@ -121,7 +123,13 @@ public sealed class CaptureSession : IDisposable
                 _recorder.SetSecure(secure);
             }
         }
-        if (History?.ReadNew() is { Count: > 0 } commands)
+        if (_secure)
+        {
+            _historyDisabled = true; // history lines have no timestamps; restart capture to establish a new boundary
+            Interlocked.Exchange(ref _discardCommands, 1);
+        }
+        if (Interlocked.Exchange(ref _discardCommands, 0) != 0) Deep.Commands.Clear();
+        if (!_historyDisabled && !_secure && History?.ReadNew() is { Count: > 0 } commands)
         {
             Deep.History(commands); // stamped now, to meet the Enter that ran them within a second
         }
@@ -140,6 +148,8 @@ public sealed class CaptureSession : IDisposable
         lock (_sessionGate)
         {
             _sessionGeneration++;
+            _historyDisabled = true;
+            Interlocked.Exchange(ref _discardCommands, 1);
             _secure = true;
             _recorder.SetSecure(true);
             _sessionAt = DateTimeOffset.MinValue;
