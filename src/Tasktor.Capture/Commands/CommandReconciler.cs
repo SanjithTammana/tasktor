@@ -14,6 +14,9 @@ public enum CommandSource : byte
 
     /// <summary>Both, within <see cref="CommandReconciler.Window"/>: the history text wins (it is the final edited line).</summary>
     Both,
+
+    /// <summary>C22.4: a process a known agent started (its command line from the agent's process scan).</summary>
+    Agent,
 }
 
 /// <summary>One command line: when, the terminal app it was typed in (null when only history saw it), the text, who.</summary>

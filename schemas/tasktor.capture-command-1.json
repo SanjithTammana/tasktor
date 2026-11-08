@@ -17,7 +17,8 @@
         "unexclude",
         "tab_pause",
         "forget",
-        "search"
+        "search",
+        "agent_command"
       ]
     },
     "by_user": {
@@ -62,6 +63,24 @@
       "format": "date-time"
     },
     "query": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "agent": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "exe": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "command_line": {
       "type": [
         "string",
         "null"

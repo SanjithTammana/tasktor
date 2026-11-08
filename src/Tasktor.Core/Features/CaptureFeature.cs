@@ -47,6 +47,18 @@ public sealed class CaptureFeature : Feature
     /// <summary>The browser offered the extension (C §5.5: in front for 60 s with no connection), until it connects.</summary>
     public string? ExtensionOffer { get; private set; }
 
+    /// <summary>C22.3: Windows Terminal's settings file (path, text), or null when it is not installed. Read off the loop.</summary>
+    public Func<(string Path, string? Text)?> TerminalSettings { get; set; } = () => null;
+
+    /// <summary>Opens a file in the user's default editor (Windows adapter); false when it could not.</summary>
+    public Func<string, bool>? OpenFile { get; set; }
+
+    /// <summary>C22.3 / OQ-C29: the settings file to offer the change in, while shell-integration marks are off.</summary>
+    public string? TerminalOffer { get; private set; }
+
+    public static readonly TimeSpan TerminalCheckEvery = TimeSpan.FromMinutes(10);
+    private DateTimeOffset _terminalChecked = DateTimeOffset.MinValue;
+
     private static readonly TimeSpan OfferAfter = TimeSpan.FromSeconds(60);
     private (string Browser, DateTimeOffset Since)? _browserInFront;
 
@@ -83,6 +95,7 @@ public sealed class CaptureFeature : Feature
         Context.Router.Register("capture.tab_pause", TabPause);
         Context.Router.Register("capture.forget", Forget);
         Context.Router.Register("capture.extension_setup", Setup);
+        Context.Router.Register("capture.terminal_marks", TerminalMarksOffer);
         Context.Router.Register("activity.open", Reopen);
         // C21 "Search my activity": relayed to the capture host, which owns the encrypted index. The query and the
         // snippets are personal data: passed through, never logged. Runs on the pipe's thread, not the loop.
@@ -119,10 +132,38 @@ public sealed class CaptureFeature : Feature
             return;
         }
 
+        var checkTerminal = Context.Clock.UtcNow - _terminalChecked >= TerminalCheckEvery;
+        if (checkTerminal)
+        {
+            _terminalChecked = Context.Clock.UtcNow;
+        }
+
+        var settings = TerminalSettings;
         Context.OffLoop(() =>
         {
             var status = Send(link, new CaptureCommand { Verb = CaptureVerb.Status });
-            Context.Loop.Post(() => Apply(status));
+            (string Path, string? Text)? terminal = null;
+            if (checkTerminal)
+            {
+                try
+                {
+                    terminal = settings();
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    terminal = null;
+                }
+            }
+
+            Context.Loop.Post(() =>
+            {
+                if (checkTerminal)
+                {
+                    TerminalOffer = terminal is { } t && TerminalMarks.IsOn(t.Text) == false ? t.Path : null;
+                }
+
+                Apply(status);
+            });
         });
     }
 
@@ -210,7 +251,49 @@ public sealed class CaptureFeature : Feature
         };
     }
 
+    /// <summary>
+    /// C22.3 / OQ-C29: opens Windows Terminal's settings file and says what to add (the diff preview). Tasktor never
+    /// writes the file: the user applies the change. A person's request only.
+    /// </summary>
+    private PreparedAction TerminalMarksOffer(ActionRequest req)
+    {
+        const string Summary = "Turn on terminal command marks";
+        if (!ByUser(req))
+        {
+            return new PreparedAction { Summary = Summary, Refusal = "Only you can change your terminal settings" };
+        }
+
+        if (TerminalOffer is not { } path || OpenFile is not { } open)
+        {
+            return new PreparedAction { Summary = Summary, Refusal = "Windows Terminal's marks are already on, or it is not installed" };
+        }
+
+        return new PreparedAction
+        {
+            Summary = Summary,
+            Run = _ => open(path)
+                ? new ActionResult { Action = req.Action, Status = ActionStatus.Ok, Message = TerminalMarks.Preview }
+                : new ActionResult { Action = req.Action, Status = ActionStatus.Failed, Message = "Could not open the Windows Terminal settings" },
+        };
+    }
+
     private static bool ByUser(ActionRequest req) => req.Origin != Origin.Rule;
+
+    /// <summary>
+    /// C22.4: forward a command an agent's child ran to the capture host, off the loop (never logged). Dropped when the host
+    /// is not reachable: the agent keeps no copy.
+    /// </summary>
+    public void AgentCommand(Agents.AgentChildCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (!Enabled || Link is not { } link)
+        {
+            return;
+        }
+
+        var cmd = new CaptureCommand { Verb = CaptureVerb.AgentCommand, Agent = command.Agent, App = command.AgentExe, Exe = command.Exe, CommandLine = command.CommandLine.Reveal() };
+        Context.OffLoop(() => Send(link, cmd));
+    }
 
     private static CaptureStatus? Send(Func<CaptureCommand, CancellationToken, Task<CaptureStatus>> link, CaptureCommand cmd)
     {
@@ -444,6 +527,11 @@ public sealed class CaptureFeature : Feature
             blocks.Insert(1, new ListBlock { Label = "Active blocks", Items = Value.Binding("/state/capture/blocks"), Max = 4, Priority = 2 });
         }
 
+        if (TerminalOffer is not null)
+        {
+            blocks.Add(new AlertBlock { Text = Value.Literal("Exit codes of terminal commands need Windows Terminal's command marks"), Severity = Value.Literal("normal"), Priority = 4 });
+        }
+
         if (ExtensionOffer is { } offer)
         {
             blocks.Insert(1, new AlertBlock { Text = Value.Literal("Page text in " + BrowserName(offer) + " needs the Tasktor companion extension"), Severity = Value.Literal("normal"), Priority = 2 });
@@ -467,11 +555,46 @@ public sealed class CaptureFeature : Feature
                     new CardAction { Id = "exclude", Label = "Don't capture this app", Action = "capture.exclude", Target = CardKit.Target("app", Foreground), Priority = 2 },
                     new CardAction { Id = "forget", Label = "Forget last hour", Action = "capture.forget", Args = CardKit.Target("since", "1h"), Priority = 3, Destructive = true },
                     new CardAction { Id = "forget_app", Label = "Forget this app", Action = "capture.forget", Target = CardKit.Target("app", Foreground), Priority = 4, Destructive = true },
+                    .. TerminalOffer is not null
+                        ? new[] { new CardAction { Id = "terminal_marks", Label = "Turn on command marks", Action = "capture.terminal_marks", Priority = 4 } }
+                        : [],
                     .. ExtensionOffer is { } b
                         ? new[] { new CardAction { Id = "extension", Label = "Set up the extension", Action = "capture.extension_setup", Args = CardKit.Target("browser", b), Priority = 2 } }
                         : [],
                 ],
             },
         ];
+    }
+}
+
+/// <summary>
+/// C22.3: Windows Terminal shell integration (<c>autoMarkPrompts</c>, OSC 133). The settings file is JSON with comments;
+/// marks count as on only when <c>profiles.defaults.autoMarkPrompts</c> is true. Null when the file cannot be read.
+/// </summary>
+public static class TerminalMarks
+{
+    /// <summary>The change the user makes, as a diff preview (OQ-C29).</summary>
+    public const string Preview = "In the settings file that opened, add these two lines inside \"profiles\" → \"defaults\", then save:\n"
+        + "+   \"autoMarkPrompts\": true,\n+   \"showMarksOnScrollbar\": true,";
+
+    public static bool? IsOn(string? json)
+    {
+        if (json is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json, new System.Text.Json.JsonDocumentOptions { CommentHandling = System.Text.Json.JsonCommentHandling.Skip, AllowTrailingCommas = true });
+            return doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("profiles", out var profiles) && profiles.ValueKind == System.Text.Json.JsonValueKind.Object
+                && profiles.TryGetProperty("defaults", out var defaults) && defaults.ValueKind == System.Text.Json.JsonValueKind.Object
+                && defaults.TryGetProperty("autoMarkPrompts", out var on) && on.ValueKind == System.Text.Json.JsonValueKind.True;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
     }
 }

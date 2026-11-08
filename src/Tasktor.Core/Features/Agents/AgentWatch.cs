@@ -14,6 +14,12 @@ using AppsFeature = Tasktor.Core.Features.SystemMonitor.Apps;
 
 namespace Tasktor.Core.Features.Agents;
 
+/// <summary>
+/// C22.4: a process started under a known agent, with its command line (read once, personal data: never logged).
+/// <see cref="Agent"/> is the agents-group entry, <see cref="AgentExe"/> the agent process's exe, <see cref="Exe"/> the child's.
+/// </summary>
+public sealed record AgentChildCommand(string Agent, string AgentExe, string Exe, Sensitive<string> CommandLine, DateTimeOffset At);
+
 /// <summary>One agent session row (estimated from its process, or reported by hooks).</summary>
 public sealed class AgentSession
 {
@@ -97,6 +103,21 @@ public sealed class AgentWatch : Feature
     public Func<string?> ClaudeSettingsPath { get; set; } = () => null;
 
     public IReadOnlyCollection<AgentSession> Sessions => _sessions.Values;
+
+    /// <summary>C22.4: command lines read per scan at most (a build that forks hundreds keeps the scan cheap).</summary>
+    public const int MaxChildCommandsPerScan = 32;
+
+    /// <summary>
+    /// C22.4: whether agent children's command lines are wanted (only while T1 capture is on with its consent). When it
+    /// turns true, the processes already running are a baseline and never read; afterwards each new process under an
+    /// agent has its command line read once and raised as <see cref="ChildCommand"/>.
+    /// </summary>
+    public Func<bool> RecordChildCommands { get; set; } = () => false;
+
+    public event Action<AgentChildCommand>? ChildCommand;
+
+    private readonly HashSet<ProcKey> _childSeen = [];
+    private bool _childBaseline;
 
     public long Samples { get; private set; }
 
@@ -218,9 +239,59 @@ public sealed class AgentWatch : Feature
             _match.Remove(k);
         }
 
+        ChildCommands(rows, byPid, now);
         ExpireReported(byPid, now);
         UpdateSampler();
         Recompute(now);
+    }
+
+    private void ChildCommands(IReadOnlyList<ProcessRow> rows, Dictionary<uint, ProcessRow> byPid, DateTimeOffset now)
+    {
+        _childSeen.RemoveWhere(k => !byPid.TryGetValue(k.Pid, out var r) || r.Key != k);
+        if (!RecordChildCommands())
+        {
+            _childBaseline = false;
+            return;
+        }
+
+        var agents = _sessions.Values.Where(s => s.Process is not null).GroupBy(s => s.Process!.Value.Pid).ToDictionary(g => g.Key, g => g.First());
+        var read = 0;
+        foreach (var r in rows)
+        {
+            if (!_childSeen.Add(r.Key) || !_childBaseline || agents.ContainsKey(r.Key.Pid) || AgentOf(r) is not null)
+            {
+                continue;
+            }
+
+            // walk up the parent chain (bounded) to the agent session it runs under, if any
+            AgentSession? under = null;
+            var pid = r.ParentPid;
+            for (var depth = 0; depth < 16 && pid != 0 && under is null; depth++)
+            {
+                if (agents.TryGetValue(pid, out var s))
+                {
+                    under = s;
+                }
+                else
+                {
+                    pid = byPid.TryGetValue(pid, out var p) && p.ParentPid != pid ? p.ParentPid : 0;
+                }
+            }
+
+            if (under is null || read >= MaxChildCommandsPerScan)
+            {
+                continue;
+            }
+
+            read++;
+            if (_commandLine(r.Key) is { Length: > 0 } line)
+            {
+                var agentExe = byPid.TryGetValue(under.Process!.Value.Pid, out var a) ? a.Exe : under.Agent + ".exe";
+                ChildCommand?.Invoke(new AgentChildCommand(under.Agent, agentExe.ToLowerInvariant(), r.Exe.ToLowerInvariant(), Sensitive.Of(line), now));
+            }
+        }
+
+        _childBaseline = true;
     }
 
     private void UpdateSampler()

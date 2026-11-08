@@ -222,16 +222,22 @@ internal static class Composition
             host.AddFeature(meeting);
         });
 
+        CaptureFeature? capture = null;
         host.RegisterModule("agents", () =>
         {
             var profile = AgentHost.KnownFolder("UserProfile");
-            host.AddFeature(new AgentWatch(ctx, apps, new AgentHookSource(host.Store.AgentsDir), windows ? processTable.ReadOne : PortableProcessTable.ReadOne, windows ? key => processTable.Allows(key.Pid) ? ProcessInfo.CommandLine(key) : null : _ => null)
+            var watch = new AgentWatch(ctx, apps, new AgentHookSource(host.Store.AgentsDir), windows ? processTable.ReadOne : PortableProcessTable.ReadOne, windows ? key => processTable.Allows(key.Pid) ? ProcessInfo.CommandLine(key) : null : _ => null)
             {
                 AgentGroup = () => Group("agents"),
                 WindowInFront = windows ? chain => chain.Contains(ProcessInfo.ForegroundPid()) : null,
                 ShowWindow = windows ? Windows.Shell.WindowsShell.ShowWindowOf : null,
                 ClaudeSettingsPath = () => profile is null ? null : Path.Combine(profile, ".claude", "settings.json"),
-            });
+
+                // C22.4: agents' child command lines are read only while T1 capture is on with its consent.
+                RecordChildCommands = () => capture is { Enabled: true } && host.Consents.HasModule("capture"),
+            };
+            watch.ChildCommand += c => capture?.AgentCommand(c);
+            host.AddFeature(watch);
         });
 
         FolderAction? folders = null;
@@ -357,16 +363,58 @@ internal static class Composition
             // D-H9: the agent starts tasktor-capture in a kill-on-close Job Object only while this Module is on and its consent
             // (D-C22) is on record, and restarts a crash at most 3 times an hour.
             var supervisor = new HostSupervisor(ctx, HostSupervisor.CaptureSpec(AppContext.BaseDirectory, host.Store.Root), () => host.Consents.HasModule("capture"));
-            host.AddFeature(new CaptureFeature(ctx, (cmd, ct) => Hosts.Common.Pipe.CaptureLink.SendAsync(cmd, ct))
+            host.AddFeature(capture = new CaptureFeature(ctx, (cmd, ct) => Hosts.Common.Pipe.CaptureLink.SendAsync(cmd, ct))
             {
                 Supervisor = supervisor,
                 ForegroundApp = windows ? Windows.Shell.Win32Windows.ForegroundExe : () => null,
                 SetupExtension = windows ? browser => SetupExtension(browser, AppContext.BaseDirectory) : null,
+                TerminalSettings = windows ? () => TerminalSettingsFile(AgentHost.KnownFolder("LocalAppData")) : () => null,
+                OpenFile = windows ? OpenInEditor : null,
             });
         });
 
         host.RegisterModule("batteries", () => host.AddFeature(new DeviceBatteries(ctx, windows ? new BluetoothBatterySource() : new NoDevices())));
         AddWindowsFeatures(host, windows, windowEvents, winEvents);
+    }
+
+    /// <summary>C22.3: Windows Terminal's settings file (store, preview or unpackaged install) and its text, or null.</summary>
+    private static (string Path, string? Text)? TerminalSettingsFile(string? localAppData)
+    {
+        if (localAppData is null)
+        {
+            return null;
+        }
+
+        string[] candidates =
+        [
+            Path.Combine(localAppData, "Packages", "Microsoft.WindowsTerminal_8wekyb3d8bbwe", "LocalState", "settings.json"),
+            Path.Combine(localAppData, "Packages", "Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe", "LocalState", "settings.json"),
+            Path.Combine(localAppData, "Microsoft", "Windows Terminal", "settings.json"),
+        ];
+        foreach (var path in candidates)
+        {
+            if (File.Exists(path))
+            {
+                var info = new FileInfo(path);
+                return (path, info.Length <= 1024 * 1024 ? File.ReadAllText(path) : null);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Opens a settings file in Notepad: the user edits it, Tasktor never does.</summary>
+    private static bool OpenInEditor(string path)
+    {
+        try
+        {
+            using var editor = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("notepad.exe") { ArgumentList = { path }, UseShellExecute = false });
+            return editor is not null;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return false;
+        }
     }
 
     /// <summary>

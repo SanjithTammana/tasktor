@@ -16,6 +16,13 @@ public enum CaptureVerb
 
     /// <summary>C21 "Search my activity": <see cref="CaptureCommand.Query"/>, from <see cref="CaptureCommand.Since"/>. People only.</summary>
     [JsonStringEnumMemberName("search")] Search,
+
+    /// <summary>
+    /// C22.4: a process started under a known agent (B's scan): <see cref="CaptureCommand.Agent"/>, the agent's exe in
+    /// <see cref="CaptureCommand.App"/>, the child's exe in <see cref="CaptureCommand.Exe"/>
+    /// and its <see cref="CaptureCommand.CommandLine"/>. From the agent process only, never a rule or a person.
+    /// </summary>
+    [JsonStringEnumMemberName("agent_command")] AgentCommand,
 }
 
 /// <summary>
@@ -50,6 +57,15 @@ public sealed record CaptureCommand
 
     /// <summary>Search: the words to look for. Personal data: never logged.</summary>
     public string? Query { get; init; }
+
+    /// <summary>Agent command: the agents-group entry that ran it (e.g. <c>claude</c>).</summary>
+    public string? Agent { get; init; }
+
+    /// <summary>Agent command: the child process's exe.</summary>
+    public string? Exe { get; init; }
+
+    /// <summary>Agent command: the child's command line, read once. Personal data: never logged.</summary>
+    public string? CommandLine { get; init; }
 }
 
 /// <summary>One activity a search found (C21): when, which track, and a snippet with the matched words in brackets.</summary>

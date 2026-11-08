@@ -135,6 +135,7 @@ internal sealed class CaptureLifetime : IDisposable
             var control = new CaptureControl(blocks, now)
             {
                 ResolveTab = endpoint.ResolveTab,
+                AgentCommand = (agent, agentExe, exe, line) => _session?.PostAgentCommand(agent, agentExe, exe, line),
                 RecordsToday = () => recorder.RecordsToday,
                 Extensions = endpoint.Connected,
                 Search = (query, since) => _session?.Search(query, since),

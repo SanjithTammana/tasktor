@@ -47,6 +47,9 @@ public sealed class CaptureControl
     public Func<string, DateTimeOffset?, IReadOnlyList<ActivityHit>?>? Search { get; init; }
 
     /// <summary>Raised after a block change so the browser sessions get the new state.</summary>
+    /// <summary>C22.4: (agent, agent exe, child exe, command line) from the agent's scan, recorded by the session.</summary>
+    public Action<string, string, string, Contracts.Platform.Sensitive<string>>? AgentCommand { get; init; }
+
     public event Action? Changed;
 
     public CaptureStatus Handle(CaptureCommand cmd)
@@ -61,6 +64,19 @@ public sealed class CaptureControl
             }
 
             return Search?.Invoke(query, cmd.Since) is { } hits ? Status() with { Hits = hits } : Status() with { Refusal = "no_index" };
+        }
+
+        if (cmd.Verb == CaptureVerb.AgentCommand)
+        {
+            // Not a block change: recorded like any command, so blocks, the gate and the redactor still apply.
+            if (cmd.ByUser || cmd.Agent is not { Length: > 0 and <= 128 } agent || cmd.App is not { Length: > 0 and <= 260 } agentExe
+                || cmd.Exe is not { Length: > 0 and <= 260 } exe || cmd.CommandLine is not { Length: > 0 and <= Commands.HistoryTail.MaxCommand } line)
+            {
+                return Status() with { Refusal = "invalid" };
+            }
+
+            AgentCommand?.Invoke(agent, agentExe, exe, Contracts.Platform.Sensitive.Of(line));
+            return Status();
         }
 
         string? refusal = null;

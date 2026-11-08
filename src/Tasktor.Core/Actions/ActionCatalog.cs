@@ -104,6 +104,7 @@ public static class ActionCatalog
         new("capture.unexclude", ActionClass.Reversible, "Capture this app again", Surface.Flyout, LiftsBlock: true),
         new("capture.tab_pause", ActionClass.Reversible, "Pause for this tab", Surface.Flyout),
         new("capture.extension_setup", ActionClass.Read, "Set up the browser extension", Surface.Flyout, UserOnly: true), // registers the native host (HKCU)
+        new("capture.terminal_marks", ActionClass.Read, "Turn on terminal command marks", Surface.Flyout, UserOnly: true), // opens WT's settings; never writes them
 
         // reversible: alerts, cards, rules, focus, presets, learned
         new("alert.snooze", ActionClass.Reversible, "Snooze", Surface.Flyout | Surface.Toast | Surface.Tray),

@@ -298,6 +298,13 @@ public sealed class CaptureSession : IDisposable
     public void PostFocus(FocusTarget target, Sensitive<string>? previousValue, Sensitive<string>? value) =>
         PostCaptured(() => Deep.Focus(target, previousValue?.Reveal(), value?.Reveal()));
 
+    /// <summary>
+    /// C22.4: a command a known agent's child ran. Recorded under the agent's exe (its blocks apply) with the agent as actor,
+    /// through the same scrub and gate as typed commands.
+    /// </summary>
+    public void PostAgentCommand(string agent, string agentExe, string exe, Sensitive<string> commandLine) =>
+        PostCaptured(() => Deep.Command(new CommandEvent(_clock.UtcNow, agentExe, commandLine, CommandSource.Agent, new Actor(ActorKind.Agent, agent, ActorEvidence.AgentAncestor))));
+
     /// <summary>Queue a protected UI Automation walk for processing on the capture loop.</summary>
     public void PostUiaWalk(Sensitive<UiaWalk> walk, string app, Sensitive<string>? host) =>
         PostCaptured(() => Deep.Walk(walk.Reveal(), app, host?.Reveal(), DiffSource.Uia));

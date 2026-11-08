@@ -46,7 +46,7 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 | C19 | Pointer: path, clicks with target, scroll, dwell, visible windows | Partial | pointer shaping (≤ 10/s), clicks, wheel, recorder gating, activity documents, async click-target resolution (100 ms budget, off the loop), per-activity features kept in the index (C19.3), `HookDevices` + hook latency benchmark (#6); UIA hit-test resolver attached (#8); missing: attaching the mouse hook; native visibility producer done (#7), its real-PC timing pending |
 | C20 | Media: SMTC + audio sessions, side tracks | Built (Windows check pending) | browser video wired; SMTC now-playing and WASAPI audible attached (#9) |
 | C21 | Content index (FTS5 + embeddings), "Search my activity" | Built, mostly | encrypted index (SQLCipher) + search in the command line; forget by time, app or site (vault + index together); reopen a hit's web page; missing: reopen files / windows (needs the UIA source), embeddings (G8) |
-| C22 | CLI command log (PSReadLine, OSC 133, shell children) | Built (C22.1) | PowerShell history tailed, reconciled with typed runs, scrubbed and recorded; missing: OSC 133 offer (C22.3), agent-run commands from B's scan (C22.4) |
+| C22 | CLI command log (PSReadLine, OSC 133, shell children) | Built (Windows check pending) | PowerShell history tailed, reconciled with typed runs, scrubbed and recorded (C22.1); terminal-marks offer with a diff preview, never writing the settings (C22.3; exit codes not readable); agent-run commands from B's scan as `Agent(app)` (C22.4) |
 
 ## D. CLI
 

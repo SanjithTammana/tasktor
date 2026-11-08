@@ -107,19 +107,19 @@ public sealed class CaptureSessionTests : IDisposable
         session.Tick();
         session.Deep.Focus(new FocusTarget("w", "e", "synthetic.exe") { IsPassword = false });
         var cancelled = new TaskCompletionSource();
-        using var release = new ManualResetEventSlim();
+        var answer = new TaskCompletionSource<Sensitive<string>?>(TaskCreationOptions.RunContinuationsAsynchronously);
         resolver.Answer = cancel =>
         {
             cancel.Register(() => cancelled.TrySetResult());
-            release.Wait(); // a hit test that hangs (until the test ends)
-            return Task.FromResult<Sensitive<string>?>(Sensitive.Of("button: too late"));
+            return answer.Task; // a hit test that does not answer (and holds no thread while it waits)
         };
         var started = Environment.TickCount64 + 10;
         session.Ring.Write(new RawInput(0, 0, 0, started, false, RawInputKind.Mouse, 7, 8, 0x0201));
         session.Tick();
         Assert.True(Environment.TickCount64 - started < 1000); // the loop went on
-        Assert.True(cancelled.Task.Wait(TimeSpan.FromSeconds(5)));
-        release.Set();
+        Assert.True(SpinWait.SpinUntil(() => !resolver.Asked.IsEmpty, TimeSpan.FromSeconds(10)));
+        Assert.True(cancelled.Task.Wait(TimeSpan.FromSeconds(10)));
+        answer.SetResult(Sensitive.Of("button: too late"));
         Thread.Sleep(50);
         session.Loop.RunPending();
         Assert.Equal(0, session.Deep.ClickTargetsKept);

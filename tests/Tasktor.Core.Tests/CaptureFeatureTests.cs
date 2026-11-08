@@ -172,6 +172,44 @@ public sealed class CaptureFeatureTests : IDisposable
     }
 
     [Fact]
+    public void Terminal_marks_off_gets_an_offer_with_the_change_to_make_and_tasktor_never_writes_the_file()
+    {
+        var settings = """
+            // Windows Terminal settings, with comments
+            { "profiles": { "defaults": { "font": { "size": 11 } }, "list": [] }, }
+            """;
+        var opened = new List<string>();
+        _capture.TerminalSettings = () => ("settings.json", settings);
+        _capture.OpenFile = p => { opened.Add(p); return true; };
+        bool Offered() => _capture.Cards()[0].Actions!.Any(a => a.Action == "capture.terminal_marks");
+
+        _rig.Clock.Advance(CaptureFeature.TerminalCheckEvery); // read at most every 10 minutes
+        _capture.Refresh();
+        _rig.Loop.RunPending();
+        Assert.True(Offered());
+        var r = Act("capture.terminal_marks");
+        Assert.Equal(ActionStatus.Ok, r.Status);
+        Assert.Contains("\"autoMarkPrompts\": true", r.Message, StringComparison.Ordinal);
+        Assert.Equal(["settings.json"], opened);
+        Assert.Equal(ActionStatus.Refused, Act("capture.terminal_marks", Origin.Rule, rule: "r").Status); // people only
+
+        settings = """{ "profiles": { "defaults": { "autoMarkPrompts": true } } }""";
+        _rig.Clock.Advance(CaptureFeature.TerminalCheckEvery);
+        _capture.Refresh();
+        _rig.Loop.RunPending();
+        Assert.False(Offered());
+    }
+
+    [Theory]
+    [InlineData("""{ "profiles": { "defaults": { "autoMarkPrompts": true } } }""", true)]
+    [InlineData("""{ "profiles": { "defaults": { "autoMarkPrompts": false } } }""", false)]
+    [InlineData("""{ "profiles": { "defaults": {} } }""", false)]
+    [InlineData("""{ "profiles": [ { "name": "x" } ] }""", false)]
+    [InlineData("not json", null)]
+    [InlineData(null, null)]
+    public void Terminal_marks_state_is_read_from_the_settings(string? json, bool? on) => Assert.Equal(on, TerminalMarks.IsOn(json));
+
+    [Fact]
     public void Search_my_activity_is_relayed_to_the_capture_host_as_a_persons_search()
     {
         var pull = _rig.Pulls["activity"];

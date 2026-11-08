@@ -75,6 +75,55 @@ public sealed class AgentWatchTests : IDisposable
     }
 
     [Fact]
+    public void Agent_children_have_their_command_line_read_once_and_only_while_capture_wants_them()
+    {
+        var seen = new List<AgentChildCommand>();
+        var wanted = false;
+        _agents.RecordChildCommands = () => wanted;
+        _agents.ChildCommand += seen.Add;
+        Proc(10, 1, "claude.exe", 100);
+        Proc(12, 10, "bash.exe", 120, cmd: "bash -c \"npm test\"");
+        Scan();
+        Assert.Empty(seen); // capture off: nothing read
+
+        wanted = true;
+        Scan();
+        Assert.Empty(seen); // the first wanted scan is a baseline: what already ran is not imported
+
+        Proc(13, 12, "node.exe", 130, cmd: "node build.js --token=abc");
+        Proc(14, 1, "notepad.exe", 140, cmd: "notepad.exe notes.txt"); // not under an agent
+        Proc(15, 10, "claude.exe", 150, cmd: "claude.exe --helper"); // the agent's own helper
+        Scan();
+        var c = Assert.Single(seen);
+        Assert.Equal(("claude", "claude.exe", "node.exe"), (c.Agent, c.AgentExe, c.Exe));
+        Assert.Equal("node build.js --token=abc", c.CommandLine.Reveal());
+
+        _cmd[13] = "changed";
+        Scan();
+        Assert.Single(seen); // read once per process
+
+        wanted = false;
+        Proc(16, 10, "git.exe", 160, cmd: "git status");
+        Scan();
+        wanted = true;
+        Scan();
+        Assert.Single(seen); // started while off: part of the next baseline, never read
+    }
+
+    [Fact]
+    public void Child_commands_are_capped_per_scan()
+    {
+        var seen = new List<AgentChildCommand>();
+        _agents.RecordChildCommands = () => true;
+        _agents.ChildCommand += seen.Add;
+        Proc(10, 1, "claude.exe", 100);
+        Scan();
+        for (uint i = 0; i < 100; i++) Proc(200 + i, 10, "bash.exe", 1000 + i, cmd: "bash -c step");
+        Scan();
+        Assert.Equal(AgentWatch.MaxChildCommandsPerScan, seen.Count);
+    }
+
+    [Fact]
     public void Agents_match_by_exe_glob_or_script_host_plus_script_name_and_only_the_topmost_counts()
     {
         Proc(10, 1, "claude.exe", 100);
