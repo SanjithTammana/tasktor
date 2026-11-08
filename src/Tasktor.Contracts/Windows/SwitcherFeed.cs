@@ -26,6 +26,9 @@ public sealed record SwitcherFeed
 
     /// <summary>"This desktop only": windows on other virtual desktops are left out instead of badged.</summary>
     public bool ThisDesktopOnly { get; set; }
+
+    /// <summary>F4: Ctrl+Enter moves a window from another virtual desktop here (Settings; on only after spike W2 passed).</summary>
+    public bool BringHere { get; set; }
 }
 
 /// <summary>One watched job: its id (for <c>job.resume</c>), its label, whether it is frozen and its processes.</summary>

@@ -295,6 +295,9 @@
         },
         "this_desktop_only": {
           "type": "boolean"
+        },
+        "bring_here": {
+          "type": "boolean"
         }
       }
     },

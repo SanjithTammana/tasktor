@@ -26,6 +26,13 @@ internal static class Program
             return 1;
         }
 
+        // Spike W2 (U3 D-W7), owner-run: can this process move another process's window to its own desktop?
+        var spike = Array.IndexOf(args, "--spike-w2");
+        if (spike >= 0)
+        {
+            return SpikeW2.Run(spike + 1 < args.Length ? args[spike + 1] : null, Console.Out);
+        }
+
         var a = ShellArgs.Parse(args);
         var pipe = a.Pipe;
 

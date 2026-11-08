@@ -26,6 +26,7 @@ internal static unsafe partial class Native
     public const int VkTab = 0x09;
     public const int VkReturn = 0x0D;
     public const int VkShift = 0x10;
+    public const int VkControl = 0x11;
     public const int VkMenu = 0x12;
     public const int VkEscape = 0x1B;
     public const int VkLeft = 0x25;

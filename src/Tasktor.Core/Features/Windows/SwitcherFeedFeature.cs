@@ -74,6 +74,7 @@ public sealed class SwitcherFeedFeature : Feature
             Workflows = workflows,
             Hotkey = Keys(),
             ThisDesktopOnly = settings?.ThisDesktopOnly == true,
+            BringHere = settings?.BringHere == true,
             ReplaceAltTab = settings?.ReplaceAltTab == true,
         };
     }

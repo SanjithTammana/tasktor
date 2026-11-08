@@ -69,7 +69,7 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 | Row | Feature | Status | Missing |
 |---|---|---|---|
 | F2 | Window switcher (Alt+`, thumbnails, search) | Built | `tasktor-shell` window, hotkey, DWM thumbnails, search, app view, badges, Resume first, supervised; settings page (shortcut, this desktop only, Replace Alt+Tab), workflow view, paging past 24, opt-in Alt+Tab hook; needs the real-PC check (#5) |
-| F4 | "On another desktop" badge, bring here | Partial | `VirtualDesktopInfo` exists; no switcher to show it |
+| F4 | "On another desktop" badge, bring here | Built (W2 spike pending) | badge in the switcher; Ctrl+Enter "bring here" behind `windows.bring_here`, off until `tasktor-shell --spike-w2` passes |
 | F6 | Multi-monitor / per-monitor DPI | Built (requirement) | real-PC checks |
 | F7 | `state.fullscreen` | Built | — |
 

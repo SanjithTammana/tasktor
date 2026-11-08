@@ -167,6 +167,12 @@ public sealed record WindowsSettings
     public bool ReplaceAltTab { get; init; }
 
     public bool ThisDesktopOnly { get; init; }
+
+    /// <summary>
+    /// F4 (U3 D-W7): offer "bring here" (Ctrl+Enter) for windows on another virtual desktop. Off by default: turn it on only
+    /// after spike W2 (<c>tasktor-shell --spike-w2</c>) passed on this PC.
+    /// </summary>
+    public bool BringHere { get; init; }
 }
 
 public sealed record TrackingSettings

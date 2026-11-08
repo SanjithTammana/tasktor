@@ -189,6 +189,8 @@ internal sealed unsafe class SwitcherWindow : IDisposable
 
     private static bool Shift() => (GetKeyState(VkShift) & 0x8000) != 0;
 
+    private static bool Control() => (GetKeyState(VkControl) & 0x8000) != 0;
+
     /// <summary>A command from the opt-in Alt+Tab hook (the hook swallowed the key; Alt's release still reaches this window).</summary>
     private void AltTab(AltTabCommand command)
     {
@@ -232,6 +234,9 @@ internal sealed unsafe class SwitcherWindow : IDisposable
             case VkUp or VkDown:
                 _session.CycleView();
                 Relayout();
+                break;
+            case VkReturn when Control():
+                Finish(_session.BringHere()); // null (not offered here): the switcher stays as it is
                 break;
             case VkReturn:
                 Finish(_session.Commit());
@@ -327,6 +332,11 @@ internal sealed unsafe class SwitcherWindow : IDisposable
             case SwitcherOutcome.Activate a:
                 Hide();
                 Activate((nint)a.Hwnd);
+                break;
+            case SwitcherOutcome.BringHere b:
+                Hide();
+                Windows.Shell.VirtualDesktopInfo.TryBringHere(b.Hwnd, _hwnd); // refused (W2): activating may still switch desktops
+                Activate((nint)b.Hwnd);
                 break;
             case SwitcherOutcome.ResumeThenActivate r:
                 Hide();

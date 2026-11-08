@@ -48,6 +48,26 @@ public sealed class SwitcherSessionTests
     }
 
     [Fact]
+    public void Bring_here_moves_only_a_window_on_another_desktop_and_only_when_turned_on()
+    {
+        List<WindowInfo> windows = [W(1, "code.exe", "here"), W(2, "notes.exe", "there") with { Cloaked = Cloak.Shell }];
+        var s = new SwitcherSession(() => windows);
+        s.Open(new SwitcherFeed { Mru = [1, 2] });
+        Assert.Equal(2, s.Tiles[s.Selected].Window.Hwnd);
+        Assert.Null(s.BringHere()); // off by default (until spike W2 passes on this PC)
+        Assert.True(s.IsOpen);
+        Assert.DoesNotContain("brings it here", s.Describe(s.Tiles[s.Selected]), StringComparison.Ordinal);
+
+        s.Open(new SwitcherFeed { Mru = [1, 2], BringHere = true });
+        Assert.Contains("Ctrl+Enter brings it here", s.Describe(s.Tiles[s.Selected]), StringComparison.Ordinal);
+        s.Previous(); // the window on this desktop
+        Assert.Null(s.BringHere());
+        s.Next();
+        Assert.Equal(new SwitcherOutcome.BringHere(2), s.BringHere());
+        Assert.False(s.IsOpen);
+    }
+
+    [Fact]
     public void Releasing_alt_commits_unless_typing_made_the_switcher_stay()
     {
         var s = Session();

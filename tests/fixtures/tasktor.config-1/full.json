@@ -8,7 +8,7 @@
   "jobs": { "watch": [ "blender.exe" ], "excludes": [ "--serve" ], "learning": true, "finished_toast": true },
   "focus": { "presets": [ { "name": "Pomodoro", "blocks": [ { "kind": "focus", "minutes": 25 }, { "kind": "break", "minutes": 5 } ], "repeat": true, "long_break_every": 4, "long_break_minutes": 15 } ] },
   "flyout": { "hotkey": "Win+Alt+T", "keep_warm": false },
-  "windows": { "hotkey": "Alt+`", "replace_alt_tab": false, "this_desktop_only": true },
+  "windows": { "hotkey": "Alt+`", "replace_alt_tab": false, "this_desktop_only": true, "bring_here": false },
   "tracking": { "exclude_apps": [ "keepass*.exe" ], "exclude_titles": [ "*Private*" ], "retention_days": 30 },
   "capture": { "edge_line": true, "schedule": [ { "days": "weekdays", "from": "09:00", "to": "17:00", "mode": "never" } ] },
   "disk": { "off": [ "E:" ], "include_removable": false },

@@ -14,6 +14,9 @@ public abstract record SwitcherOutcome
 
     /// <summary>The window belongs to a frozen job: run <c>job.resume</c> for it first, then bring the window forward.</summary>
     public sealed record ResumeThenActivate(string JobId, long Hwnd) : SwitcherOutcome;
+
+    /// <summary>F4: move the window from another virtual desktop to this one, then bring it forward (public API only).</summary>
+    public sealed record BringHere(long Hwnd) : SwitcherOutcome;
 }
 
 /// <summary>
@@ -32,6 +35,7 @@ public sealed class SwitcherSession
     private string? _appId;
     private bool _stay;
     private long? _asked;
+    private bool _bringHere;
 
     public SwitcherSession(Func<IReadOnlyList<WindowInfo>> enumerate) => _enumerate = enumerate;
 
@@ -55,6 +59,7 @@ public sealed class SwitcherSession
     {
         ArgumentNullException.ThrowIfNull(feed);
         _workflows = feed.Workflows;
+        _bringHere = feed.BringHere;
         _jobByPid = [];
         foreach (var job in feed.Jobs)
         {
@@ -176,6 +181,22 @@ public sealed class SwitcherSession
         return new SwitcherOutcome.Activate(hwnd);
     }
 
+    /// <summary>
+    /// F4 (D-W7), Ctrl+Enter: the selected window is on another desktop and "bring here" is on (Settings, only after spike
+    /// W2 passed on this PC): close and ask the shell to move it here. Null otherwise (nothing happens). A frozen window
+    /// still goes through Enter's Resume first.
+    /// </summary>
+    public SwitcherOutcome? BringHere()
+    {
+        if (!IsOpen || !_bringHere || Current is not { } tile || !tile.Badges.HasFlag(TileBadges.OtherDesktop) || tile.Badges.HasFlag(TileBadges.Frozen))
+        {
+            return null;
+        }
+
+        Close();
+        return new SwitcherOutcome.BringHere(tile.Window.Hwnd);
+    }
+
     public void Cancel() => Close();
 
     /// <summary>A tile's line under its thumbnail: the title, the app, and its badges in words.</summary>
@@ -202,7 +223,7 @@ public sealed class SwitcherSession
 
         if (tile.Badges.HasFlag(TileBadges.OtherDesktop))
         {
-            parts.Add("on another desktop");
+            parts.Add(_bringHere ? "on another desktop (Ctrl+Enter brings it here)" : "on another desktop");
         }
 
         if (tile.Badges.HasFlag(TileBadges.Admin))
