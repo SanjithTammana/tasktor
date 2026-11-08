@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Tasktor.Windows.Shell;
+namespace Tasktor.Hosts.Common.Command;
 
 /// <summary>
 /// G2 (D-G12): the dimmed desktop under the command line, a separate layered Win32 window (WinUI 3 has no transparent
