@@ -22,6 +22,14 @@ internal static class Program
             Console.WriteLine(bench.ToString());
             return bench.WithinBudget ? 0 : 1;
         }
+
+        // C19.2 check (real PC, #7): live enumeration + geometry, timed apart; prints timings and window counts only.
+        if (args.Contains("--bench-visibility"))
+        {
+            var bench = Visibility.VisibilityBench.Run(new Visibility.Win32WindowGeometry(), 1000);
+            Console.WriteLine(bench.ToString());
+            return bench.WithinTarget ? 0 : 1;
+        }
         string? dataDir = null, historyFile = null;
         for (var i = 0; i < args.Length - 1; i++)
         {
@@ -56,6 +64,7 @@ internal sealed class CaptureLifetime : IDisposable
     private CapturePipeServer? _browser;
     private ControlPipeServer? _control;
     private Host.CaptureSession? _session;
+    private Visibility.Win32VisibilitySource? _visibility;
     private Timer? _expiry, _retention;
     private bool _disposed;
     private readonly Win32RecordingIndicator _indicator;
@@ -90,6 +99,11 @@ internal sealed class CaptureLifetime : IDisposable
             };
             _indicator.SessionChanged += _session.SessionChanged;
             _session.Start();
+
+            // C19.2: visible windows (numbers and apps only) into the loop; the gate drops them while closed.
+            var session = _session;
+            _visibility = new Visibility.Win32VisibilitySource(new Visibility.VisibilityProducer(new Visibility.Win32WindowGeometry(), session.PostVisible, now));
+            _visibility.Start();
             var control = new CaptureControl(blocks, now)
             {
                 ResolveTab = endpoint.ResolveTab,
@@ -142,6 +156,7 @@ internal sealed class CaptureLifetime : IDisposable
         if (_retention is not null) { _retention.DisposeAsync().AsTask().GetAwaiter().GetResult(); _retention = null; }
         if (_control is not null) { _control.DisposeAsync().AsTask().GetAwaiter().GetResult(); _control = null; }
         if (_browser is not null) { _browser.DisposeAsync().AsTask().GetAwaiter().GetResult(); _browser = null; }
+        if (_visibility is not null) { _visibility.Dispose(); _visibility = null; } // detached before the session stops
         if (_session is not null)
         {
             // After the sources: close the activity, then the loop. Fail closed: while a capture callback still holds the

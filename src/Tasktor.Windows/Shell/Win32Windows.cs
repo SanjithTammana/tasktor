@@ -90,6 +90,83 @@ public static unsafe partial class Win32Windows
         return list;
     }
 
+    /// <summary>
+    /// C19.2: visible top-level windows in z-order with geometry and app only. Never reads a title or class; hidden and
+    /// minimized windows are skipped before any DWM call. <paramref name="exes"/> caches pid → exe across calls (the
+    /// caller bounds it).
+    /// </summary>
+    public static List<WindowInfo> EnumerateGeometry(Dictionary<uint, string?> exes)
+    {
+        ArgumentNullException.ThrowIfNull(exes);
+        var list = new List<WindowInfo>();
+        if (!OperatingSystem.IsWindows())
+        {
+            return list;
+        }
+
+        t_found = [];
+        EnumWindows(&Collect, 0);
+        foreach (var h in t_found)
+        {
+            var style = (long)GetWindowLongPtrW(h, GwlStyle);
+            if ((style & WsVisible) == 0 || (style & WsMinimize) != 0)
+            {
+                continue;
+            }
+
+            GetWindowThreadProcessId(h, out var pid);
+            var ex = (long)GetWindowLongPtrW(h, GwlExStyle);
+            var cloak = 0;
+            DwmGetWindowAttribute(h, DwmwaCloaked, &cloak, sizeof(int));
+            Rect frame = default;
+            DwmGetWindowAttribute(h, DwmwaExtendedFrameBounds, &frame, sizeof(Rect));
+            if (!exes.TryGetValue(pid, out var exe))
+            {
+                exes[pid] = exe = ExeOf(pid);
+            }
+
+            list.Add(new WindowInfo
+            {
+                Hwnd = h,
+                Pid = pid,
+                AppId = exe?.ToLowerInvariant() ?? "pid:" + pid,
+                Exe = exe,
+                Visible = true,
+                Cloaked = cloak switch { 0 => Cloak.None, 1 => Cloak.App, 2 => Cloak.Shell, _ => Cloak.Inherited },
+                ToolWindow = (ex & WsExToolWindow) != 0,
+                FramePx = frame.ToPx(),
+                Show = (style & WsMaximize) != 0 ? ShowState.Maximized : ShowState.Normal,
+            });
+        }
+
+        t_found = null;
+        return list;
+    }
+
+    /// <summary>Each monitor's bounds in physical pixels (no device names: cheap enough to read on every change).</summary>
+    public static List<RectPx> MonitorRects()
+    {
+        var list = new List<RectPx>();
+        if (!OperatingSystem.IsWindows())
+        {
+            return list;
+        }
+
+        t_found = [];
+        EnumDisplayMonitors(0, 0, &CollectMonitor, 0);
+        foreach (var m in t_found)
+        {
+            var info = new MonitorInfoEx { CbSize = (uint)sizeof(MonitorInfoEx) };
+            if (GetMonitorInfoW(m, ref info) != 0)
+            {
+                list.Add(info.Monitor.ToPx());
+            }
+        }
+
+        t_found = null;
+        return list;
+    }
+
     [UnmanagedCallersOnly]
     private static int Collect(nint hwnd, nint lParam)
     {
