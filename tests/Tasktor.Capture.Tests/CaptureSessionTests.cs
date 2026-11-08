@@ -77,6 +77,29 @@ public sealed class CaptureSessionTests : IDisposable
         _session.Loop.RunPending();
         Assert.Contains(Records(), r => r.Kind == RecordKind.ViewDiff && r.Body.Contains("synthetic text", StringComparison.Ordinal));
     }
+    [Fact]
+    public void Session_notice_during_a_session_query_cannot_reopen_the_gate_with_a_stale_result()
+    {
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var blocks = new CaptureBlocks(Path.Combine(_dir, "race-blocks.json"), TimeZoneInfo.Utc);
+        var vault = new RawVault(Path.Combine(_dir, "race-raw"), new byte[32]);
+        using var session = new CaptureSession(new CaptureRecorder(vault, blocks, () => _clock.UtcNow),
+            new BrowserEndpoint(blocks, () => _clock.UtcNow), _clock, _probe, () =>
+            {
+                entered.Set();
+                release.Wait(TimeSpan.FromSeconds(5));
+                return SessionAvailability.UnlockedConnected;
+            });
+        var tick = Task.Run(session.Tick);
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(5)));
+        session.SessionChanged();
+        release.Set();
+        Assert.True(tick.Wait(TimeSpan.FromSeconds(5)));
+        Assert.True(session.SecureDesktop);
+        session.Tick();
+        Assert.False(session.SecureDesktop); // only a fresh query may reopen
+    }
     private void Browse()
     {
         _session.Tick(); // the first check proves the user's desktop and opens the write gate
