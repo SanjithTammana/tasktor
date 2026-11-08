@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Tasktor.Capture.Security;
 using Tasktor.Hosts.Common.Render;
 using Tasktor.Hosts.Common.Theme;
 
@@ -19,6 +20,7 @@ public sealed unsafe partial class Win32RecordingIndicator : IRecordingIndicator
     private readonly List<nint> _edges = [];
     private List<Rect>? _monitors;
     private Thread? _thread;
+    private Win32SessionNotifications? _notifications;
     private nint _owner, _brush, _icon, _module;
     private uint _taskbarCreated;
     private bool _started, _iconAdded, _rebuilding, _failed;
@@ -27,6 +29,15 @@ public sealed unsafe partial class Win32RecordingIndicator : IRecordingIndicator
 
     /// <summary>Raised if an indicator cannot be maintained after startup; the host must stop capture.</summary>
     public event Action? Failed;
+
+    /// <summary>Raised synchronously on the indicator window thread for a session or power notice.</summary>
+    public event Action? SessionChanged;
+
+    internal bool ForwardSessionNotice(SessionNotice notice)
+    {
+        SessionChanged?.Invoke();
+        return true;
+    }
 
     public bool Start()
     {
@@ -72,6 +83,8 @@ public sealed unsafe partial class Win32RecordingIndicator : IRecordingIndicator
                 if (!registered) return;
                 _owner = CreateWindowExW(WsExToolWindow, (nint)cls, 0, WsPopup, 0, 0, 0, 0, 0, 0, _module, 0);
                 if (_owner == 0) return;
+                _notifications = new Win32SessionNotifications(new WindowsSessionNotificationNative(), ForwardSessionNotice);
+                if (!_notifications.TryRegister(_owner)) return;
                 fixed (char* name = "TaskbarCreated") _taskbarCreated = RegisterWindowMessageW(name);
                 _icon = MakeIcon();
                 if (_icon == 0 || !AddIcon() || !RebuildEdges() || _stopRequested) return;
@@ -88,6 +101,8 @@ public sealed unsafe partial class Win32RecordingIndicator : IRecordingIndicator
             finally
             {
                 _ready.Set();
+                if (_notifications is not null && !_notifications.TryUnregister()) Fail();
+                _notifications = null;
                 RemoveIcon();
                 foreach (var edge in _edges) DestroyWindow(edge);
                 _edges.Clear();
@@ -108,6 +123,7 @@ public sealed unsafe partial class Win32RecordingIndicator : IRecordingIndicator
         if (self is null) return DefWindowProcW(hwnd, msg, wParam, lParam);
         try
         {
+            if (self._notifications?.Handle(hwnd, msg, unchecked((nuint)wParam), lParam) == NotificationDispatch.Failed) self.Fail();
             if (msg == WmNcHitTest) return -1;
             if (hwnd == self._owner && msg == WmAppStop)
             {

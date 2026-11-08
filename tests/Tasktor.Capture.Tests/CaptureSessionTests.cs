@@ -100,6 +100,16 @@ public sealed class CaptureSessionTests : IDisposable
         session.Tick();
         Assert.False(session.SecureDesktop); // only a fresh query may reopen
     }
+    [Fact]
+    public void Indicator_notification_closes_the_session_gate_synchronously()
+    {
+        _session.Tick();
+        Assert.False(_session.SecureDesktop);
+        var indicator = new Tasktor.Capture.Indicator.Win32RecordingIndicator();
+        indicator.SessionChanged += _session.SessionChanged;
+        Assert.True(indicator.ForwardSessionNotice(default));
+        Assert.True(_session.SecureDesktop);
+    }
     private void Browse()
     {
         _session.Tick(); // the first check proves the user's desktop and opens the write gate
