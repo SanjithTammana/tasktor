@@ -32,6 +32,7 @@ public sealed class CaptureSession : IDisposable
     private bool _started;
     private bool _stopped;
     private volatile bool _secure = true;
+    private readonly CaptureRecorder _recorder;
     private SessionAvailability _lastSession = SessionAvailability.Unknown;
     private DateTimeOffset _sessionAt = DateTimeOffset.MinValue;
 
@@ -49,6 +50,8 @@ public sealed class CaptureSession : IDisposable
         // Hook ticks are milliseconds of the monotonic clock; their wall time is now minus how long ago they happened.
         var runs = new KeyRunBuilder(new KeyDecoder(), new ActorAttributor(() => []), new SecretRedactor(), suppressor.Check, ms => _clock.UtcNow - TimeSpan.FromMilliseconds(Math.Max(0, Environment.TickCount64 - ms)));
         Deep = new DeepCapture(Ring, runs, new SnapshotDiffer(), new SecretRedactor(), recorder, () => _clock.UtcNow, () => Environment.TickCount64);
+        _recorder = recorder;
+        _recorder.SetSecure(true); // closed until the first check proves the user's desktop
         _endpoint.TextSeen += OnText;
         _endpoint.MediaSeen += OnMedia;
     }
@@ -90,7 +93,20 @@ public sealed class CaptureSession : IDisposable
         }
 
         _secure = _guard.ShouldSuppress(_lastSession);
+        _recorder.SetSecure(_secure); // the write gate follows the check (a session notice closes it sooner: SessionChanged)
         Deep.Pump();
+    }
+
+    /// <summary>
+    /// A session change (lock, unlock, connect, disconnect, remote): call it from the notification's own thread, first. It
+    /// closes the write gate at once (ordered with any write in flight) and forces a fresh session read on the next tick;
+    /// only that tick, after the probe proves the user's desktop, opens the gate again.
+    /// </summary>
+    public void SessionChanged()
+    {
+        _secure = true;
+        _recorder.SetSecure(true);
+        _sessionAt = DateTimeOffset.MinValue;
     }
 
     /// <summary>Detach the sources and close the open activity (its document is recorded). Idempotent.</summary>
