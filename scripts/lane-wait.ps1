@@ -31,13 +31,17 @@ function Get-Repo {
     throw "origin is not a GitHub remote: $url"
 }
 
+# Emits the items of a JSON array one by one (Invoke-RestMethod and 5.1's ConvertFrom-Json return the array as one object).
 function Invoke-GitHub([string]$Path) {
     if ($script:UseGh) {
-        $json = gh api $Path 2>$null
+        $json = (gh api $Path 2>$null) -join "`n"
         if ($LASTEXITCODE -ne 0) { throw "gh api $Path failed" }
-        return $json | ConvertFrom-Json
+        $result = $json | ConvertFrom-Json
+    } else {
+        $result = Invoke-RestMethod -Uri ("https://api.github.com/" + $Path) -Headers @{ Accept = 'application/vnd.github+json' }
     }
-    return Invoke-RestMethod -Uri ("https://api.github.com/" + $Path) -Headers @{ Accept = 'application/vnd.github+json' }
+
+    foreach ($item in $result) { $item }
 }
 
 # PowerShell 7 turns JSON timestamps into DateTime; 5.1 keeps strings. Compare everything as UTC.
