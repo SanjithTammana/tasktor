@@ -118,12 +118,16 @@ public sealed class CaptureSession : IDisposable
         _sessionAt = DateTimeOffset.MinValue;
     }
 
-    /// <summary>Detach the sources and close the open activity (its document is recorded). Idempotent.</summary>
-    public void Stop()
+    /// <summary>
+    /// Detach the sources and close the open activity (its document is recorded). Idempotent. Returns true only once the
+    /// logic thread has exited, so no capture callback can still run (the indicator may then go); false if a callback still
+    /// holds it after <see cref="StopTimeout"/>. Callers that must be sure can also await <c>Loop.Completion</c>.
+    /// </summary>
+    public bool Stop()
     {
         if (_stopped)
         {
-            return;
+            return Loop.Completion.IsCompleted;
         }
 
         _stopped = true;
@@ -139,15 +143,17 @@ public sealed class CaptureSession : IDisposable
                 Ingest();
                 return true;
             }).Wait(TimeSpan.FromSeconds(10));
-            Loop.Stop();
+            return Loop.TryStop(StopTimeout);
         }
-        else
-        {
-            Loop.RunPending();
-            Deep.CloseActivity();
-            Ingest();
-        }
+
+        Loop.RunPending();
+        Deep.CloseActivity();
+        Ingest();
+        return Loop.TryStop(TimeSpan.Zero); // never started: complete at once
     }
+
+    /// <summary>How long <see cref="Stop"/> waits for the logic thread to exit.</summary>
+    public static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(5);
 
     /// <summary>Index the documents closed since the last batch (on the loop).</summary>
     public void Ingest()

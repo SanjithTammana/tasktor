@@ -13,10 +13,12 @@ internal static class Program
     {
         // OQ-C22: this process's SQLite is SQLCipher (for the encrypted content index); bound before any database opens.
         SqliteDb.UseEngine("e_sqlcipher");
-        string? dataDir = null;
+        string? dataDir = null, historyFile = null;
         for (var i = 0; i < args.Length - 1; i++)
         {
             if (args[i] == "--data-dir") dataDir = args[i + 1];
+            // C22 checks: tail this file instead of PSReadLine's own, so a check never touches the owner's real history.
+            if (args[i] == "--history-file") historyFile = Path.GetFullPath(args[i + 1]);
         }
 
         using var single = new Mutex(true, (OperatingSystem.IsWindows() ? "Local\\" : string.Empty) + PipeName.ForCapture(), out var first);
@@ -31,7 +33,7 @@ internal static class Program
         indicator.Failed += () => stop.TrySetResult(true);
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.TrySetResult(false); };
         AppDomain.CurrentDomain.ProcessExit += (_, _) => stop.TrySetResult(false);
-        return await IndicatorHost.RunAsync(indicator, () => new CaptureLifetime(store, stop.Task), stop.Task).ConfigureAwait(false);
+        return await IndicatorHost.RunAsync(indicator, () => new CaptureLifetime(store, stop.Task, historyFile), stop.Task).ConfigureAwait(false);
     }
 }
 
@@ -44,7 +46,7 @@ internal sealed class CaptureLifetime : IDisposable
     private Timer? _expiry, _retention;
     private bool _disposed;
 
-    public CaptureLifetime(StoreLayout store, Task<bool> stop)
+    public CaptureLifetime(StoreLayout store, Task<bool> stop, string? historyFile = null)
     {
         try
         {
@@ -69,7 +71,7 @@ internal sealed class CaptureLifetime : IDisposable
             {
                 Index = index,
                 Vault = vault,
-                History = new Commands.HistoryTail(Commands.HistoryTail.DefaultPath(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData))),
+                History = new Commands.HistoryTail(historyFile ?? Commands.HistoryTail.DefaultPath(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData))),
             };
             _session.Start();
             var control = new CaptureControl(blocks, now)
@@ -124,7 +126,14 @@ internal sealed class CaptureLifetime : IDisposable
         if (_retention is not null) { _retention.DisposeAsync().AsTask().GetAwaiter().GetResult(); _retention = null; }
         if (_control is not null) { _control.DisposeAsync().AsTask().GetAwaiter().GetResult(); _control = null; }
         if (_browser is not null) { _browser.DisposeAsync().AsTask().GetAwaiter().GetResult(); _browser = null; }
-        if (_session is not null) { _session.Dispose(); _session = null; } // after the sources: close the activity, then the loop
+        if (_session is not null)
+        {
+            // After the sources: close the activity, then the loop. Fail closed: while a capture callback still holds the
+            // loop, throw so the indicator gate keeps the indicator up and retries; a retry succeeds once the thread is gone.
+            if (!_session.Stop()) throw new InvalidOperationException("The capture loop has not stopped yet.");
+            _session.Dispose();
+            _session = null;
+        }
         _disposed = true;
     }
 }
