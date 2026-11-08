@@ -14,6 +14,7 @@ public static class RecordKind
     public const byte Media = 4;
     public const byte Document = 5;
     public const byte Command = 6;
+    public const byte Pointer = 7;
 }
 
 /// <summary>
@@ -33,6 +34,7 @@ public sealed record BrowserContextRecord(string Browser, int Tab, string? Host,
 [JsonSerializable(typeof(MediaState))]
 [JsonSerializable(typeof(ActivityDocument))]
 [JsonSerializable(typeof(CommandRecord))]
+[JsonSerializable(typeof(PointerEvent))]
 internal sealed partial class RecordJsonContext : JsonSerializerContext;
 
 /// <summary>
@@ -125,6 +127,12 @@ public sealed class CaptureRecorder
         return Write(app, host, null, RecordKind.ViewDiff, JsonSerializer.SerializeToUtf8Bytes(diff, RecordJsonContext.Default.ViewDiff));
     }
 
+    /// <summary>A shaped pointer event, checked against its focused app and site.</summary>
+    public bool Pointer(PointerEvent pointer, string app, string? host)
+    {
+        ArgumentNullException.ThrowIfNull(pointer);
+        return Write(app, host, null, RecordKind.Pointer, JsonSerializer.SerializeToUtf8Bytes(pointer, RecordJsonContext.Default.PointerEvent));
+    }
     /// <summary>A now-playing change; the playing app's blocks apply.</summary>
     public bool Media(MediaState media)
     {

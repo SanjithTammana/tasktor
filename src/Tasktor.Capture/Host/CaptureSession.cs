@@ -119,6 +119,7 @@ public sealed class CaptureSession : IDisposable
                     _lastSession = availability;
                     _sessionAt = now;
                 }
+                if (_secure && !secure) Deep.PointerBoundary(Environment.TickCount64);
                 _secure = secure;
                 _recorder.SetSecure(secure);
             }

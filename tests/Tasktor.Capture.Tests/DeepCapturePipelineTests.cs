@@ -11,6 +11,7 @@ public sealed class DeepCapturePipelineTests : IDisposable
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "tasktor-deep-" + Guid.NewGuid().ToString("N"));
     private readonly CaptureBlocks _blocks;
     private readonly RawVault _vault;
+    private readonly CaptureRecorder _recorder;
     private readonly InputRing _ring = new(1024);
     private readonly DeepCapture _deep;
     private long _ms;
@@ -20,7 +21,7 @@ public sealed class DeepCapturePipelineTests : IDisposable
         Directory.CreateDirectory(_dir);
         _blocks = new CaptureBlocks(Path.Combine(_dir, "blocks.json"), TimeZoneInfo.Utc);
         _vault = new RawVault(Path.Combine(_dir, "raw"), new byte[32]);
-        var recorder = new CaptureRecorder(_vault, _blocks, Now);
+        var recorder = _recorder = new CaptureRecorder(_vault, _blocks, Now);
         var runs = new KeyRunBuilder(new KeyDecoder(), new ActorAttributor(() => []), new SecretRedactor(), (new Suppressor(_blocks) { SecureDesktop = () => false }).Check, ms => T0.AddMilliseconds(ms));
         _deep = new DeepCapture(_ring, runs, new SnapshotDiffer(), new SecretRedactor(), recorder, Now, () => _ms);
     }
@@ -55,6 +56,29 @@ public sealed class DeepCapturePipelineTests : IDisposable
     private static UiaWalk Walk(long window, params string[] names) =>
         new(new ViewKey(window, 1), [.. names.Select((n, i) => new SnapLine((ulong)(i + 1), 1, 2, i, -1))], names);
 
+    [Fact]
+    public void Pointer_events_flow_through_recorder_and_click_documents_with_blocks_and_secure_gate()
+    {
+        _deep.PointerTarget = (_, _) => "button: synthetic";
+        _deep.Focus(new FocusTarget("w", "e", "synthetic.exe") { IsPassword = false });
+        _ring.Write(new RawInput(0, 0, 0, 0, false, RawInputKind.Mouse, 1, 2, 0x0201));
+        _deep.Pump();
+        Assert.Single(Records(), r => r.Kind == RecordKind.Pointer);
+        _deep.CloseActivity();
+        Assert.Contains(Records(), r => r.Kind == RecordKind.Document && r.Body.Contains("button: synthetic", StringComparison.Ordinal));
+        var count = Records().Count;
+        _recorder.SetSecure(true);
+        _ring.Write(new RawInput(0, 0, 0, 200, false, RawInputKind.Mouse, 1, 2, 0x0201));
+        _deep.Pump();
+        _deep.CloseActivity();
+        Assert.Equal(count, Records().Count);
+        _recorder.SetSecure(false);
+        _blocks.Add(new CaptureBlock { Id = "", Kind = BlockKind.App, Value = "synthetic.exe", AddedBy = "user" });
+        _ring.Write(new RawInput(0, 0, 0, 400, false, RawInputKind.Mouse, 1, 2, 0x0201));
+        _deep.Pump();
+        _deep.CloseActivity();
+        Assert.Equal(count, Records().Count);
+    }
     [Fact]
     public void Typing_flows_from_the_ring_into_the_vault_and_the_activity_document()
     {
