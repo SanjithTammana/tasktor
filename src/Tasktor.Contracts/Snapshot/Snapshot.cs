@@ -82,6 +82,9 @@ public sealed record SnapshotState
     /// <summary>The command line's hotkey and whether Windows accepted it (another program may hold it). Null without a tray.</summary>
     public HotkeyState? Hotkey { get; init; }
 
+    /// <summary>The window switcher's settings (F2) while its Module is on; null when it is off.</summary>
+    public SwitcherState? Switcher { get; init; }
+
     /// <summary>Deep-window pages the user hid (Settings → Appearance); null when none.</summary>
     public IReadOnlyList<string>? HiddenPages { get; init; }
 
@@ -460,6 +463,16 @@ public sealed record AgentSessionRow
     public DateTimeOffset? Since { get; init; }
 
     public double? CoresNow { get; init; }
+}
+
+/// <summary>The switcher's hotkey, whether Windows accepted it (null until the shell says) and "this desktop only".</summary>
+public sealed record SwitcherState
+{
+    public required string Keys { get; init; }
+
+    public bool? Registered { get; init; }
+
+    public bool ThisDesktopOnly { get; init; }
 }
 
 public sealed record HotkeyState

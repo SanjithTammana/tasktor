@@ -858,6 +858,29 @@
             "keys"
           ]
         },
+        "switcher": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "keys": {
+              "type": "string"
+            },
+            "registered": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "this_desktop_only": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "keys"
+          ]
+        },
         "hidden_pages": {
           "type": [
             "array",

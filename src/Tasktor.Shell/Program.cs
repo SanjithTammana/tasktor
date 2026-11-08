@@ -16,6 +16,7 @@ internal static class Program
     private static readonly TimeSpan PullTimeout = TimeSpan.FromMilliseconds(250);
 
     private static PipeClient? s_client;
+    private static readonly Lock s_gate = new(); // the UI thread and act continuations share the client
 
     [STAThread]
     private static int Main(string[] args)
@@ -34,7 +35,7 @@ internal static class Program
             return 0;
         }
 
-        using var window = new SwitcherWindow(() => Feed(pipe), jobId => Resume(pipe, jobId), a.Includes);
+        using var window = new SwitcherWindow(() => Feed(pipe), jobId => Resume(pipe, jobId), a.Includes, (keys, ok) => _ = Report(pipe, keys, ok));
         return window.Run();
     }
 
@@ -74,19 +75,47 @@ internal static class Program
         }
     }
 
+    /// <summary><c>switcher.status</c>: whether Windows accepted the hotkey (another program may hold it). Best effort.</summary>
+    private static async Task Report(string? pipe, string keys, bool registered)
+    {
+        try
+        {
+            if (Client(pipe) is { } client)
+            {
+                var args = new Dictionary<string, string> { ["keys"] = keys, ["registered"] = registered ? "true" : "false" };
+                await client.ActAsync(new ActionRequest { Action = "switcher.status", Origin = Origin.Shell, Args = args }).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) when (ex is TimeoutException or IOException or AgentNotRunningException or InvalidOperationException or ObjectDisposedException)
+        {
+            Drop();
+        }
+    }
+
     private static PipeClient? Client(string? pipe)
     {
-        if (s_client is { IsConnected: true } c)
+        lock (s_gate)
         {
-            return c;
-        }
+            if (s_client is { IsConnected: true } c)
+            {
+                return c;
+            }
 
-        Drop();
-        s_client = PipeClient.ConnectAsync("shell", pipe, timeoutMs: 200).GetAwaiter().GetResult();
-        return s_client;
+            DropLocked();
+            s_client = PipeClient.ConnectAsync("shell", pipe, timeoutMs: 200).GetAwaiter().GetResult();
+            return s_client;
+        }
     }
 
     private static void Drop()
+    {
+        lock (s_gate)
+        {
+            DropLocked();
+        }
+    }
+
+    private static void DropLocked()
     {
         var c = s_client;
         s_client = null;

@@ -46,6 +46,8 @@ public static class ActionCatalog
         new("settings.export", ActionClass.Read, "Export settings", Surface.Flyout | Surface.Cli),
         new("settings.page", ActionClass.Reversible, "Show or hide a page", Surface.Flyout, UserOnly: true),
         new("settings.hotkey", ActionClass.Reversible, "Set the command line's hotkey", Surface.Flyout | Surface.Cli, UserOnly: true),
+        new("switcher.settings", ActionClass.Reversible, "Window switcher settings", Surface.Flyout | Surface.Cli, UserOnly: true),
+        new("switcher.status", ActionClass.Read, "Window switcher hotkey status", Surface.None),
         new("log.bundle", ActionClass.Read, "Log bundle", Surface.Flyout | Surface.Cli),
         new("proc.open_location", ActionClass.Read, "Open file location", Surface.Flyout | Surface.Widget, ProcessTargets: true),
         new("proc.open_taskmgr", ActionClass.Read, "Open Task Manager", Surface.Flyout | Surface.Widget),
