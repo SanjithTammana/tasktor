@@ -22,7 +22,7 @@ internal static class Program
         }
 
         var quit = new TaskCompletionSource();
-        await using var host = Composition.Create(store, tray: true, pipeName: a.Pipe, switcherPids: a.SwitcherPids);
+        await using var host = Composition.Create(store, tray: true, pipeName: a.Pipe, switcherPids: a.SwitcherPids, dataDir: a.DataDir);
         host.QuitRequested += () => quit.TrySetResult();
         Console.CancelKeyPress += (_, e) =>
         {

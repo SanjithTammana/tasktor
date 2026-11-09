@@ -36,6 +36,7 @@ public static partial class CliApp
           forget capture --app EXE | --site HOST [--yes]   everything captured from it
           export data [--to DIR] [--since 30d] [--format csv|jsonl|both] [--include-raw] [--include-capture] [--yes]
           settings export <zip> [--include-learned] [--include-notes] | settings import <zip> --yes | settings reset --yes
+          settings start-with-windows on|off       start Tasktor when you sign in (an HKCU Run entry)
           preset apply|arrange <name>
           log verbose on|off | log bundle [--to PATH]
           agent-hook <working|needs-permission|waiting|ended> [--agent NAME]   (reads the hook JSON on stdin)
@@ -406,8 +407,13 @@ public static partial class CliApp
                 return await Act(io, a, "settings.import", null, args).ConfigureAwait(false);
             case "reset":
                 return await Act(io, a, "settings.reset", null).ConfigureAwait(false);
+            case "start-with-windows" when a.Positional(1) is "on" or "off":
+                args["on"] = a.Positional(1) == "on" ? "true" : "false";
+                return await Act(io, a, "settings.start_with_windows", null, args).ConfigureAwait(false);
+            case "start-with-windows":
+                return Bad(io, "settings start-with-windows on|off");
             default:
-                return Bad(io, "settings: export, import or reset");
+                return Bad(io, "settings: export, import, reset or start-with-windows");
         }
     }
 

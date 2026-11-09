@@ -22,7 +22,8 @@ namespace Tasktor.Agent.Host;
 internal static class Composition
 {
     /// <param name="tray">Show the tray icon and the edge (the real agent only; tests and CI rigs leave it off).</param>
-    public static AgentHost Create(StoreLayout store, bool tray = false, string? pipeName = null, IReadOnlyList<uint>? switcherPids = null)
+    /// <param name="dataDir">The <c>--data-dir</c> given, if any: the start-at-logon entry passes it on.</param>
+    public static AgentHost Create(StoreLayout store, bool tray = false, string? pipeName = null, IReadOnlyList<uint>? switcherPids = null, string? dataDir = null)
     {
         var notifier = new SwitchableNotifier(); // the tray's balloons once it is up (U4 D-G7 fallback)
         var windows = OperatingSystem.IsWindows();
@@ -34,6 +35,8 @@ internal static class Composition
 
         // Check mode (--switcher-pid): only the check's own processes and their descendants are sampled or read.
         var processTable = new Win32ProcessTable { CheckPids = switcherPids is { Count: > 0 } fixture ? fixture.ToHashSet() : null };
+        var logon = windows && tray && Environment.ProcessPath is not null
+            && Core.Platform.LogonStart.AllowedFor(pipeName, switcherPids ?? [], Environment.GetEnvironmentVariable("TASKTOR_PIPE"));
         var frozen = new Core.Features.Jobs.FrozenRegistry(store.Frozen);
         IProcessControl control = windows
             ? new Windows.Processes.Win32ProcessControl(runner, frozen, () => DateTimeOffset.UtcNow)
@@ -47,6 +50,9 @@ internal static class Composition
             ProcessControl = control,
             ReadProcess = windows ? processTable.ReadOne : PortableProcessTable.ReadOne,
             Notifier = notifier,
+            // H8: only the real agent (tray on) of the owner's own instance, never a check instance or a test rig.
+            LogonStart = logon ? Windows.Platform.RunKeyLogonStart.Create() : null,
+            LogonCommand = logon ? Core.Platform.LogonStart.Command(Environment.ProcessPath!, dataDir is null ? null : Path.GetFullPath(dataDir)) : null,
         });
         host.Loop.Post(() =>
         {

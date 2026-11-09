@@ -50,6 +50,14 @@ public sealed record AgentOptions
     /// <summary>Opens URIs, files and folders (the shell); tests record calls.</summary>
     public Func<string, bool> Launch { get; init; } = ShellLauncher.Launch;
 
+    /// <summary>
+    /// H8 start at logon (the HKCU Run value) and the command it holds. Null in a check instance and off Windows: then
+    /// <c>start_with_windows</c> touches nothing.
+    /// </summary>
+    public Core.Platform.LogonStart? LogonStart { get; init; }
+
+    public string? LogonCommand { get; init; }
+
     /// <summary>For tests: run source reads inline instead of on the thread pool.</summary>
     public Action<Action>? OffLoopReads { get; init; }
 
@@ -470,6 +478,7 @@ public sealed class AgentHost : IAsyncDisposable
     public void Start()
     {
         Loop.Start();
+        Loop.Post(() => ApplyLogonStart(Settings.Current.StartWithWindows == true));
         Loop.Post(InitHotkey);
         Loop.Post(() => Plugins.Discover(Loop.Clock.UtcNow));
         Loop.Post(() => ReloadRules());
@@ -631,6 +640,30 @@ public sealed class AgentHost : IAsyncDisposable
         Router.Register("open", OpenCard);
         Router.Register("card.pin", req => Pin(req, pin: true));
         Router.Register("settings.hotkey", SetHotkey);
+        Router.Register("settings.start_with_windows", req =>
+        {
+            // H8 portable build: the Settings → General switch and `tasktor settings start-with-windows on|off`.
+            if (req.Args?.GetValueOrDefault("on") is not ("true" or "false") || Options.LogonStart is null)
+            {
+                return new PreparedAction { Summary = "Start with Windows", Refusal = Options.LogonStart is null ? "Start with Windows is not available in this instance" : "Say on or off" };
+            }
+
+            var wanted = req.Args["on"] == "true";
+            return new PreparedAction
+            {
+                Summary = wanted ? "Start Tasktor with Windows" : "Stop starting Tasktor with Windows",
+                Run = _ => ApplyLogonStart(wanted) is null
+                    ? new ActionResult { Action = req.Action, Status = ActionStatus.Failed, Message = "Windows did not accept the change" }
+                    : new ActionResult { Action = req.Action, Status = ActionStatus.Ok, Message = wanted ? "Tasktor starts when you sign in to Windows" : "Tasktor no longer starts with Windows" },
+                Done = r =>
+                {
+                    if (r.Status == ActionStatus.Ok)
+                    {
+                        Settings.Update(c => c with { StartWithWindows = wanted });
+                    }
+                },
+            };
+        });
         Router.Register("settings.page", req =>
         {
             // Settings → Appearance: hide or show a deep-window page. Home, Your data and Settings cannot be hidden.
@@ -921,7 +954,19 @@ public sealed class AgentHost : IAsyncDisposable
             Run = _ =>
             {
                 var removed = Uninstallers.Select(u => u()).Where(m => m is not null).ToList();
+                if (ApplyLogonStart(false) == Core.Platform.LogonStartChange.Removed)
+                {
+                    removed.Add("Removed the start-with-Windows entry");
+                }
+
                 return new ActionResult { Action = "uninstall", Status = ActionStatus.Ok, Message = removed.Count == 0 ? "Nothing to remove" : string.Join("; ", removed) };
+            },
+            Done = _ =>
+            {
+                if (Settings.Current.StartWithWindows == true)
+                {
+                    Settings.Update(c => c with { StartWithWindows = false }); // a later start must not put the entry back
+                }
             },
         });
     }
@@ -929,9 +974,38 @@ public sealed class AgentHost : IAsyncDisposable
     /// <summary>Platform clean-ups for <c>tasktor uninstall</c> (portable: Run key, toast identity). Each returns what it removed, or null.</summary>
     public List<Func<string?>> Uninstallers { get; } = [];
 
+    /// <summary>
+    /// H8: keep the HKCU Run value in line with <c>start_with_windows</c> (at start, on a settings change, from the switch).
+    /// Null when Windows refused the change; nothing happens in a check instance (no <see cref="AgentOptions.LogonStart"/>).
+    /// </summary>
+    private Core.Platform.LogonStartChange? ApplyLogonStart(bool wanted)
+    {
+        if (Options.LogonStart is not { } start || Options.LogonCommand is not { } command)
+        {
+            return Core.Platform.LogonStartChange.None;
+        }
+
+        try
+        {
+            var change = start.Apply(wanted, command);
+            if (change != Core.Platform.LogonStartChange.None)
+            {
+                Log.Info("logon_start.changed", LogField.Of("change", change.ToString().ToLowerInvariant()));
+            }
+
+            return change;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            Log.Warn("logon_start.failed", LogField.Of("type", e.GetType().Name));
+            return null;
+        }
+    }
+
     private void ReloadSettings()
     {
         Settings.Load();
+        ApplyLogonStart(Settings.Current.StartWithWindows == true);
         _cliAllowDestructive = Settings.AllowDestructiveCli;
         SettingsReloaded?.Invoke();
     }
