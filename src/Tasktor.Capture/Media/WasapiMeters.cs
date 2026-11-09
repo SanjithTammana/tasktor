@@ -86,7 +86,7 @@ public sealed unsafe partial class WasapiMeters : IDisposable
         {
             try
             {
-                var control = (IAudioSessionControl2)sessions.GetSession(i);
+                var control = sessions.GetSession(i);
                 var state = control.GetState(); // 0 inactive, 1 active, 2 expired
                 var pid = control.GetProcessId();
                 var peak = state == 1 ? ((IAudioMeterInformation)control).GetPeakValue() : 0f;
@@ -165,7 +165,11 @@ internal partial interface IAudioSessionManager2 : IAudioSessionManager
 internal partial interface IAudioSessionEnumerator
 {
     int GetCount();
-    IAudioSessionControl GetSession(int index);
+
+    // The header says IAudioSessionControl**, but on Windows 11 (26200) the session object answers QueryInterface for
+    // IAudioSessionControl2 and IAudioMeterInformation only, never IAudioSessionControl itself (E_NOINTERFACE), so the
+    // marshaller must ask for the derived interface. Found by --check-media (#9).
+    IAudioSessionControl2 GetSession(int index);
 }
 
 [GeneratedComInterface]
