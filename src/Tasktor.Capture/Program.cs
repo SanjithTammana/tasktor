@@ -61,7 +61,9 @@ internal static class Program
         indicator.Failed += () => stop.TrySetResult(true);
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.TrySetResult(false); };
         AppDomain.CurrentDomain.ProcessExit += (_, _) => stop.TrySetResult(false);
-        return await IndicatorHost.RunAsync(indicator, () => new CaptureLifetime(store, stop.Task, indicator, historyFile, browser), stop.Task).ConfigureAwait(false);
+        // A hook Windows removed and that would not reinstall stops capture like a failed indicator: the agent's supervisor
+        // restarts it (and reports repeated failures), instead of capture running on with no input recorded.
+        return await IndicatorHost.RunAsync(indicator, () => new CaptureLifetime(store, stop.Task, indicator, historyFile, browser, () => stop.TrySetResult(true)), stop.Task).ConfigureAwait(false);
     }
 }
 
@@ -71,6 +73,7 @@ internal sealed class CaptureLifetime : IDisposable
     private CapturePipeServer? _browser;
     private ControlPipeServer? _control;
     private Host.CaptureSession? _session;
+    private Hook.LowLevelInputHook? _hook;
     private Visibility.Win32VisibilitySource? _visibility;
     private UIAutomation.UiaWalkSource? _uia;
     private Media.WasapiMeters? _meters;
@@ -79,7 +82,7 @@ internal sealed class CaptureLifetime : IDisposable
     private bool _disposed;
     private readonly Win32RecordingIndicator _indicator;
 
-    public CaptureLifetime(StoreLayout store, Task<bool> stop, Win32RecordingIndicator indicator, string? historyFile = null, bool browser = true)
+    public CaptureLifetime(StoreLayout store, Task<bool> stop, Win32RecordingIndicator indicator, string? historyFile = null, bool browser = true, Action? hookFailed = null)
     {
         _indicator = indicator;
         try
@@ -96,7 +99,8 @@ internal sealed class CaptureLifetime : IDisposable
             endpoint.ContextChanged += (browser, tab, ctx) => { if (!stop.IsCompleted) recorder.Browser(browser, tab, ctx); };
 
             // Step 6: one logic loop for DeepCapture; the browser's page text and video are posted to it. The secure-desktop
-            // and session checks fail closed. The keyboard hook is not attached yet (layout decoding awaits the real-PC check).
+            // and session checks fail closed. Hooks attach per CaptureHooks.Attached: the mouse now, the keyboard after the
+            // dead-key layout check.
             var sessions = new Security.WtsSessionSnapshot(new Security.Win32WtsSessionQuery());
             // C21: the content index exists only encrypted (OQ-C22: SQLCipher). With an engine that cannot encrypt, OpenEncrypted
             // returns null and nothing is indexed: no plain-text index of what was on screen is ever written.
@@ -125,6 +129,11 @@ internal sealed class CaptureLifetime : IDisposable
             _session.ClickTargets = _uia;
             _session.Start();
             _uia.Start();
+
+            // C19.1 / C17: the low-level hook thread only copies each event into the session's ring; the loop drains it
+            // (pointer shaping, key runs) behind the same gate. Installed after the indicator, removed before it (Dispose).
+            _hook = new Hook.LowLevelInputHook(new Hook.RingHookSink(_session.Ring), hookFailed ?? (() => { }), Hook.CaptureHooks.Attached);
+            if (!_hook.Start()) hookFailed?.Invoke();
 
             // C20.1: audible (WASAPI peaks, 1 Hz) and now-playing (SMTC); both only post, the gate drops while closed.
             var appOfPid = (uint pid) => Windows.Shell.Win32Windows.ExeOfProcess(pid);
@@ -194,6 +203,7 @@ internal sealed class CaptureLifetime : IDisposable
         if (_retention is not null) { _retention.DisposeAsync().AsTask().GetAwaiter().GetResult(); _retention = null; }
         if (_control is not null) { _control.DisposeAsync().AsTask().GetAwaiter().GetResult(); _control = null; }
         if (_browser is not null) { _browser.DisposeAsync().AsTask().GetAwaiter().GetResult(); _browser = null; }
+        if (_hook is not null) { _hook.Dispose(); _hook = null; } // input stops first, and before the indicator goes
         if (_visibility is not null) { _visibility.Dispose(); _visibility = null; } // detached before the session stops
         if (_uia is not null) { _uia.Dispose(); _uia = null; }
         if (_meters is not null) { _meters.Dispose(); _meters = null; }
