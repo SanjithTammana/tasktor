@@ -5,11 +5,10 @@ namespace Tasktor.Capture.Tests;
 public sealed class CaptureHooksTests
 {
     [Fact]
-    public void Only_the_mouse_hook_is_attached_until_the_dead_key_check_passes()
+    public void Both_hooks_are_attached_once_their_real_pc_checks_passed()
     {
-        // C19 acceptance 3 passed on a real PC (2026-11-09): the mouse hook attaches. The keyboard hook waits for
-        // scripts/deadkey-check.ps1; flip CaptureHooks.Attached and this test together once it passes.
-        Assert.True(CaptureHooks.Attached.HasFlag(HookDevices.Mouse));
-        Assert.False(CaptureHooks.Attached.HasFlag(HookDevices.Keyboard));
+        // 2026-11-09 on a real PC: --bench-hook passed (C19 acceptance 3), then scripts/deadkey-check.ps1 passed with
+        // US-International (é and ü composed, dead keys decoded as uncertain and suppressed).
+        Assert.Equal(HookDevices.Both, CaptureHooks.Attached);
     }
 }

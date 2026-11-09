@@ -99,8 +99,8 @@ internal sealed class CaptureLifetime : IDisposable
             endpoint.ContextChanged += (browser, tab, ctx) => { if (!stop.IsCompleted) recorder.Browser(browser, tab, ctx); };
 
             // Step 6: one logic loop for DeepCapture; the browser's page text and video are posted to it. The secure-desktop
-            // and session checks fail closed. Hooks attach per CaptureHooks.Attached: the mouse now, the keyboard after the
-            // dead-key layout check.
+            // and session checks fail closed. Hooks attach per CaptureHooks.Attached (keyboard and mouse, each after
+            // its real-PC check).
             var sessions = new Security.WtsSessionSnapshot(new Security.Win32WtsSessionQuery());
             // C21: the content index exists only encrypted (OQ-C22: SQLCipher). With an engine that cannot encrypt, OpenEncrypted
             // returns null and nothing is indexed: no plain-text index of what was on screen is ever written.
