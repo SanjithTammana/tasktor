@@ -91,7 +91,8 @@ def convert(model_dir, out_dir, budget=1_000_000):
     out_dir.mkdir(parents=True, exist_ok=True)
     blob = MAGIC + struct.pack("<II", rows, table.shape[1]) + scale.astype("<f4").tobytes() + q.tobytes()
     (out_dir / "static.i8").write_bytes(blob)
-    (out_dir / "vocab.txt").write_text("\n".join(kept) + "\n", encoding="utf-8")
+    # newline="\n": on Windows text mode would write \r\n, overflowing the budget and leaving \r on every token.
+    (out_dir / "vocab.txt").write_text("\n".join(kept) + "\n", encoding="utf-8", newline="\n")
     size = len(blob) + (out_dir / "vocab.txt").stat().st_size
     return {"rows": rows, "of": len(order), "dims": int(table.shape[1]), "bytes": size, "budget": budget}
 
