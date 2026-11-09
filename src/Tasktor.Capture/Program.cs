@@ -105,11 +105,13 @@ internal sealed class CaptureLifetime : IDisposable
                 Index = index,
                 Vault = vault,
 
-                // C21.2: chunk embeddings only with a local model that passed gate G8 (capture\embedding\g8.json); else words only.
-                Embedder = Index.WorkerEmbedder.TryCreate(
-                    Path.Combine(AppContext.BaseDirectory, "worker", "python", OperatingSystem.IsWindows() ? "python.exe" : "bin/python3"),
-                    Path.Combine(AppContext.BaseDirectory, "worker"),
-                    Path.Combine(store.CaptureDir, "embedding")),
+                // C21.2: chunk embeddings only with a model that passed gate G8 (capture\embedding\g8.json); else words only.
+                // The 1 MB static table (in process) comes first; an ONNX model through the worker is the fallback.
+                Embedder = (Index.IChunkEmbedder?)Index.StaticEmbedder.TryCreate(Path.Combine(store.CaptureDir, "embedding"))
+                    ?? Index.WorkerEmbedder.TryCreate(
+                        Path.Combine(AppContext.BaseDirectory, "worker", "python", OperatingSystem.IsWindows() ? "python.exe" : "bin/python3"),
+                        Path.Combine(AppContext.BaseDirectory, "worker"),
+                        Path.Combine(store.CaptureDir, "embedding")),
                 History = new Commands.HistoryTail(historyFile ?? Commands.HistoryTail.DefaultPath(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData))),
             };
             _indicator.SessionChanged += _session.SessionChanged;

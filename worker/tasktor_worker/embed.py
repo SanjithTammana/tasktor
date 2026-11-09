@@ -19,6 +19,12 @@ from sklearn.preprocessing import normalize
 MAX_TOKENS = 256
 RRF_K = 60
 
+# Accent folding for Latin letters (U+00C0–U+024F), generated once from NFD and fixed here so the C# encoder (which runs
+# without ICU) folds exactly the same characters. Combining marks are dropped as well.
+FOLD_FROM = "ÀÁÂÃÄÅÇÈÉÊËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝàáâãäåçèéêëìíîïñòóôõöùúûüýÿĀāĂăĄąĆćĈĉĊċČčĎďĒēĔĕĖėĘęĚěĜĝĞğĠġĢģĤĥĨĩĪīĬĭĮįİĴĵĶķĹĺĻļĽľŃńŅņŇňŌōŎŏŐőŔŕŖŗŘřŚśŜŝŞşŠšŢţŤťŨũŪūŬŭŮůŰűŲųŴŵŶŷŸŹźŻżŽžƠơƯưǍǎǏǐǑǒǓǔǕǖǗǘǙǚǛǜǞǟǠǡǦǧǨǩǪǫǬǭǰǴǵǸǹǺǻȀȁȂȃȄȅȆȇȈȉȊȋȌȍȎȏȐȑȒȓȔȕȖȗȘșȚțȞȟȦȧȨȩȪȫȬȭȮȯȰȱȲȳ"
+FOLD_TO = "AAAAAACEEEEIIIINOOOOOUUUUYaaaaaaceeeeiiiinooooouuuuyyAaAaAaCcCcCcCcDdEeEeEeEeEeGgGgGgGgHhIiIiIiIiIJjKkLlLlLlNnNnNnOoOoOoRrRrRrSsSsSsSsTtTtUuUuUuUuUuUuWwYyYZzZzZzOoUuAaIiOoUuUuUuUuUuAaAaGgKkOoOojGgNnAaAaAaEeEeIiIiOoOoRrRrUuUuSsTtHhAaEeOoOoOoOoYy"
+FOLD = dict(zip(FOLD_FROM, FOLD_TO))
+
 
 class WordPiece:
     """BERT uncased tokenizer: lower-case, strip accents, split on whitespace and punctuation, greedy word pieces."""
@@ -35,8 +41,7 @@ class WordPiece:
 
     @staticmethod
     def basic(text):
-        text = unicodedata.normalize("NFD", text.lower())
-        text = "".join(c for c in text if unicodedata.category(c) != "Mn")
+        text = "".join(FOLD.get(c, c) for c in text.lower() if unicodedata.category(c) != "Mn")
         words, cur = [], []
         for c in text:
             if c.isspace():

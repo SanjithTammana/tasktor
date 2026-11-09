@@ -45,7 +45,7 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 | C18 | Screen text: UIA snapshots + browser text | Built (Windows check pending) | browser text wired and recorded; UIA source (focus, debounced cached walks, terminals through `TextPattern`, click targets) attached (#8); OCR fallback (C18.4) is T2 |
 | C19 | Pointer: path, clicks with target, scroll, dwell, visible windows | Partial | pointer shaping (≤ 10/s), clicks, wheel, recorder gating, activity documents, async click-target resolution (100 ms budget, off the loop), per-activity features kept in the index (C19.3), `HookDevices` + hook latency benchmark (#6); UIA hit-test resolver attached (#8); missing: attaching the mouse hook; native visibility producer done (#7), its real-PC timing pending |
 | C20 | Media: SMTC + audio sessions, side tracks | Built (Windows check pending) | browser video wired; SMTC now-playing and WASAPI audible attached (#9) |
-| C21 | Content index (FTS5 + embeddings), "Search my activity" | Built, mostly | encrypted index (SQLCipher) + search in the command line; forget by time, app or site (vault + index together); reopen a hit's web page; int8 chunk embeddings fused by RRF, used only behind a passing G8 report (model supplied by the owner); missing: reopen files / windows (the UIA source has window ids, not documents yet) |
+| C21 | Content index (FTS5 + embeddings), "Search my activity" | Built, mostly | encrypted index (SQLCipher) + search in the command line; forget by time, app or site (vault + index together); reopen a hit's web page; int8 chunk embeddings fused by RRF from a 1 MB static table in process (or an ONNX model), used only behind a passing G8 report; missing: reopen files / windows (the UIA source has window ids, not documents yet) |
 | C22 | CLI command log (PSReadLine, OSC 133, shell children) | Built (Windows check pending) | PowerShell history tailed, reconciled with typed runs, scrubbed and recorded (C22.1); terminal-marks offer with a diff preview, never writing the settings (C22.3; exit codes not readable); agent-run commands from B's scan as `Agent(app)` (C22.4) |
 
 ## D. CLI
@@ -77,11 +77,11 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 
 | Row | Feature | Status | Missing |
 |---|---|---|---|
-| G1 | Widgets-board widget | **Not started** | `Tasktor.Widget` is a stub; needs MSIX (H8) |
+| G1 | Widgets-board widget | Dropped (owner, 2026-11-09: no MSIX) | `Tasktor.Widget` stays a stub |
 | G2 | Flyout → shelf, command line, deep window | Built (Windows check pending) | the command line's dimmed desktop is a layered click-through window (none in high contrast); dialogs: none left |
 | G3, G4 | Taskbar button, overlay bar | Later (spec) | — |
 | G6 | Tray icon, glance tooltip, menu | Built | — |
-| — | Toasts | Partial | tray balloons (the D-G7 fallback); real toasts with buttons need an app identity (MSIX) |
+| — | Toasts | Built (tray balloons) | real toasts with buttons dropped with MSIX (owner, 2026-11-09) |
 
 ## I. Generalized tailored features
 
@@ -101,7 +101,7 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 | H4 | Fluent look, theme, Narrator names | Built | real-PC check with Narrator |
 | H5 | Budgets | Built (gates) | measured budgets on a PC |
 | H7 | Tests + CI + gates | Built | — |
-| H8 | **MSIX** + portable zip | Partial | the zip is built; **no MSIX** (manifest, packaging, start at logon, CLI alias). Signing is the owner's decision |
+| H8 | **MSIX** + portable zip | Built (zip only) | the owner chose no MSIX (2026-11-09); start at logon would be an HKCU Run entry |
 | H9 | Public repo docs | Built | README antivirus section to check |
 | H11 | Plugin contract + authoring tools | Built | — |
 | H12 | Releases, SHA256SUMS | Built | — |

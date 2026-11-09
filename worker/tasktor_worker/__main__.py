@@ -22,17 +22,31 @@ def embed(args):
 
 
 def gate8(args):
-    """`g8 --model DIR --prereg FILE`: the check set ({"texts", "labels"}) on stdin; the gate's report on stdout."""
+    """`g8 --static DIR | --model DIR --prereg FILE`: the check set ({"texts", "labels"}) on stdin; the report on stdout."""
     from tasktor_worker.embed import OnnxEncoder, g8
+    from tasktor_worker.embed_static import StaticEncoder
 
     prereg = json.loads(open(args[args.index("--prereg") + 1], encoding="utf-8").read())
     check = json.load(sys.stdin)
-    report = g8(check["texts"], check["labels"], OnnxEncoder.load(args[args.index("--model") + 1]), prereg["gates"]["g8_ari_gain"])
+    encoder = StaticEncoder.load(args[args.index("--static") + 1]) if "--static" in args else OnnxEncoder.load(args[args.index("--model") + 1])
+    report = g8(check["texts"], check["labels"], encoder, prereg["gates"]["g8_ari_gain"])
     sys.stdout.write(json.dumps(report) + "\n")
     return 0 if report["pass"] else 3
 
 
+def convert_static(args):
+    """`convert-static --from MODEL2VEC_DIR --to OUT_DIR [--budget BYTES]`: prune + int8 to the budget (default 1 MB)."""
+    from tasktor_worker.embed_static import convert
+
+    budget = int(args[args.index("--budget") + 1]) if "--budget" in args else 1_000_000
+    report = convert(args[args.index("--from") + 1], args[args.index("--to") + 1], budget)
+    sys.stdout.write(json.dumps(report) + "\n")
+    return 0
+
+
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "convert-static":
+        return convert_static(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "embed":
         return embed(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "g8":

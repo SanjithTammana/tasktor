@@ -4,3 +4,4 @@ tests/fixtures/** -text
 *.f32 binary
 *.i32 binary
 *.csr binary
+*.i8 binary

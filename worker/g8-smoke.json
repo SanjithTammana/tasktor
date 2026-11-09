@@ -1,0 +1,17 @@
+{
+  "note": "A generic smoke set for gate G8: five topics, paraphrases that share few words. It tests the pipeline, not your workflows; the real G8 run uses your own labelled activities.",
+  "texts": [
+    "renew the car insurance before it lapses", "compare quotes for vehicle cover", "my automobile policy is due next month", "find a cheaper motor insurance plan", "the sedan needs coverage for the new year", "premium for insuring the hatchback",
+    "walk the puppy around the park", "book the dog in at the vet", "buy food for the hound", "the beagle needs its vaccination", "train the terrier to sit", "groom the canine before the show",
+    "file the quarterly tax return", "pay the levy owed to the council", "the excise duty on fuel went up", "claim back sales tax on receipts", "deadline for the income tax filing", "accountant reviewing the tariff schedule",
+    "fix the failing unit test in the parser", "the build broke after the merge", "debug the null reference in the service", "refactor the function and rerun the suite", "the compiler reports a type error", "review the pull request for the bug fix",
+    "plan meals for the week", "buy vegetables and bread at the market", "cook pasta for dinner tonight", "the recipe needs two eggs and flour", "bake a cake for the birthday", "groceries for the weekend"
+  ],
+  "labels": [
+    "insurance", "insurance", "insurance", "insurance", "insurance", "insurance",
+    "pets", "pets", "pets", "pets", "pets", "pets",
+    "tax", "tax", "tax", "tax", "tax", "tax",
+    "code", "code", "code", "code", "code", "code",
+    "food", "food", "food", "food", "food", "food"
+  ]
+}
