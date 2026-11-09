@@ -29,6 +29,13 @@ public interface IUiaClient : IDisposable
     /// </summary>
     IUiaWalkNode? Root(long window, bool textBodies);
 
+    /// <summary>
+    /// False when the window's thread does not answer within the walk timeout (or Windows already counts it hung): it is
+    /// then not walked at all (C §5.4 skips <c>IsHungAppWindow</c> windows). UIA alone took ~2.9 s, three 1 s timeouts, to
+    /// give up on a hung window on a real PC.
+    /// </summary>
+    bool Responds(long window) => true;
+
     /// <summary>"role: name" of the element at a screen point, or null.</summary>
     string? HitTest(int x, int y);
 }
@@ -214,6 +221,13 @@ public sealed class UiaWorker(IUiaClient client, Func<long, string?> appOf, Func
         foreach (var window in _scheduler.Due(now))
         {
             if (App(window) is not { } app || Blocked(app)) continue; // an excluded app, or Tasktor's own window, is never read
+            if (!client.Responds(window))
+            {
+                TimedOut++;
+                _scheduler.Hung(window, nowMs());
+                continue;
+            }
+
             var start = nowMs();
             Sensitive<UiaWalk>? walk = null;
             try

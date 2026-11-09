@@ -112,6 +112,32 @@ public sealed class UiaWorkerTests
         Assert.Equal(2, client.Walks); // the window is skipped for a minute
     }
 
+    [Fact]
+    public void A_window_that_does_not_answer_is_never_walked_and_skipped_for_a_minute()
+    {
+        var clock = new long[] { 0 };
+        var (worker, client, posts) = New(now: () => clock[0]);
+        client.Answers = false;
+        worker.OnFocus(new UiaFocusChange(10, new FakeNode("field", password: false)));
+        clock[0] = 1000;
+        worker.Step(clock[0]);
+        Assert.Equal(0, client.Walks); // C §5.4: a hung window is not walked at all
+        Assert.Empty(posts.Walks);
+        Assert.Equal(1, worker.TimedOut);
+
+        client.Answers = true;
+        worker.OnDirty(10);
+        clock[0] += 5000;
+        worker.Step(clock[0]);
+        Assert.Equal(0, client.Walks); // still inside its minute (changes then are dropped)
+        clock[0] = UiaScheduler.HungSkipMs + 2000;
+        worker.OnDirty(10);
+        clock[0] += 5000;
+        worker.Step(clock[0]);
+        Assert.Equal(1, client.Walks);
+        Assert.Single(posts.Walks);
+    }
+
     private static (UiaWorker, FakeClient, Posts) New(Func<string, bool>? blocked = null, Func<long>? now = null)
     {
         var client = new FakeClient();
@@ -140,11 +166,15 @@ public sealed class UiaWorkerTests
 
         public Action? OnWalk { get; set; }
 
+        public bool Answers { get; set; } = true;
+
         public event Action<long>? WindowDirty { add { } remove { } }
 
         public event Action<UiaFocusChange>? FocusChanged { add { } remove { } }
 
         public void Watch(long window) => Watched.Add(window);
+
+        public bool Responds(long window) => Answers;
 
         public IUiaWalkNode? Root(long window, bool textBodies)
         {

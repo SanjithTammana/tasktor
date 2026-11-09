@@ -168,9 +168,9 @@ internal partial interface IUIAutomation2 : IUIAutomation
 {
     void GetAutoSetFocus();
     void SetAutoSetFocus(int autoSetFocus);
-    void GetConnectionTimeout();
+    uint GetConnectionTimeout();
     void SetConnectionTimeout(uint milliseconds);
-    void GetTransactionTimeout();
+    uint GetTransactionTimeout();
     void SetTransactionTimeout(uint milliseconds);
 }
 

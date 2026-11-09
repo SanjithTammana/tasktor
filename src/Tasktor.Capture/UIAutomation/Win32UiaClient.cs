@@ -142,6 +142,12 @@ public sealed unsafe partial class Win32UiaClient : IUiaClient
         }
     }
 
+    /// <summary>WM_NULL with SMTO_ABORTIFHUNG: a thread Windows counts as hung fails at once, a silent one after the timeout.</summary>
+    public bool Responds(long window) => SendMessageTimeoutW((nint)window, 0, 0, 0, SmtoBlock | SmtoAbortIfHung, TimeoutMs, out _) != 0;
+
+    /// <summary>The connection and transaction timeouts as UIA reports them (the check reads them back to prove the slots).</summary>
+    internal (uint Connection, uint Transaction) Timeouts => (_uia.GetConnectionTimeout(), _uia.GetTransactionTimeout());
+
     public string? HitTest(int x, int y)
     {
         try
@@ -318,4 +324,9 @@ public sealed unsafe partial class Win32UiaClient : IUiaClient
 
     [LibraryImport("user32.dll")]
     private static partial nint GetForegroundWindow();
+
+    private const uint SmtoBlock = 0x0001, SmtoAbortIfHung = 0x0002;
+
+    [LibraryImport("user32.dll")]
+    private static partial nint SendMessageTimeoutW(nint hwnd, uint message, nuint wParam, nint lParam, uint flags, uint timeoutMs, out nuint result);
 }

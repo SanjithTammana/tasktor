@@ -25,6 +25,7 @@ internal static class Program
 
         // C18 check (real PC, #8): walks only its own fixture windows; prints pass / fail and timings.
         if (args.Contains("--check-uia")) return UIAutomation.UiaFixtureCheck.Run(Console.Out);
+        if (args.Contains(UIAutomation.UiaFixtureCheck.ChildFlag)) return UIAutomation.UiaFixtureCheck.RunChild(args.Contains(UIAutomation.UiaFixtureCheck.HangFlag), Console.Out);
 
         // C20 check (real PC, #9): its own tone and silence through its own audio session; prints pass / fail only.
         if (args.Contains("--check-media")) return Media.MediaToneCheck.Run(Console.Out);
