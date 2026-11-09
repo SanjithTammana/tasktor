@@ -19,6 +19,13 @@ public enum HookDevices
 /// </summary>
 public sealed unsafe partial class LowLevelInputHook : IDisposable
 {
+    /// <summary>
+    /// The hook thread's priority. A callback does ~1 µs of work, but at Normal a preemption inside it put p99.9 at
+    /// 67–86 µs on a real PC (budget 50 µs, C19 acceptance 3). The thread sleeps in GetMessage between events, so a high
+    /// priority costs nothing; <see cref="HookLatencyBench"/> times at this priority too.
+    /// </summary>
+    public const ThreadPriority HookThreadPriority = ThreadPriority.Highest;
+
     private const int WhKeyboardLl = 13, WhMouseLl = 14, HcAction = 0, InvalidHookHandle = 1404;
     private const uint WmQuit = 0x0012, WmTimer = 0x0113;
     private const uint PmNoRemove = 0;
@@ -51,7 +58,7 @@ public sealed unsafe partial class LowLevelInputHook : IDisposable
         if (!OperatingSystem.IsWindows() || _thread is not null || Interlocked.CompareExchange(ref s_active, 1, 0) != 0) return false;
         try
         {
-            _thread = new Thread(Run) { IsBackground = true, Name = "tasktor-input-hook" };
+            _thread = new Thread(Run) { IsBackground = true, Name = "tasktor-input-hook", Priority = HookThreadPriority };
             _thread.Start();
         }
         catch

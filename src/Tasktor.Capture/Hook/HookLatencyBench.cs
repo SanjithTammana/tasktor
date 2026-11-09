@@ -25,6 +25,17 @@ public static class HookLatencyBench
         ArgumentNullException.ThrowIfNull(sink);
         ArgumentOutOfRangeException.ThrowIfLessThan(samples, 1);
         ArgumentOutOfRangeException.ThrowIfNegative(hz);
+
+        // Timed on a thread at the hook thread's own priority, so the tail measures what the real callback would see.
+        Result? result = null;
+        var thread = new Thread(() => result = Measure(sink, samples, hz)) { IsBackground = true, Priority = LowLevelInputHook.HookThreadPriority };
+        thread.Start();
+        thread.Join();
+        return result!;
+    }
+
+    private static Result Measure(IHookInputSink sink, int samples, int hz)
+    {
         for (var i = 0; i < 1000; i++) Body(sink, i); // warm up (tiered JIT) before timing
 
         var ticks = new long[samples];
