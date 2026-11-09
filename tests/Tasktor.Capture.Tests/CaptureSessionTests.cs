@@ -73,29 +73,17 @@ public sealed class CaptureSessionTests : IDisposable
     [Fact]
     public void A_click_target_is_resolved_off_the_loop_and_posted_back()
     {
+        // The hook clock is pinned, so the 100 ms budget does not depend on how fast the test machine's thread pool is.
         var resolver = new Resolver();
-        using var session = NewSession(resolver);
+        using var session = NewSession(resolver, tickMs: () => 5000);
         session.Tick();
         session.Deep.Focus(new FocusTarget("w", "e", "synthetic.exe") { IsPassword = false });
         resolver.Answer = _ => Task.FromResult<Sensitive<string>?>(Sensitive.Of("button: synthetic"));
-        session.Ring.Write(new RawInput(0, 0, 0, Environment.TickCount64 + 10, false, RawInputKind.Mouse, 7, 8, 0x0201));
+        session.Ring.Write(new RawInput(0, 0, 0, 5010, false, RawInputKind.Mouse, 7, 8, 0x0201));
         session.Tick();
         Assert.Single(Records(), r => r.Kind == RecordKind.Pointer); // the click itself, at once
-
-        // The answer must land within 100 ms of the click; a loaded test machine can miss one, so a few clicks may be needed.
-        for (var i = 0; i < 5 && session.Deep.ClickTargetsKept == 0; i++)
-        {
-            if (i > 0)
-            {
-                session.Ring.Write(new RawInput(0, 0, 0, Environment.TickCount64, false, RawInputKind.Mouse, 7, 8, 0x0201));
-                session.Tick();
-            }
-
-            SpinWait.SpinUntil(() => { session.Loop.RunPending(); return session.Deep.ClickTargetsKept == 1; }, TimeSpan.FromMilliseconds(300));
-        }
-
-        Assert.Equal(1, session.Deep.ClickTargetsKept);
-        Assert.All(resolver.Asked, a => Assert.Equal((7, 8), a));
+        Assert.True(SpinWait.SpinUntil(() => { session.Loop.RunPending(); return session.Deep.ClickTargetsKept == 1; }, TimeSpan.FromSeconds(10)));
+        Assert.Equal((7, 8), Assert.Single(resolver.Asked));
         Assert.Contains(Records(), r => r.Kind == RecordKind.Pointer && r.Body.Contains("button: synthetic", StringComparison.Ordinal));
     }
 
@@ -126,10 +114,10 @@ public sealed class CaptureSessionTests : IDisposable
         Assert.DoesNotContain(Records(), r => r.Body.Contains("too late", StringComparison.Ordinal));
     }
 
-    private CaptureSession NewSession(IClickTargetResolver resolver)
+    private CaptureSession NewSession(IClickTargetResolver resolver, Func<long>? tickMs = null)
     {
         var blocks = new CaptureBlocks(Path.Combine(_dir, "blocks2.json"), TimeZoneInfo.Utc);
-        return new CaptureSession(new CaptureRecorder(_vault, blocks, () => _clock.UtcNow), new BrowserEndpoint(blocks, () => _clock.UtcNow), _clock, _probe, () => SessionAvailability.UnlockedConnected) { ClickTargets = resolver };
+        return new CaptureSession(new CaptureRecorder(_vault, blocks, () => _clock.UtcNow), new BrowserEndpoint(blocks, () => _clock.UtcNow), _clock, _probe, () => SessionAvailability.UnlockedConnected, tickMs) { ClickTargets = resolver };
     }
 
     private sealed class Resolver : IClickTargetResolver

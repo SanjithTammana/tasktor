@@ -35,6 +35,7 @@ public sealed class CaptureSession : IDisposable
     private bool _stopped;
     private volatile bool _secure = true;
     private readonly CaptureRecorder _recorder;
+    private readonly Func<long> _tickMs;
     private readonly MediaSessionLogic _media;
     private SessionAvailability _lastSession = SessionAvailability.Unknown;
     private DateTimeOffset _sessionAt = DateTimeOffset.MinValue;
@@ -43,8 +44,10 @@ public sealed class CaptureSession : IDisposable
     private volatile bool _historyRebaseline = true; // the gate starts closed
     private int _discardCommands;
 
-    public CaptureSession(CaptureRecorder recorder, BrowserEndpoint endpoint, IClock clock, IDesktopProbe probe, Func<SessionAvailability> session)
+    /// <param name="tickMs">The hook's millisecond clock (default <see cref="Environment.TickCount64"/>; tests pin it).</param>
+    public CaptureSession(CaptureRecorder recorder, BrowserEndpoint endpoint, IClock clock, IDesktopProbe probe, Func<SessionAvailability> session, Func<long>? tickMs = null)
     {
+        _tickMs = tickMs ?? (static () => Environment.TickCount64);
         ArgumentNullException.ThrowIfNull(recorder);
         ArgumentNullException.ThrowIfNull(clock);
         _endpoint = endpoint ?? throw new ArgumentNullException(nameof(endpoint));
@@ -55,8 +58,8 @@ public sealed class CaptureSession : IDisposable
         Ring = new InputRing();
         var suppressor = new Suppressor(recorder.Blocks) { SecureDesktop = () => _secure };
         // Hook ticks are milliseconds of the monotonic clock; their wall time is now minus how long ago they happened.
-        var runs = new KeyRunBuilder(new KeyDecoder(), new ActorAttributor(() => []), new SecretRedactor(), suppressor.Check, ms => _clock.UtcNow - TimeSpan.FromMilliseconds(Math.Max(0, Environment.TickCount64 - ms)));
-        Deep = new DeepCapture(Ring, runs, new SnapshotDiffer(), new SecretRedactor(), recorder, () => _clock.UtcNow, () => Environment.TickCount64);
+        var runs = new KeyRunBuilder(new KeyDecoder(), new ActorAttributor(() => []), new SecretRedactor(), suppressor.Check, ms => _clock.UtcNow - TimeSpan.FromMilliseconds(Math.Max(0, _tickMs() - ms)));
+        Deep = new DeepCapture(Ring, runs, new SnapshotDiffer(), new SecretRedactor(), recorder, () => _clock.UtcNow, _tickMs);
         _media = new MediaSessionLogic(media => Deep.Media(media.Reveal()));
         _recorder = recorder;
         _recorder.SetSecure(true); // closed until the first check proves the user's desktop
@@ -146,7 +149,7 @@ public sealed class CaptureSession : IDisposable
                     _lastSession = availability;
                     _sessionAt = now;
                 }
-                if (_secure && !secure) Deep.PointerBoundary(Environment.TickCount64);
+                if (_secure && !secure) Deep.PointerBoundary(_tickMs());
                 _secure = secure;
                 _recorder.SetSecure(secure);
             }
