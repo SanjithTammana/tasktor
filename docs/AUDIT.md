@@ -40,8 +40,8 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 | C11, C12 | Unusual episode, prediction | Later (spec) | — |
 | C14 | Export + Python loader | Built | — |
 | C15 | Custom models | Later (spec) | — |
-| C16 | Actor attribution | Built (logic) | needs the keyboard hook attached |
-| C17 | Key runs, password / secure-field suppression | Built (logic, fail closed) | **hook not attached** until the layout check on a PC |
+| C16 | Actor attribution | Built | keyboard hook attached (2026-11-09); live check of `agent:` / `injected` runs on a PC |
+| C17 | Key runs, password / secure-field suppression | Built (layout check passed 2026-11-09) | keyboard hook attached after the US-International dead-key check; live checks (password fields, UAC, German / French layouts) on a PC |
 | C18 | Screen text: UIA snapshots + browser text | Built (UIA check passed 2026-11-09) | browser text wired and recorded; UIA source (focus, debounced cached walks, terminals through `TextPattern`, click targets) attached (#8), windows that do not answer skipped; live check with real apps still to do; OCR fallback (C18.4) is T2 |
 | C19 | Pointer: path, clicks with target, scroll, dwell, visible windows | Partial | pointer shaping (≤ 10/s), clicks, wheel, recorder gating, activity documents, async click-target resolution (100 ms budget, off the loop), per-activity features kept in the index (C19.3), `HookDevices` + hook latency benchmark (#6, passed 2026-11-09: p99.9 ≤ 31 µs); UIA hit-test resolver attached (#8); mouse hook attached (2026-11-09; live check with real clicks still to do); native visibility producer done (#7), timing borderline (p95 0.82–1.3 ms against 1 ms) |
 | C20 | Media: SMTC + audio sessions, side tracks | Built (tone check passed 2026-11-09) | browser video wired; SMTC now-playing and WASAPI audible attached (#9); SMTC with a real player still to check |
