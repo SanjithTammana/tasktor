@@ -39,12 +39,18 @@ internal static partial class SpikeW2
 
     private static string Show(bool? v) => v switch { true => "yes", false => "no", null => "unknown" };
 
-    /// <summary>A hidden window of this process: its desktop is the current one.</summary>
+    /// <summary>
+    /// A shown 1×1 window of this process: its desktop is the current one. It must be visible, because a window never
+    /// shown has no desktop id (GetWindowDesktopId fails with TYPE_E_ELEMENTNOTFOUND), which made the first real-PC run
+    /// fail before it tried the move. A no-activate tool popup takes no focus and stays out of Alt+Tab.
+    /// </summary>
     private sealed partial class SpikeWindow : IDisposable
     {
+        private const uint WsPopup = 0x80000000, WsVisible = 0x10000000, WsExToolWindow = 0x00000080, WsExNoActivate = 0x08000000;
+
         public SpikeWindow()
         {
-            Hwnd = CreateWindowExW(0, "Static", "tasktor W2 spike", 0, 0, 0, 1, 1, 0, 0, 0, 0);
+            Hwnd = CreateWindowExW(WsExToolWindow | WsExNoActivate, "Static", "tasktor W2 spike", WsPopup | WsVisible, 0, 0, 1, 1, 0, 0, 0, 0);
         }
 
         public long Hwnd { get; }
