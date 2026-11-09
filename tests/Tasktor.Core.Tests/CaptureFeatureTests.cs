@@ -35,10 +35,18 @@ public sealed class CaptureFeatureTests : IDisposable
 
         public bool Down { get; set; }
 
+        /// <summary>Nothing listens on the pipe: the connect times out (the host was stopped).</summary>
+        public bool Stopped { get; set; }
+
         public List<string> Extensions { get; set; } = [];
 
         public Task<CaptureStatus> Handle(CaptureCommand c, CancellationToken ct)
         {
+            if (Stopped)
+            {
+                return Task.FromException<CaptureStatus>(new TimeoutException("no pipe server"));
+            }
+
             if (Down)
             {
                 return Task.FromException<CaptureStatus>(new IOException("pipe closed"));
@@ -282,6 +290,22 @@ public sealed class CaptureFeatureTests : IDisposable
         Assert.Equal(ActionStatus.Refused, Act("capture.pause", args: new() { ["for"] = "15m" }).Status);
         Assert.False(_rig.State.Current.Capture!.On);
         Assert.Contains(_capture.Cards()[0].Blocks, b => b is Contracts.Cards.BadgeBlock bb && bb.Text.ToString().Contains("not running", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_stopped_host_refuses_forget_as_not_running()
+    {
+        // 2026-11-09 real PC (#4 check 7): with the host stopped the link exists but nothing listens, and the forget
+        // failed as "did not answer" instead of refusing.
+        _host.Stopped = true;
+        var first = Act("capture.forget", args: new() { ["since"] = "1h" });
+        var r = Act("capture.forget", args: new() { ["since"] = "1h" }, confirm: first.Token);
+        Assert.Equal(ActionStatus.Refused, r.Status);
+        Assert.Equal("Capture is not running", r.Message);
+        _host.Stopped = false;
+        _host.Down = true; // a host that closes the pipe mid-call did not answer: that stays a failure
+        first = Act("capture.forget", args: new() { ["since"] = "1h" });
+        Assert.Equal(ActionStatus.Failed, Act("capture.forget", args: new() { ["since"] = "1h" }, confirm: first.Token).Status);
     }
 
     [Fact]

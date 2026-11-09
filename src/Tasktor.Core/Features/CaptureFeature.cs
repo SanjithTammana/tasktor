@@ -295,14 +295,23 @@ public sealed class CaptureFeature : Feature
         Context.OffLoop(() => Send(link, cmd));
     }
 
-    private static CaptureStatus? Send(Func<CaptureCommand, CancellationToken, Task<CaptureStatus>> link, CaptureCommand cmd)
+    private static CaptureStatus? Send(Func<CaptureCommand, CancellationToken, Task<CaptureStatus>> link, CaptureCommand cmd) => Send(link, cmd, out _);
+
+    /// <param name="notRunning">True when the connect timed out: nothing listens on the pipe, so the host is not running.</param>
+    private static CaptureStatus? Send(Func<CaptureCommand, CancellationToken, Task<CaptureStatus>> link, CaptureCommand cmd, out bool notRunning)
     {
+        notRunning = false;
         using var cts = new CancellationTokenSource(LinkTimeout);
         try
         {
             return link(cmd, cts.Token).WaitAsync(cts.Token).GetAwaiter().GetResult();
         }
-        catch (Exception e) when (e is OperationCanceledException or IOException or InvalidOperationException or TimeoutException)
+        catch (TimeoutException)
+        {
+            notRunning = true;
+            return null;
+        }
+        catch (Exception e) when (e is OperationCanceledException or IOException or InvalidOperationException)
         {
             return null;
         }
@@ -321,9 +330,10 @@ public sealed class CaptureFeature : Feature
             Summary = summary,
             Run = _ =>
             {
-                status = Send(link, cmd);
+                status = Send(link, cmd, out var notRunning);
                 return status switch
                 {
+                    null when notRunning => new ActionResult { Action = req.Action, Status = ActionStatus.Refused, Reason = "capture:not_running", Message = "Capture is not running" },
                     null => new ActionResult { Action = req.Action, Status = ActionStatus.Failed, Message = "The capture host did not answer" },
                     { Refusal: { } why } => new ActionResult { Action = req.Action, Status = ActionStatus.Refused, Reason = "capture:" + why, Message = Words(why) },
                     _ => new ActionResult { Action = req.Action, Status = ActionStatus.Ok, Message = Done(cmd, status) },
