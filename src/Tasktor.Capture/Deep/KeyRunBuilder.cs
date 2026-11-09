@@ -162,6 +162,9 @@ public sealed class KeyRunBuilder
         }
     }
 
+    /// <summary>Drop the open run without recording it (C21.4 forget).</summary>
+    public void Discard() => _open = null;
+
     public void Flush(long nowMs)
     {
         if (_open is not null)

@@ -315,6 +315,17 @@ public sealed class CaptureSession : IDisposable
         return _started && !_stopped ? Loop.InvokeAsync(Run).GetAwaiter().GetResult() : Run();
     }
 
+    /// <summary>
+    /// C21.4: drop what the logic thread still holds from an app or site (open documents, runs, view baselines). Call it
+    /// before the vault forgets, so nothing open is written afterwards with the forgotten text in it. Any thread.
+    /// </summary>
+    public int ForgetOpen(string? app, string? host) => OnLoop(() => Deep.Forget(app, host));
+
+    /// <summary>C21.4: the same for a time range from <paramref name="since"/> on.</summary>
+    public int ForgetOpen(DateTimeOffset since) => OnLoop(() => Deep.Forget(since));
+
+    private int OnLoop(Func<int> work) => _started && !_stopped ? Loop.InvokeAsync(work).GetAwaiter().GetResult() : work();
+
     /// <summary>C21.4: forget the index's activities that included an app or site (on the loop while it runs).</summary>
     public int ForgetIndex(string? app, string? host)
     {

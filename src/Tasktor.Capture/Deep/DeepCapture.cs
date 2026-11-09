@@ -1,6 +1,7 @@
 using Tasktor.Capture.Commands;
 using Tasktor.Capture.Recording;
 using Tasktor.Contracts.Platform;
+using Tasktor.Core.Apps;
 
 namespace Tasktor.Capture.Deep;
 
@@ -27,6 +28,7 @@ public sealed class DeepCapture
     private readonly Dictionary<ViewKey, (string App, string? Host)> _viewOwners = [];
     private FocusTarget? _focus;
     private readonly PointerLogic _pointer = new();
+    private readonly ActivityBoundary _boundary = new();
     private long _pointerAfter = long.MinValue;
     private readonly Dictionary<long, PendingClick> _pendingClicks = [];
     private long _nextClick;
@@ -93,6 +95,11 @@ public sealed class DeepCapture
         foreach (var c in Commands.Flush(now))
         {
             Command(c);
+        }
+
+        if (_boundary.Tick(now))
+        {
+            CloseActivity();
         }
 
         return total;
@@ -226,9 +233,79 @@ public sealed class DeepCapture
         return true;
     }
 
-    public void Visible(VisibleSet set) => Apply(Tracks.On(set));
+    public void Visible(VisibleSet set)
+    {
+        Apply(Tracks.On(set));
+        Boundary();
+    }
 
-    public void Foreground(string app) => Apply(Tracks.OnForeground(app, _now()));
+    public void Foreground(string app)
+    {
+        Apply(Tracks.OnForeground(app, _now()));
+        Boundary();
+    }
+
+    /// <summary>D-C1: the foreground activity ends here when another app has been in front long enough (see <see cref="ActivityBoundary"/>).</summary>
+    private void Boundary()
+    {
+        if (_boundary.Foreground(Tracks.Foreground, _now()))
+        {
+            CloseActivity();
+        }
+    }
+
+    /// <summary>
+    /// C21.4: what this thread still holds from an app or site goes before the vault forgets it. Open documents that
+    /// included it go whole (they would otherwise be written later, with its text in them), its views' baselines and waiting
+    /// clicks go, the open key run goes when it was typed there, and commands waiting for their match go. Returns how many
+    /// open documents were dropped.
+    /// </summary>
+    public int Forget(string? app, string? host)
+    {
+        if (app is null && host is null)
+        {
+            return 0;
+        }
+
+        bool Hit(string a, string? h) => (app is not null && Glob.IsMatch(app, a)) || (host is not null && h is not null && RecordSource.HostMatches(host, h));
+        DrainKeys(); // keys typed before the forget belong to it
+        if (_focus is { } f && Hit(f.App, f.Host))
+        {
+            _runs.Discard();
+        }
+
+        foreach (var (view, owner) in _viewOwners.ToArray())
+        {
+            if (Hit(owner.App, owner.Host))
+            {
+                _differ.Forget(view);
+                _viewOwners.Remove(view);
+            }
+        }
+
+        foreach (var (id, p) in _pendingClicks.ToArray())
+        {
+            if (Hit(p.App, p.Host))
+            {
+                _pendingClicks.Remove(id);
+            }
+        }
+
+        Commands.Clear();
+        return Documents.Discard(app, host);
+    }
+
+    /// <summary>C3.4 / C21.4 forget by time: the open run, every view's baseline, waiting clicks and commands, and the open documents that reach into the range go.</summary>
+    public int Forget(DateTimeOffset since)
+    {
+        DrainKeys();
+        _runs.Discard();
+        _differ.Clear();
+        _viewOwners.Clear();
+        _pendingClicks.Clear();
+        Commands.Clear();
+        return Documents.DiscardSince(since);
+    }
 
     /// <summary>
     /// The foreground activity ended (C's episode boundary): flush the open run, emit volatile refs' last values, and

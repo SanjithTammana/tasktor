@@ -231,6 +231,78 @@ public sealed class DeepCapturePipelineTests : IDisposable
     }
 
     [Fact]
+    public void Switching_apps_for_30_s_records_the_activity_while_capture_runs()
+    {
+        // 2026-11-09 real PC: track 1's document was written only when capture stopped, so search saw nothing of a session.
+        _deep.Visible(new VisibleSet(Now(), 100, [new VisibleWindow(1, "notepad.exe", 100, true)]));
+        _deep.Walk(Walk(4, "Draft one"), "notepad.exe", null);
+        _ms += 5_000;
+        _deep.Visible(new VisibleSet(Now(), 100, [new VisibleWindow(2, "mail.exe", 100, true)]));
+        Wait(TimeSpan.FromSeconds(29), TimeSpan.FromSeconds(1));
+        Assert.Equal(0, _deep.DocumentsWritten);
+        Wait(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(1));
+        var doc = Assert.Single(Records(), r => r.Kind == RecordKind.Document);
+        Assert.Contains("Draft one", doc.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_glance_away_keeps_the_activity_open()
+    {
+        _deep.Foreground("notepad.exe");
+        _deep.Walk(Walk(4, "Draft one"), "notepad.exe", null);
+        _deep.Foreground("mail.exe");
+        Wait(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(1));
+        _deep.Foreground("notepad.exe");
+        Wait(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(1));
+        Assert.Equal(0, _deep.DocumentsWritten);
+    }
+
+    [Fact]
+    public void Forgetting_an_app_drops_its_open_document_and_unfinished_run_before_they_are_recorded()
+    {
+        // 2026-11-09 real PC: forget by app cleared the vault and index, then the open activity was written at stop with
+        // the forgotten app's text in it.
+        _deep.Focus(new FocusTarget("w1", "e1", "notepad.exe") { IsPassword = false });
+        _deep.Walk(Walk(4, "zebracrumb draft"), "notepad.exe", null);
+        Type("zebracrumb typed"); // still open: no pause, no Enter
+        _deep.Pump();
+        Assert.Equal(1, _deep.Forget("notepad.exe", null));
+        Wait(TimeSpan.FromSeconds(4), TimeSpan.FromMilliseconds(500));
+        _deep.CloseActivity();
+        Assert.DoesNotContain(Records(), r => r.Kind is RecordKind.Document or RecordKind.KeyRun);
+        Assert.DoesNotContain(Records(), r => r.Kind != RecordKind.ViewDiff && r.Body.Contains("zebracrumb", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Forgetting_a_site_drops_the_open_documents_that_showed_it_and_keeps_the_others()
+    {
+        _deep.Foreground("chess.exe");
+        _deep.Media(new MediaState("chrome.exe", "Endgame lecture", "A channel", MediaStatus.Playing, 0, true));
+        Wait(TimeSpan.FromSeconds(61), TimeSpan.FromSeconds(1));
+        _deep.Walk(Walk(5, "board"), "chess.exe", null);
+        _deep.Walk(Walk(6, "lecture page"), "chrome.exe", "video.example");
+        Assert.Equal(1, _deep.Forget(null, "example"));
+        _deep.Media(new MediaState("chrome.exe", "Endgame lecture", "A channel", MediaStatus.Paused, 0, false));
+        Wait(TimeSpan.FromSeconds(31), TimeSpan.FromSeconds(1)); // the side track closes
+        _deep.CloseActivity();
+        var docs = Records().Where(r => r.Kind == RecordKind.Document).ToList();
+        Assert.Contains(docs, d => d.Body.Contains("board", StringComparison.Ordinal));
+        Assert.DoesNotContain(docs, d => d.Body.Contains("lecture page", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Forgetting_since_a_time_drops_open_documents_that_reach_into_it()
+    {
+        _deep.Foreground("notepad.exe");
+        _deep.Walk(Walk(4, "older line"), "notepad.exe", null);
+        _ms += 120_000;
+        _deep.Walk(Walk(4, "older line", "newer line"), "notepad.exe", null);
+        Assert.Equal(1, _deep.Forget(Now().AddMinutes(-1)));
+        _deep.CloseActivity();
+        Assert.DoesNotContain(Records(), r => r.Kind == RecordKind.Document);
+    }
+
+    [Fact]
     public void An_excluded_apps_volatile_values_are_not_recorded_under_the_focused_app_at_activity_close()
     {
         _blocks.Add(new CaptureBlock { Id = "", Kind = BlockKind.App, Value = "bank*.exe", AddedBy = "user" });

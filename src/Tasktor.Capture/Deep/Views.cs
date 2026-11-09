@@ -237,7 +237,14 @@ public sealed class SnapshotDiffer
         return diffs;
     }
 
-    /// <summary>The view closed (tab closed, window destroyed).</summary>
+    /// <summary>Every view's baseline goes (C3.4 forget by time): the next walk of each is a first sight.</summary>
+    public void Clear()
+    {
+        _views.Clear();
+        _lru.Clear();
+    }
+
+    /// <summary>The view closed (tab closed, window destroyed), or its app or site was forgotten.</summary>
     public void Forget(ViewKey view)
     {
         if (_views.Remove(view, out var node))

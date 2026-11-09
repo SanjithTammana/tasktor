@@ -355,6 +355,24 @@ public sealed class ActivityDocumentBuilder
         return new ActivityDocument(track, doc.Start, end, [.. doc.Sections.Select(s => new DocSection(s.Heading, s.Text.ToString()))]) { Truncated = doc.Truncated, Apps = [.. doc.Apps], Hosts = [.. doc.Hosts], Links = [.. doc.Links], Pointer = doc.Pointer.Build(end - doc.Start) };
     }
 
+    /// <summary>C21.4: drop the open documents that include an app (exe glob) or a site (and its subdomains); returns how many.</summary>
+    public int Discard(string? app, string? host) =>
+        DiscardWhere(d => (app is not null && d.Apps.Any(a => Core.Apps.Glob.IsMatch(app, a))) || (host is not null && d.Hosts.Any(h => Recording.RecordSource.HostMatches(host, h))));
+
+    /// <summary>C3.4: drop the open documents holding anything at or after <paramref name="since"/>; returns how many.</summary>
+    public int DiscardSince(DateTimeOffset since) => DiscardWhere(d => d.Last >= since);
+
+    private int DiscardWhere(Func<Doc, bool> match)
+    {
+        var gone = _open.Where(p => match(p.Value)).Select(p => p.Key).ToList();
+        foreach (var track in gone)
+        {
+            _open.Remove(track);
+        }
+
+        return gone.Count;
+    }
+
     private Doc DocFor(int track, DateTimeOffset at)
     {
         if (!_open.TryGetValue(track, out var doc))

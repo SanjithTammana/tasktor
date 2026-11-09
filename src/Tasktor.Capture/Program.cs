@@ -157,14 +157,18 @@ internal sealed class CaptureLifetime : IDisposable
                 RecordsToday = () => recorder.RecordsToday,
                 Extensions = endpoint.Connected,
                 Search = (query, since) => _session?.Search(query, since),
+                // C21.4: what is still open in memory goes first (else it is written later with the forgotten text), then
+                // the vault and the index together.
                 ForgetSince = since =>
                 {
+                    _session?.ForgetOpen(since);
                     var n = recorder.ForgetSince(since);
-                    _session?.ForgetIndex(since); // C21.4: vault and index forget together
+                    _session?.ForgetIndex(since);
                     return n;
                 },
                 ForgetMatching = (app, host) =>
                 {
+                    _session?.ForgetOpen(app, host);
                     var n = recorder.ForgetMatching(app, host);
                     _session?.ForgetIndex(app, host);
                     return n;
