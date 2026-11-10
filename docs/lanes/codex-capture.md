@@ -1,6 +1,70 @@
 # Capture lane report
-## Current update (2026-11-08)
-This update supersedes the historical status and requests below.
+## Current update (2026-11-09)
+This section supersedes the historical status, requests and blockers below. Checks used an isolated agent, pipe and disposable store; both TASKTOR_PIPE and TASKTOR_DATA_DIR were set for every CLI call. Only synthetic windows were eligible; no real window titles or personal content are reported.
+
+### Done
+- Recorded the real-PC results for #4 and #5 below. #6-#9 already have result comments and are closed; their remaining limitations are retained here and in PROGRESS.
+- Capture fixes already pushed: dc99c9b closes activities in-session and clears open memory on forget; 4ad7fd7 gives the capture-not-running refusal; 01ef503 adds opt-in start with Windows. This update changes documentation only.
+
+### Checks run: issue #4
+| Check | Result | Evidence / limit |
+|---|---|---|
+| 1. History tail | PASS, vault probe; export FAIL | 2 history command rows, 1 redacted row, 0 raw-token matches, 0 pre-capture fixture lines. Fixture appends simulated PSReadLine; interactive history entry was not exercised. Export with --include-capture has no capture tables because capture export sources are not registered. |
+| 2. PowerShell 5 | NOT RUN | No interactive PS5 session; PSReadLine appends were simulated on the fixture. |
+| 3. App block | PASS | Live pwsh.exe exclusion prevented a command record; after unexclude, a command was recorded. |
+| 4. History rewrite | PASS | Deleted and recreated only the fixture; only the new command was recorded, capture stayed alive, 0 error lines. |
+| 5. Forget by app | PASS, vault and open-memory check | Confirmation named the synthetic app; first forget removed 73 records. Recheck wrote a document mid-session and forgot 62 while the activity was open. After stop: 0 records naming the app or containing the made-up word. Search was unit-tested only; the live ingest interval is 30 min. Export remains blocked by the gap in check 1. |
+| 6. Forget by site | NOT RUN | Browser extension required. |
+| 7. Capture off | PASS | Exit 2 with the capture-not-running refusal after 4ad7fd7. |
+| 8. Normal stop | PASS, bounded evidence | Ctrl+C exited 0 in about 3.4 s. Indicator ordering and blocked-stop retry are covered by 2c98548's synthetic unit tests, not a new visual timing measurement. |
+
+### Checks run: issue #5
+Owner checks used the laptop display at 1920 x 1080, 125%; the other display is 3200 x 1800. No scaling or keyboard settings were changed.
+
+| Check | Result | Evidence / limit |
+|---|---|---|
+| 1. Module start / stop | PASS | Shell started with the module. Disabling through the isolated pipe returned ok and the shell exited, verified twice. Consent dialog NOT RUN: WinUI flyout was not built. |
+| 2. Open / order | PASS, opening only (owner) | Tiles appeared while Alt was held. MRU order and the 100 ms latency target were not measured. |
+| 3. Quick tap | PASS (owner) | First tap selected the previous fixture; second tap returned to the first. |
+| 4. Cycle / backward / restore | NOT RUN to confirmation | Owner has not confirmed cycle, Shift+backward or minimized-window restoration. |
+| 5. Search | FAIL, observed symptom | Owner saw an unexpected grave accent followed by plus in the search box. US-International is among the installed layouts; exact keystrokes were not confirmed. Dead-key leakage is a hypothesis, not a diagnosed cause. See Requests. |
+| 6. App view | PASS (owner) | App view displayed. |
+| 7. Esc / click-away | NOT RUN to confirmation | Owner has not confirmed both dismissal paths. |
+| 8. Frozen job | PASS | Progress-file ID was not the runtime job ID: use the ID from the isolated snapshot after adoption. CLI freeze exited 0; snapshot pause=frozen and feed frozen=true. Owner confirmed frozen badge, first Enter asks, second Enter resumes and activates. Afterwards snapshot pause=none and feed frozen=false. |
+| 9. DPI | PASS at 125%; 150% NOT RUN | Tiles fit on the laptop. No 150% display was available; changing scaling was outside the check. |
+| 10. Hotkey conflict | PASS, no conflict observed | Owner's switcher was off; isolated shell reported its hotkey registered. Conflict-refusal behavior was not exercised. |
+| 11. Settings / desktop filter | NOT RUN | WinUI settings, shortcut conflict note and cross-desktop filter were not exercised. |
+| 12. Views / paging / filtered thumbnails | NOT RUN beyond app view | No learned fixture model, no 25+ window fixture, and no confirmed filtered-thumbnail check. |
+| 13. Replace Alt+Tab | NOT RUN | Replacement hook, modifier release, restoration and antivirus response were not exercised. |
+
+- Fixture recovery: the handoff's 3 synthetic windows had exited. New forms initially inherited hidden startup state, so the shell had no eligible visible window; showing only the 2 fixture forms resolved that setup error before the successful owner check. This was not recorded as a product defect.
+- Disk check: 0 switcher-named files in the isolated store. This is a filename check, not proof of zero writes under other names; module configuration writes are expected.
+- Cleanup PASS: 0 check processes remained; the disposable store and entire check folder were removed after boundary and reparse-point checks.
+- Live C19: the attached mouse hook recorded thousands of pointer records. This establishes delivery, not click-target accuracy, shaping rate or secure-session suppression on the live PC.
+- Visibility rerun: total p95 444 / 1540 / 1617 us with 2.6 GB free. Against <1000 us: 1 PASS, 2 FAIL; the budget is not consistently met.
+- Prior #6-#9 results: hook p99.9 25.8-30.7 us idle, 11.0 / 15.4 us under load (50 us budget); UIA fixture/password/timeout checks passed, walk p95 51-134 ms with one loaded run at 173 ms; tone rose/fell, muted run stayed inaudible, 48 other-app samples ignored. SMTC with a real player remains owner-run.
+
+- Full check for this documentation update: format and format verification PASS; warnings-as-errors build PASS; .NET 1203/1203; pytest 122 passed; extension script exit 0 through Git Bash; build-server shutdown exit 0. Only the three requested documentation files changed.
+
+### Interpretations
+- ActivityBoundary closes an activity after 30 s in another app or at the 1 h cap; documents no longer wait only for capture stop. Search still depends on the 30-min ingest batch.
+- Forget by app, site or time also discards the open activity, run, views, clicks and commands, preventing forgotten text from reappearing at stop.
+- Capture-down forget refuses explicitly, exit 2. Start with Windows is an opt-in HKCU Run entry; custom-pipe / switcher-PID / TASKTOR_PIPE check instances never touch that entry.
+
+### Needs Windows verification
+- Keep #4 interactive PSReadLine, site forget, export and live search limits open as follow-ups; keep #5 unconfirmed and NOT RUN rows above, including 150% DPI and WinUI consent.
+- Real-app UIA, SMTC, secure-session behavior, click-target accuracy and consistent visibility timing remain in PROGRESS. G8 on the owner's labelled data remains the owner's decision.
+
+### Requests
+- Capture export: register capture export sources so export data --include-capture emits capture tables; rerun #4 export assertions afterwards.
+- Switcher search: with the isolated shell and synthetic windows, open Alt+grave-accent and attempt title search; the owner observed grave-accent plus plus-sign in the search box. Exact key sequence is unconfirmed; reproduce on US-International before attributing the cause. Fix belongs on the main branch, outside the capture check lane.
+- Add Settings > General > Start with Windows, backed by the existing setting/action. The CLI is implemented; the flyout switch is still missing.
+
+### Blockers
+- No source changes were made for these checks. Failed and unrun checks above remain explicit; closing check issues does not mean every acceptance check passed.
+
+## Historical update (2026-11-08)
+This historical update was superseded by the 2026-11-09 report above.
 - IN PROGRESS #2: the session-notification adapter is registered on the indicator window and closes the recorder gate synchronously. Registration failure prevents capture startup. Generation checks reject stale session queries and queued browser or native-source events across a notice. The existing media logic now has loop entry points for metadata, peaks, audio stop and source removal; these are tested with synthetic inputs. Native visibility, UIA and SMTC/WASAPI producers are still absent; synthetic geometry timing (30 windows, 2 monitors, 1,000 samples) was 0.576 ms p95 and 10.875 ms maximum against the <1 ms target; this includes PowerShell overhead and excludes native enumeration, so end-to-end timing is unverified and the source remains detached; the owner-run dead-key script is present and its build-only check passed, but the owner has not run its interactive check; the keyboard hook remains detached pending the owner's dead-key check. Prior blocker statements below about the missing Core shutdown result are historical: 2c98548 provides it.
 - PASS: baseline .NET suite and 110 worker tests. After each code commit, formatter, warnings-as-errors solution build and full .NET suite passed; the rebased baseline capture suite passed 228 tests. Indicator-only PC probe passed startup and delivered one synthetic session notice through the actual window procedure, with capture and hooks off. Lock, unlock, UAC and real notification delivery have not been verified.
 - PASS, synthetic privacy regression with a conservative mitigation: history read during a secure tick could remain pending and be recorded after reopening. Upstream now discards pending commands and the first batch read after a closed period, then resumes history. Capture also uses the session generation so a concurrent notice cannot consume a newer re-baseline, and starts with re-baselining enabled before the first safe tick. Real lock, unlock and UAC behavior remains unverified.

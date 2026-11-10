@@ -45,8 +45,8 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 | C18 | Screen text: UIA snapshots + browser text | Built (UIA check passed 2026-11-09) | browser text wired and recorded; UIA source (focus, debounced cached walks, terminals through `TextPattern`, click targets) attached (#8), windows that do not answer skipped; live check with real apps still to do; OCR fallback (C18.4) is T2 |
 | C19 | Pointer: path, clicks with target, scroll, dwell, visible windows | Partial | pointer shaping (≤ 10/s), clicks, wheel, recorder gating, activity documents, async click-target resolution (100 ms budget, off the loop), per-activity features kept in the index (C19.3), `HookDevices` + hook latency benchmark (#6, passed 2026-11-09: p99.9 ≤ 31 µs); UIA hit-test resolver attached (#8); mouse hook attached (2026-11-09; live check with real clicks still to do); native visibility producer done (#7), timing borderline (p95 0.82–1.3 ms against 1 ms) |
 | C20 | Media: SMTC + audio sessions, side tracks | Built (tone check passed 2026-11-09) | browser video wired; SMTC now-playing and WASAPI audible attached (#9); SMTC with a real player still to check |
-| C21 | Content index (FTS5 + embeddings), "Search my activity" | Built, mostly | encrypted index (SQLCipher) + search in the command line; forget by time, app or site (vault + index together); reopen a hit's web page; int8 chunk embeddings fused by RRF from a 1 MB static table in process (or an ONNX model), used only behind a passing G8 report (table converted, 999 975 bytes, smoke set passes; G8 on the owner's data pending); missing: reopen files / windows (the UIA source has window ids, not documents yet) |
-| C22 | CLI command log (PSReadLine, OSC 133, shell children) | Built (Windows check pending) | PowerShell history tailed, reconciled with typed runs, scrubbed and recorded (C22.1); terminal-marks offer with a diff preview, never writing the settings (C22.3; exit codes not readable); agent-run commands from B's scan as `Agent(app)` (C22.4) |
+| C21 | Content index (FTS5 + embeddings), "Search my activity" | Built, mostly; app-forget PC check passed 2026-11-09 | encrypted SQLCipher index; activities now close in-session (30 s away / 1 h cap); forget clears persisted and open-memory content (73 / 62 removed, 0 matches after stop); live search and site-forget checks remain; capture export sources missing; reopen web pages built, files/windows missing; 999 975-byte embedding table smoke-tested, owner-labelled G8 pending |
+| C22 | CLI command log (PSReadLine, OSC 133, shell children) | Built; fixture PC checks passed 2026-11-09 | vault: 2 history rows, 1 redacted, 0 raw tokens/prior lines; exclusion and rewrite passed; capture-down refusal exit 2. Interactive PSReadLine/PS5 and capture export remain unverified. Terminal-marks preview built (no exit codes); agent-command live check remains |
 
 ## D. CLI
 
@@ -68,7 +68,7 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 
 | Row | Feature | Status | Missing |
 |---|---|---|---|
-| F2 | Window switcher (Alt+`, thumbnails, search) | Built | `tasktor-shell` window, hotkey, DWM thumbnails, search, app view, badges, Resume first, supervised; settings page (shortcut, this desktop only, Replace Alt+Tab), workflow view, paging past 24, opt-in Alt+Tab hook; needs the real-PC check (#5) |
+| F2 | Window switcher (Alt+`, thumbnails, search) | Built; partial PC checks 2026-11-09 | module start/stop, opening, quick tap, app view, 125% fit, frozen badge and two-Enter resume passed; unexpected search characters observed (exact keys/cause unconfirmed). MRU/latency, cycle/restore, Esc/click-away, 150%, consent/settings, workflow/paging, filtered thumbnails and Alt+Tab replacement remain unverified; 0 switcher-named files in fixture store |
 | F4 | "On another desktop" badge, bring here | Built (badge); bring here off | badge in the switcher; spike W2 failed 2026-11-09 (`MoveWindowToDesktop` on another process's window: E_ACCESSDENIED), so `windows.bring_here` stays off (D-W7) |
 | F6 | Multi-monitor / per-monitor DPI | Built (requirement) | real-PC checks |
 | F7 | `state.fullscreen` | Built | — |
@@ -101,7 +101,7 @@ Cut, folded and "not possible" rows (A4, A9, A10, C13, E4–E7, E9, F1, F3, F5, 
 | H4 | Fluent look, theme, Narrator names | Built | real-PC check with Narrator |
 | H5 | Budgets | Built (gates) | measured budgets on a PC |
 | H7 | Tests + CI + gates | Built | — |
-| H8 | **MSIX** + portable zip | Built (zip only) | the owner chose no MSIX (2026-11-09); start at logon would be an HKCU Run entry |
+| H8 | **MSIX** + portable zip | Built (zip only; opt-in logon entry) | owner chose no MSIX (2026-11-09); settings.start_with_windows and CLI on/off manage HKCU Run, reconcile moved paths, uninstall removes entry; check instances never touch Run. Settings > General switch still missing; owner enables from installed build |
 | H9 | Public repo docs | Built | README antivirus section to check |
 | H11 | Plugin contract + authoring tools | Built | — |
 | H12 | Releases, SHA256SUMS | Built | — |
