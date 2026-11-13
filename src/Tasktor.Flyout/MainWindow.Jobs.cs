@@ -56,6 +56,11 @@ public sealed partial class MainWindow
         }
 
         right.Children.Add(SystemHeading("Watching"));
+        if (jobsCard is not null)
+        {
+            right.Children.Add(SystemSurface(ChoiceRow("Watch a program as a job", "Pick a running process; Tasktor tracks it like any job", "Choose…", WatchProgramAsync)));
+        }
+
         var otherCards = shown.Where(c => c.Id != "core.jobs").ToList();
         if (otherCards.Count == 0)
         {
@@ -206,6 +211,87 @@ public sealed partial class MainWindow
 
         if (group.Children.Count == 0) group.Children.Add(Text(empty, "TasktorInk2Brush"));
         return group;
+    }
+
+    /// <summary>A label and caption on the left, one button on the right (the board's "Choose…" row).</summary>
+    private static Grid ChoiceRow(string label, string caption, string button, Func<Task> click)
+    {
+        var row = new Grid { ColumnSpacing = 12, MinHeight = 48 };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        text.Children.Add(Text(label, "TasktorInkBrush"));
+        text.Children.Add(new TextBlock { Text = caption, TextWrapping = TextWrapping.Wrap, Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush("TasktorInk2Brush") });
+        row.Children.Add(text);
+        var choose = new Button { Content = button, VerticalAlignment = VerticalAlignment.Center };
+        AutomationProperties.SetName(choose, label);
+        choose.Click += async (_, _) => await click();
+        Grid.SetColumn(choose, 1);
+        row.Children.Add(choose);
+        return row;
+    }
+
+    /// <summary>
+    /// B1 "Watch a program as a job": pick one running process (the same ones System lets you act on), then
+    /// <c>job.pin</c> it. The agent checks the process again, so one that exited meanwhile is refused with a reason.
+    /// </summary>
+    private async Task WatchProgramAsync()
+    {
+        JsonNode? pulled = null;
+        try
+        {
+            pulled = await _snapshot.PullAsync("processes");
+        }
+        catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+        }
+
+        var all = JobPicker.From(pulled);
+        if (all.Count == 0)
+        {
+            await InformAsync(pulled is null ? "Couldn't read the running programs. Try again in a moment." : "No running program can be watched right now.");
+            return;
+        }
+
+        var filter = new TextBox { PlaceholderText = "Type to filter", MinWidth = 380 };
+        AutomationProperties.SetName(filter, "Filter programs");
+        var list = new ListView { SelectionMode = ListViewSelectionMode.Single, MaxHeight = 360 };
+        AutomationProperties.SetName(list, "Running programs");
+        void Fill()
+        {
+            list.Items.Clear();
+            foreach (var choice in JobPicker.Filter(all, filter.Text))
+            {
+                var item = new StackPanel { Padding = new Thickness(0, 4, 0, 4), Tag = choice };
+                item.Children.Add(new TextBlock { Text = choice.Exe, Style = StyleOf("TasktorBodyTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+                item.Children.Add(new TextBlock { Text = choice.Detail + " · PID " + choice.Pid.ToString(CultureInfo.InvariantCulture), Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush("TasktorInk2Brush") });
+                AutomationProperties.SetName(item, choice.Exe + ", " + choice.Detail);
+                list.Items.Add(item);
+            }
+        }
+
+        Fill();
+        var body = new StackPanel { Spacing = 8 };
+        body.Children.Add(filter);
+        body.Children.Add(list);
+        var dialog = new ContentDialog
+        {
+            Title = "Watch a program as a job",
+            Content = body,
+            PrimaryButtonText = "Watch",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            IsPrimaryButtonEnabled = false,
+            XamlRoot = Content.XamlRoot,
+        };
+        filter.TextChanged += (_, _) => Fill();
+        list.SelectionChanged += (_, _) => dialog.IsPrimaryButtonEnabled = list.SelectedItem is not null;
+        if (await ShowTasktorDialogAsync(dialog) != ContentDialogResult.Primary || (list.SelectedItem as FrameworkElement)?.Tag is not JobChoice picked)
+        {
+            return;
+        }
+
+        await RunAsync(picked.Watch);
     }
 
     private static bool JobFinished(JsonObject job) => JobString(job, "status") is "done" or "failed" or "ended";

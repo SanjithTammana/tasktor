@@ -394,7 +394,7 @@ public sealed class JobWatch : Feature
             Exe = c.Exe,
             Label = JobGate.Label(c.Exe, c.CommandLine),
             CommandLine = c.CommandLine is null ? null : Sensitive.Of(c.CommandLine),
-            StartedAt = new DateTimeOffset(c.Key.CreatedTicks > 0 ? c.Key.CreatedTicks : now.UtcTicks, TimeSpan.Zero),
+            StartedAt = c.Key.CreatedUtc ?? now,
             LastEvidenceAt = now,
             Priority = root.Priority,
             CpuTimeS = root.CpuTimeS,

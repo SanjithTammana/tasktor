@@ -2,9 +2,17 @@ using System.Globalization;
 
 namespace Tasktor.Contracts.Platform;
 
-/// <summary>Process identity: PID + creation time (B D-B11). Every lookup and action re-checks it (PID reuse).</summary>
+/// <summary>
+/// Process identity: PID + creation time (B D-B11). Every lookup and action re-checks it (PID reuse).
+/// <see cref="CreatedTicks"/> is a Windows FILETIME (UTC, 100-ns units since 1601), exactly what <c>GetProcessTimes</c>
+/// returns, so identity checks compare it without conversion; 0 means unknown. Read it as a time only through
+/// <see cref="CreatedUtc"/>.
+/// </summary>
 public readonly record struct ProcKey(uint Pid, long CreatedTicks)
 {
+    /// <summary>The creation time, or null when it is unknown.</summary>
+    public DateTimeOffset? CreatedUtc => CreatedTicks > 0 ? new DateTimeOffset(DateTime.FromFileTimeUtc(CreatedTicks)) : null;
+
     public override string ToString() => Pid.ToString(CultureInfo.InvariantCulture) + "-" + CreatedTicks.ToString(CultureInfo.InvariantCulture);
 
     public static bool TryParse(string? text, out ProcKey key)

@@ -153,7 +153,7 @@ public sealed class ChildProcessRunner
     {
         try
         {
-            return p.StartTime.ToUniversalTime().Ticks;
+            return p.StartTime.ToFileTimeUtc(); // FILETIME: matches the process table's ProcKey
         }
         catch (InvalidOperationException)
         {

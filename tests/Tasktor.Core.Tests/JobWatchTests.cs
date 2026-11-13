@@ -62,7 +62,8 @@ public sealed class JobWatchTests : IDisposable
 
     public void Dispose() => _rig.Dispose();
 
-    private long Ticks(TimeSpan since) => (_t0 + since).UtcTicks;
+    // ProcKey.CreatedTicks is a Windows FILETIME (what GetProcessTimes returns), not DateTime ticks.
+    private long Ticks(TimeSpan since) => (_t0 + since).ToFileTime();
 
     /// <summary>Advance minute by minute, the process CPU growing at <paramref name="cores"/>, scanning on each tick.</summary>
     private void Run(uint pid, double cores, TimeSpan span, TimeSpan? step = null)
@@ -123,6 +124,33 @@ public sealed class JobWatchTests : IDisposable
         _jobs.OnExit(new ProcessExit(new ProcKey(400, Ticks(TimeSpan.Zero)), 0, _rig.Clock.UtcNow));
         Run(0, 0, TimeSpan.FromMinutes(2));
         Assert.DoesNotContain(_jobs.Jobs, j => j.Live && j.Root.Pid == 400 && j.Root.CreatedTicks == Ticks(TimeSpan.FromMinutes(10)));
+    }
+
+    [Fact]
+    public void A_job_started_when_its_process_was_created()
+    {
+        // The pin check on Windows showed started_at in the year 0426: the FILETIME creation time was read as DateTime
+        // ticks, so every duration (and every learned usual duration) was about 1,600 years.
+        _w.Add(100, 1, "python.exe", "python.exe train.py", Ticks(TimeSpan.Zero));
+        Run(100, 1.0, TimeSpan.FromMinutes(3));
+        Assert.Equal(_t0, JobOf(100)!.StartedAt);
+    }
+
+    [Fact]
+    public void A_fresh_busy_process_waits_out_the_minimum_age()
+    {
+        _rig.Clock.Advance(TimeSpan.FromMinutes(10));
+        _w.Add(100, 1, "python.exe", "python.exe train.py", _rig.Clock.UtcNow.ToFileTime());
+        Run(100, 2.0, TimeSpan.FromSeconds(50), TimeSpan.FromSeconds(10));
+        Assert.Null(JobOf(100));
+    }
+
+    [Fact]
+    public void Creation_time_reads_as_a_filetime()
+    {
+        var at = new DateTimeOffset(2026, 11, 13, 18, 54, 1, TimeSpan.Zero);
+        Assert.Equal(at, new ProcKey(1, at.ToFileTime()).CreatedUtc);
+        Assert.Null(new ProcKey(1, 0).CreatedUtc);
     }
 
     [Fact]

@@ -74,7 +74,7 @@ public class PortableProcessControl(ChildProcessRunner runner) : IProcessControl
         try
         {
             using var p = Process.GetProcessById((int)key.Pid);
-            if (key.CreatedTicks != 0 && p.StartTime.ToUniversalTime().Ticks != key.CreatedTicks)
+            if (key.CreatedTicks != 0 && p.StartTime.ToFileTimeUtc() != key.CreatedTicks)
             {
                 return new ProcessOutcome(key, ActionStatus.Refused, "Process changed, refresh");
             }

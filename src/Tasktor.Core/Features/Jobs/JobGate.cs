@@ -99,7 +99,7 @@ public sealed class JobGate
             return GateVerdict.Excluded;
         }
 
-        var age = now - (key.CreatedTicks > 0 ? new DateTimeOffset(key.CreatedTicks, TimeSpan.Zero) : firstSeen);
+        var age = now - (key.CreatedUtc ?? firstSeen);
         if (age >= MinAge && CpuInWindow(samples, now) >= MinCpuInWindowS)
         {
             return GateVerdict.Job;

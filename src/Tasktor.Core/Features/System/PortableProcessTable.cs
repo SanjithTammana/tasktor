@@ -20,7 +20,7 @@ public sealed class PortableProcessTable : ITableSource<ProcKey, ProcessRow>
             {
                 try
                 {
-                    var created = (columns & ColumnSet.Usage) != 0 ? p.StartTime.ToUniversalTime().Ticks : 0;
+                    var created = (columns & ColumnSet.Usage) != 0 ? p.StartTime.ToFileTimeUtc() : 0; // FILETIME, as on Windows (ProcKey)
                     var row = new ProcessRow
                     {
                         Key = new ProcKey((uint)p.Id, created),
@@ -44,7 +44,7 @@ public sealed class PortableProcessTable : ITableSource<ProcKey, ProcessRow>
         try
         {
             using var p = Process.GetProcessById((int)key.Pid);
-            return new ProcessRow { Key = new ProcKey(key.Pid, key.CreatedTicks == 0 ? 0 : p.StartTime.ToUniversalTime().Ticks), Exe = p.ProcessName };
+            return new ProcessRow { Key = new ProcKey(key.Pid, key.CreatedTicks == 0 ? 0 : p.StartTime.ToFileTimeUtc()), Exe = p.ProcessName };
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or global::System.ComponentModel.Win32Exception)
         {
