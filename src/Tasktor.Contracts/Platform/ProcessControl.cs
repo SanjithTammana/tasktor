@@ -39,8 +39,13 @@ public interface IProcessControl
     /// <summary>B3.7 Free RAM: working-set trim; returns bytes before / after.</summary>
     (ProcessOutcome Outcome, long Before, long After) TrimMemory(ProcKey key);
 
-    /// <summary>Called once at agent start: thaws whatever a previous run left frozen. Returns the job ids thawed.</summary>
+    /// <summary>Called once at agent start: thaws whatever a previous run left frozen and releases the CPU caps it left.
+    /// Returns the job ids thawed.</summary>
     IReadOnlyList<string> RecoverFrozen();
+
+    /// <summary>Quit: thaw every frozen entry (not only the job watch's) and release every CPU cap, so nothing Tasktor did
+    /// outlives it.</summary>
+    void ReleaseOnQuit();
 
     /// <summary>I4 / B3.5: cap a set of processes to <paramref name="maxCores"/> (Job Object CPU rate); 0 releases.</summary>
     IReadOnlyList<ProcessOutcome> CapCores(string capId, IReadOnlyList<ProcKey> keys, int maxCores);

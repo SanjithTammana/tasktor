@@ -700,6 +700,8 @@ public sealed class PluginHost2Tests : IDisposable
 
         public IReadOnlyList<string> RecoverFrozen() => throw new NotSupportedException();
 
+        public void ReleaseOnQuit() => throw new NotSupportedException();
+
         public IReadOnlyList<ProcessOutcome> CapCores(string capId, IReadOnlyList<ProcKey> keys, int maxCores) => throw new NotSupportedException();
 
         public void CancelWorker(WorkerHandle handle)

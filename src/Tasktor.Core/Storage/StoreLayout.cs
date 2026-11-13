@@ -59,6 +59,9 @@ public sealed class StoreLayout
 
     public string Frozen => Path.Combine(StateDir, "frozen.json");
 
+    /// <summary>The names of the CPU-cap Job Objects this agent holds, so a restart can release what a crash left capped.</summary>
+    public string Caps => Path.Combine(StateDir, "caps.txt");
+
     public string SelfUse => Path.Combine(StateDir, "selfuse.json");
 
     public string Window => Path.Combine(StateDir, "window.json");

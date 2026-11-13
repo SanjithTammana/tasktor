@@ -10,22 +10,29 @@ namespace Tasktor.Windows.Processes;
 /// <summary>
 /// <see cref="IProcessControl"/> on Win32 (A3, B3, B3.7, D-H9). Every call re-checks (PID, creation time) right before it
 /// acts; nothing is elevated. Freeze suspends every thread of the tree (repeating the thread enumeration until a pass finds
-/// no new thread), writing each suspended thread to the <see cref="FrozenRegistry"/> first, and Thaw resumes exactly those
-/// threads once each, clearing the entry last. No undocumented <c>NtSuspendProcess</c>.
+/// no new thread) through <see cref="FreezeEngine"/>, recording each thread in the <see cref="FrozenRegistry"/> before it
+/// is suspended, and Thaw resumes exactly those threads once each, clearing the entry last. No undocumented <c>NtSuspendProcess</c>.
 /// </summary>
-public sealed partial class Win32ProcessControl(ChildProcessRunner runner, FrozenRegistry frozen, Func<DateTimeOffset> now) : PortableProcessControl(runner)
+public sealed partial class Win32ProcessControl(ChildProcessRunner runner, FrozenRegistry frozen, Func<DateTimeOffset> now, string? capsPath = null)
+    : PortableProcessControl(runner)
 {
     private const uint ProcessTerminate = 0x1;
     private const uint ProcessSetInformation = 0x200;
     private const uint ProcessSetQuota = 0x100;
     private const uint ProcessQueryLimited = 0x1000;
+    private const uint ProcessDupHandle = 0x40;
     private const uint ThreadSuspendResume = 0x2;
     private const uint ThreadQueryLimited = 0x800;
     private const uint Th32csSnapThread = 0x4;
     private const uint WmClose = 0x10;
 
+    private const string CapPrefix = @"Local\Tasktor.Cap.";
+
     private readonly Dictionary<string, JobObject> _caps = new(StringComparer.Ordinal);
     private readonly Lock _capsGate = new();
+
+    // Cap jobs a previous run created (named, so they can be opened again); released at start and on quit (F-PC5).
+    private readonly HashSet<string> _leftoverCaps = LoadCapNames(capsPath);
 
     public override IReadOnlyList<ProcessOutcome> End(IReadOnlyList<ProcKey> keys) =>
         keys.Select(k => WithProcess(k, ProcessTerminate, h => TerminateProcess(h, 1) ? null : "Access denied")).ToList();
@@ -81,7 +88,59 @@ public sealed partial class Win32ProcessControl(ChildProcessRunner runner, Froze
 
     public override IReadOnlyList<ProcessOutcome> Thaw(string jobId, IReadOnlyList<ProcKey> tree) => _engine.Thaw(jobId, tree);
 
-    public override IReadOnlyList<string> RecoverFrozen() => _engine.Recover();
+    public override IReadOnlyList<string> RecoverFrozen()
+    {
+        var ids = _engine.Recover();
+        lock (_capsGate)
+        {
+            var live = _caps.Keys.Select(CapName).ToHashSet(StringComparer.Ordinal);
+            foreach (var name in _leftoverCaps.Where(n => !live.Contains(n)))
+            {
+                JobObject.ReleaseNamed(name);
+            }
+
+            _leftoverCaps.Clear();
+            SaveCapNames();
+        }
+
+        return ids;
+    }
+
+    /// <summary>Close every cap handle without lifting the caps, as a crash would (tests).</summary>
+    internal void AbandonCaps()
+    {
+        lock (_capsGate)
+        {
+            foreach (var job in _caps.Values)
+            {
+                job.Abandon();
+            }
+
+            _caps.Clear();
+        }
+    }
+
+    public override void ReleaseOnQuit()
+    {
+        _engine.Recover(); // every frozen entry, whoever froze it (F-PC7)
+        lock (_capsGate)
+        {
+            foreach (var job in _caps.Values)
+            {
+                job.ReleaseCap();
+                job.Dispose();
+            }
+
+            foreach (var name in _leftoverCaps)
+            {
+                JobObject.ReleaseNamed(name);
+            }
+
+            _caps.Clear();
+            _leftoverCaps.Clear();
+            SaveCapNames();
+        }
+    }
 
     /// <summary>The Win32 thread calls behind <see cref="FreezeEngine"/>.</summary>
     private sealed class Win32Threads : IThreadApi
@@ -90,30 +149,25 @@ public sealed partial class Win32ProcessControl(ChildProcessRunner runner, Froze
 
         public IEnumerable<(uint Pid, uint Tid)> Threads(IReadOnlySet<uint> pids) => Win32ProcessControl.Threads(pids);
 
-        public SuspendResult Suspend(uint tid, ProcKey owner, out long threadCreated)
+        public IOpenThread? Open(uint tid, ProcKey owner, out bool denied)
         {
-            threadCreated = 0;
+            denied = false;
             var th = OpenThread(ThreadSuspendResume | ThreadQueryLimited, false, tid);
             if (th == 0)
             {
-                return Marshal.GetLastPInvokeError() == 5 ? SuspendResult.Denied : SuspendResult.Skipped;
+                denied = Marshal.GetLastPInvokeError() == 5;
+                return null;
             }
 
-            try
-            {
-                // The open handle pins the thread: its id cannot be reused while we hold it. The id came from an enumeration
-                // that may be stale, so check it still names a thread of the process we mean before suspending it.
-                if (!Owns(th, owner) || !GetThreadTimes(th, out threadCreated, out _, out _, out _))
-                {
-                    return SuspendResult.Skipped;
-                }
-
-                return SuspendThread(th) != uint.MaxValue ? SuspendResult.Suspended : SuspendResult.Skipped;
-            }
-            finally
+            // The open handle pins the thread: its id cannot be reused while we hold it. The id came from an enumeration
+            // that may be stale, so check it still names a thread of the process we mean.
+            if (!Owns(th, owner) || !GetThreadTimes(th, out var created, out _, out _, out _))
             {
                 CloseHandle(th);
+                return null;
             }
+
+            return new OpenedThread(th, created);
         }
 
         public ResumeResult Resume(uint tid, ProcKey owner, long threadCreated)
@@ -139,6 +193,24 @@ public sealed partial class Win32ProcessControl(ChildProcessRunner runner, Froze
             finally
             {
                 CloseHandle(th);
+            }
+        }
+
+        private sealed class OpenedThread(nint handle, long created) : IOpenThread
+        {
+            private nint _handle = handle;
+
+            public long Created { get; } = created;
+
+            public bool Suspend() => _handle != 0 && SuspendThread(_handle) != uint.MaxValue;
+
+            public void Dispose()
+            {
+                if (_handle != 0)
+                {
+                    CloseHandle(_handle);
+                    _handle = 0;
+                }
             }
         }
 
@@ -171,6 +243,7 @@ public sealed partial class Win32ProcessControl(ChildProcessRunner runner, Froze
                 {
                     old.ReleaseCap();
                     old.Dispose();
+                    SaveCapNames();
                 }
 
                 return keys.Select(k => new ProcessOutcome(k, ActionStatus.Ok)).ToList();
@@ -178,13 +251,55 @@ public sealed partial class Win32ProcessControl(ChildProcessRunner runner, Froze
 
             if (!_caps.TryGetValue(capId, out var job))
             {
-                job = new JobObject(0, killOnClose: false);
+                // Named and written down before any process joins: a cap outlives the agent (Windows keeps a job while a
+                // process is in it), so a restarted agent must be able to open it and lift the cap.
+                job = new JobObject(0, killOnClose: false, name: CapName(capId));
                 _caps[capId] = job;
+                SaveCapNames();
             }
 
             job.CapCores(maxCores);
-            return keys.Select(k => WithProcess(k, ProcessSetQuota | ProcessTerminate, h => AssignProcessToJobObject(job, h) ? null : "Access denied")).ToList();
+            return keys.Select(k => WithProcess(k, ProcessSetQuota | ProcessTerminate | ProcessDupHandle, h =>
+            {
+                if (!AssignProcessToJobObject(job, h))
+                {
+                    return "Access denied";
+                }
+
+                job.ShareWith(h); // keeps the job's name alive for a restarted agent; without it only a crash recovery is lost
+                return null;
+            })).ToList();
         }
+    }
+
+    /// <summary>A per-session name for a cap's job: the cap id hashed (ids contain targets, names must not).</summary>
+    public static string CapName(string capId) =>
+        CapPrefix + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(capId)), 0, 16);
+
+    private static HashSet<string> LoadCapNames(string? path)
+    {
+        try
+        {
+            return path is not null && File.Exists(path)
+                ? File.ReadAllLines(path).Where(l => l.StartsWith(CapPrefix, StringComparison.Ordinal)).ToHashSet(StringComparer.Ordinal)
+                : new HashSet<string>(StringComparer.Ordinal);
+        }
+        catch (IOException)
+        {
+            return new HashSet<string>(StringComparer.Ordinal);
+        }
+    }
+
+    /// <summary>Under <see cref="_capsGate"/>: the live caps' names plus the leftovers not yet released.</summary>
+    private void SaveCapNames()
+    {
+        if (capsPath is null)
+        {
+            return;
+        }
+
+        var names = _caps.Keys.Select(CapName).Concat(_leftoverCaps).Distinct(StringComparer.Ordinal);
+        Core.Storage.AtomicFile.Write(capsPath, System.Text.Encoding.UTF8.GetBytes(string.Join('\n', names)));
     }
 
     private static bool AssignProcessToJobObject(JobObject job, nint h)

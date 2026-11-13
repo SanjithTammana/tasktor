@@ -6,11 +6,35 @@ using Tasktor.Contracts.Platform;
 
 namespace Tasktor.Core.Plugins;
 
+/// <summary>A started child, however it was launched: its streams, its exit, and a way to end it and everything it
+/// started.</summary>
+public interface IChild : IDisposable
+{
+    int Id { get; }
+
+    /// <summary>Creation time as a FILETIME (0 when unknown): matches the process table's <see cref="ProcKey"/>.</summary>
+    long StartTicks { get; }
+
+    StreamWriter Stdin { get; }
+
+    StreamReader Stdout { get; }
+
+    StreamReader Stderr { get; }
+
+    int ExitCode { get; }
+
+    Task WaitForExitAsync(CancellationToken cancel);
+
+    /// <summary>End the child and everything it started.</summary>
+    void KillTree();
+}
+
 /// <summary>
 /// Starts Tasktor's children (D-H9): a closed <see cref="WorkerKind"/>, an exe that must resolve inside the install dir
 /// for every kind but <c>plugin</c>, stdin written then closed, stdout captured up to a cap, the last 4 KB of stderr kept,
-/// killed (whole tree) at the timeout. <see cref="AfterStart"/> lets the Windows adapter put the child in a kill-on-close
-/// Job Object with a memory cap and lower its priority. Portable: the Linux tests run real child processes through it.
+/// killed (whole tree) at the timeout. <see cref="Launch"/> lets the Windows adapter create the child inside a kill-on-close
+/// Job Object with a memory cap, so nothing it starts can escape the job (F-PC9). Portable: the Linux tests run real child
+/// processes through it.
 /// </summary>
 public sealed class ChildProcessRunner
 {
@@ -26,10 +50,11 @@ public sealed class ChildProcessRunner
     public string? InstallDir { get; }
 
     /// <summary>
-    /// Windows: assign the child to a kill-on-close Job Object (memory cap), set BelowNormal / EcoQoS. The returned
-    /// handle (the job) is disposed after the child exits; if the agent dies, Windows closes it and kills the child.
+    /// How a child is started. Default: <see cref="Process.Start(ProcessStartInfo)"/>. Windows: created inside a kill-on-close
+    /// Job Object (memory cap), BelowNormal / EcoQoS; the job is closed when the child is disposed, and if the agent dies
+    /// Windows closes it and kills the child and everything it started.
     /// </summary>
-    public Func<Process, WorkerSpec, IDisposable?>? AfterStart { get; set; }
+    public Func<ProcessStartInfo, WorkerSpec, IChild>? Launch { get; set; }
 
     public int RunningCount => _running.Count;
 
@@ -67,12 +92,11 @@ public sealed class ChildProcessRunner
             psi.Environment.Remove(name);
         }
 
-        var process = Process.Start(psi) ?? throw new InvalidOperationException("could not start " + Path.GetFileName(spec.Exe));
-        var job = AfterStart?.Invoke(process, spec);
+        var child = Launch is { } launch ? launch(psi, spec) : ProcessChild.Start(psi, spec);
         var id = "w" + Interlocked.Increment(ref _next).ToString(System.Globalization.CultureInfo.InvariantCulture);
-        var key = new ProcKey((uint)process.Id, SafeStartTicks(process));
+        var key = new ProcKey((uint)child.Id, child.StartTicks);
         var handle = new WorkerHandle(id, key, spec.Kind);
-        var run = new Running(process, spec) { Job = job };
+        var run = new Running(child, spec);
         _running[id] = run;
         run.Pump(spec.Stdin);
         return handle;
@@ -91,20 +115,22 @@ public sealed class ChildProcessRunner
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, cancel, run.Cancel.Token);
         try
         {
-            await run.Process.WaitForExitAsync(linked.Token).ConfigureAwait(false);
+            await run.Child.WaitForExitAsync(linked.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
             timedOut = timeout.IsCancellationRequested;
-            Kill(run.Process);
-            await run.Process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+            run.Child.KillTree();
+            await run.Child.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
         }
 
+        // Whatever the worker left running ends with it; until then a leftover that inherited its pipes would hold the
+        // output open and keep this wait from returning, past any timeout.
+        run.Child.KillTree();
         await run.Drained.ConfigureAwait(false);
         _running.TryRemove(handle.Id, out _);
-        int? code = timedOut || run.Cancel.IsCancellationRequested ? null : run.Process.ExitCode;
-        run.Process.Dispose();
-        run.Job?.Dispose();
+        int? code = timedOut || run.Cancel.IsCancellationRequested ? null : run.Child.ExitCode;
+        run.Child.Dispose();
         return new WorkerExit(handle, code, run.Stdout, run.StderrTail, timedOut, run.TooLarge);
     }
 
@@ -128,8 +154,8 @@ public sealed class ChildProcessRunner
 
         try
         {
-            run.Process.StandardInput.WriteLine("{\"control\":\"" + message.ToString().ToLowerInvariant() + "\"}");
-            run.Process.StandardInput.Flush();
+            run.Child.Stdin.WriteLine("{\"control\":\"" + message.ToString().ToLowerInvariant() + "\"}");
+            run.Child.Stdin.Flush();
             return true;
         }
         catch (IOException)
@@ -138,45 +164,67 @@ public sealed class ChildProcessRunner
         }
     }
 
-    private static void Kill(Process p)
+    /// <summary>The portable child: <see cref="Process"/>, ended with <c>Kill(entireProcessTree)</c>.</summary>
+    private sealed class ProcessChild(Process process) : IChild
     {
-        try
+        public static ProcessChild Start(ProcessStartInfo psi, WorkerSpec spec) =>
+            new(Process.Start(psi) ?? throw new InvalidOperationException("could not start " + Path.GetFileName(spec.Exe)));
+
+        public int Id => process.Id;
+
+        public long StartTicks
         {
-            p.Kill(entireProcessTree: true);
+            get
+            {
+                try
+                {
+                    return process.StartTime.ToFileTimeUtc(); // FILETIME: matches the process table's ProcKey
+                }
+                catch (InvalidOperationException)
+                {
+                    return 0;
+                }
+                catch (System.ComponentModel.Win32Exception)
+                {
+                    return 0;
+                }
+            }
         }
-        catch (InvalidOperationException)
+
+        public StreamWriter Stdin => process.StandardInput;
+
+        public StreamReader Stdout => process.StandardOutput;
+
+        public StreamReader Stderr => process.StandardError;
+
+        public int ExitCode => process.ExitCode;
+
+        public Task WaitForExitAsync(CancellationToken cancel) => process.WaitForExitAsync(cancel);
+
+        public void KillTree()
         {
+            try
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            catch (InvalidOperationException)
+            {
+            }
         }
+
+        public void Dispose() => process.Dispose();
     }
 
-    private static long SafeStartTicks(Process p)
-    {
-        try
-        {
-            return p.StartTime.ToFileTimeUtc(); // FILETIME: matches the process table's ProcKey
-        }
-        catch (InvalidOperationException)
-        {
-            return 0;
-        }
-        catch (System.ComponentModel.Win32Exception)
-        {
-            return 0;
-        }
-    }
-
-    private sealed class Running(Process process, WorkerSpec spec)
+    private sealed class Running(IChild child, WorkerSpec spec)
     {
         private readonly StringBuilder _out = new();
         private readonly StringBuilder _err = new();
 
-        public Process Process { get; } = process;
+        public IChild Child { get; } = child;
 
         public WorkerSpec Spec { get; } = spec;
 
         public CancellationTokenSource Cancel { get; } = new();
-
-        public IDisposable? Job { get; init; }
 
         public Task Drained { get; private set; } = Task.CompletedTask;
 
@@ -195,13 +243,13 @@ public sealed class ChildProcessRunner
                 var buf = new char[8192];
                 int n;
                 var total = 0;
-                while ((n = await Process.StandardOutput.ReadAsync(buf).ConfigureAwait(false)) > 0)
+                while ((n = await Child.Stdout.ReadAsync(buf).ConfigureAwait(false)) > 0)
                 {
                     total += Encoding.UTF8.GetByteCount(buf, 0, n);
                     if (total > StdoutCapBytes)
                     {
                         TooLarge = true;
-                        Kill(Process);
+                        Child.KillTree();
                         break;
                     }
 
@@ -212,7 +260,7 @@ public sealed class ChildProcessRunner
             {
                 var buf = new char[4096];
                 int n;
-                while ((n = await Process.StandardError.ReadAsync(buf).ConfigureAwait(false)) > 0)
+                while ((n = await Child.Stderr.ReadAsync(buf).ConfigureAwait(false)) > 0)
                 {
                     _err.Append(buf, 0, n);
                     if (_err.Length > StderrTailBytes)
@@ -226,12 +274,12 @@ public sealed class ChildProcessRunner
             {
                 if (stdin is not null)
                 {
-                    Process.StandardInput.Write(stdin);
+                    Child.Stdin.Write(stdin);
                 }
 
                 if (Spec.Kind == WorkerKind.Plugin || stdin is not null)
                 {
-                    Process.StandardInput.Close();
+                    Child.Stdin.Close();
                     StdinClosed = true;
                 }
             }

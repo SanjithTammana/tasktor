@@ -54,6 +54,10 @@ public class PortableProcessControl(ChildProcessRunner runner) : IProcessControl
 
     public virtual IReadOnlyList<string> RecoverFrozen() => [];
 
+    public virtual void ReleaseOnQuit()
+    {
+    }
+
     public virtual IReadOnlyList<ProcessOutcome> CapCores(string capId, IReadOnlyList<ProcKey> keys, int maxCores) => Refuse(keys);
 
     public virtual WorkerHandle StartWorker(WorkerSpec spec) => Runner.Start(spec);

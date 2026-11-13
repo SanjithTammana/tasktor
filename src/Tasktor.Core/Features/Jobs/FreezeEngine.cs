@@ -3,18 +3,6 @@ using Tasktor.Contracts.Platform;
 
 namespace Tasktor.Core.Features.Jobs;
 
-/// <summary>What a thread suspend did.</summary>
-public enum SuspendResult
-{
-    Suspended,
-
-    /// <summary>The thread could not be opened (access denied).</summary>
-    Denied,
-
-    /// <summary>Not suspended: the thread exited, its id now belongs to another process, or the suspend failed.</summary>
-    Skipped,
-}
-
 /// <summary>What a thread resume did.</summary>
 public enum ResumeResult
 {
@@ -27,6 +15,16 @@ public enum ResumeResult
     Failed,
 }
 
+/// <summary>A thread opened for suspending: the open handle pins it, so its id cannot name another thread meanwhile.</summary>
+public interface IOpenThread : IDisposable
+{
+    /// <summary>The thread's own creation time.</summary>
+    long Created { get; }
+
+    /// <summary>Suspend it once. False when the suspend failed.</summary>
+    bool Suspend();
+}
+
 /// <summary>The OS calls freeze and thaw need. Thread ids are reused, so every suspend and resume checks the thread's
 /// identity on the opened handle: its owner process (pid and creation time) and, on resume, its own creation time.</summary>
 public interface IThreadApi
@@ -37,9 +35,9 @@ public interface IThreadApi
     /// <summary>The threads of these processes, with their owner pid.</summary>
     IEnumerable<(uint Pid, uint Tid)> Threads(IReadOnlySet<uint> pids);
 
-    /// <summary>Suspend the thread once, only if it belongs to <paramref name="owner"/>; on success
-    /// <paramref name="threadCreated"/> is the thread's own creation time.</summary>
-    SuspendResult Suspend(uint tid, ProcKey owner, out long threadCreated);
+    /// <summary>Open the thread for suspending, only if it belongs to <paramref name="owner"/>. Null when it cannot be
+    /// opened (<paramref name="denied"/>: access denied) or is not that process's thread any more.</summary>
+    IOpenThread? Open(uint tid, ProcKey owner, out bool denied);
 
     /// <summary>Resume the thread once, only if it still belongs to <paramref name="owner"/> (a creation time of 0 checks the
     /// pid only) and, when <paramref name="threadCreated"/> is not 0, is the same thread.</summary>
@@ -52,8 +50,10 @@ public interface IThreadApi
 /// (pid, creation time) and its own creation time. Freeze, thaw and start-up recovery of one job never interleave (a lock
 /// stripe per job id); a second freeze adds to the first; a thread suspended after its record vanished is resumed at once;
 /// thaw resumes a recorded thread only while it is still that thread, and keeps the record of one it could not resume.
-/// Residual (F-PC4): a crash between a suspend and its record, or between a resume and the record's removal, can lose or
-/// repeat one thread; closing it needs a process that outlives the agent.
+/// Each pass records the threads it is about to suspend before suspending any of them (one write per pass), and forgets
+/// the ones whose suspend failed, so a crash mid-freeze never leaves a suspended thread unrecorded (F-PC4). Residual: a
+/// crash mid-thaw, after a resume and before the record is cleared, resumes that thread once more at the next start;
+/// that only matters if its own program suspended it in between.
 /// </summary>
 public sealed class FreezeEngine(FrozenRegistry frozen, IThreadApi threads, Func<DateTimeOffset> now)
 {
@@ -75,37 +75,76 @@ public sealed class FreezeEngine(FrozenRegistry frozen, IThreadApi threads, Func
             var denied = new HashSet<uint>();
             for (var pass = 0; pass < MaxPasses; pass++)
             {
-                var found = 0;
-                foreach (var (pid, tid) in threads.Threads(owners.Keys.ToHashSet()))
+                var opened = new List<(FrozenThread Record, IOpenThread Thread)>();
+                try
                 {
-                    if (suspended.Contains(tid))
+                    foreach (var (pid, tid) in threads.Threads(owners.Keys.ToHashSet()))
                     {
-                        continue;
-                    }
+                        if (suspended.Contains(tid))
+                        {
+                            continue;
+                        }
 
-                    var owner = owners[pid];
-                    switch (threads.Suspend(tid, owner, out var threadCreated))
-                    {
-                        case SuspendResult.Denied:
+                        var owner = owners[pid];
+                        if (threads.Open(tid, owner, out var wasDenied) is { } t)
+                        {
+                            opened.Add((new FrozenThread(pid, tid, owner.CreatedTicks, t.Created), t));
+                        }
+                        else if (wasDenied)
+                        {
                             denied.Add(pid);
-                            break;
-                        case SuspendResult.Suspended:
-                            if (!frozen.AddThread(jobId, pid, tid, owner.CreatedTicks, threadCreated))
-                            {
-                                threads.Resume(tid, owner, threadCreated); // no record left to free it later
-                                break;
-                            }
+                        }
+                    }
 
-                            suspended.Add(tid);
-                            found++;
-                            break;
+                    // Recorded first, suspended second: a crash in between leaves a record of a running thread (resuming it
+                    // later is a no-op), never a suspended thread with no record.
+                    if (opened.Count == 0 || !frozen.AddThreads(jobId, opened.Select(o => o.Record).ToList()))
+                    {
+                        break;
+                    }
+
+                    var failed = new List<FrozenThread>();
+                    foreach (var (record, thread) in opened)
+                    {
+                        if (thread.Suspend())
+                        {
+                            suspended.Add(record.Tid);
+                        }
+                        else
+                        {
+                            failed.Add(record);
+                        }
+                    }
+
+                    if (!frozen.RemoveThreads(jobId, failed))
+                    {
+                        // The entry vanished meanwhile: nothing would resume these, so resume them now.
+                        foreach (var (record, _) in opened.Where(o => !failed.Contains(o.Record)))
+                        {
+                            threads.Resume(record.Tid, owners[record.Pid], record.ThreadCreated);
+                        }
+
+                        break;
+                    }
+
+                    if (failed.Count == opened.Count)
+                    {
+                        break; // a pass that suspended nothing new
                     }
                 }
-
-                if (found == 0)
+                finally
                 {
-                    break; // a pass that finds no new running thread
+                    foreach (var (_, thread) in opened)
+                    {
+                        thread.Dispose();
+                    }
                 }
+            }
+
+            // A freeze that suspended nothing leaves no entry behind (F-PC8): it would mark the processes frozen for nothing.
+            if (frozen.Find(jobId) is { Threads.Count: 0 })
+            {
+                frozen.Retain(jobId, []);
             }
 
             var byPid = frozen.Find(jobId)?.Threads.Select(t => t.Pid).ToHashSet() ?? [];

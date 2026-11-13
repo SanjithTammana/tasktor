@@ -30,7 +30,7 @@ internal static class Composition
         var runner = new ChildProcessRunner(AppContext.BaseDirectory);
         if (windows)
         {
-            runner.AfterStart = Windows.Processes.JobObject.ForWorker;
+            runner.Launch = Windows.Processes.JobChild.Start;
         }
 
         // Check mode (--switcher-pid): only the check's own processes and their descendants are sampled or read.
@@ -39,7 +39,7 @@ internal static class Composition
             && Core.Platform.LogonStart.AllowedFor(pipeName, switcherPids ?? [], Environment.GetEnvironmentVariable("TASKTOR_PIPE"));
         var frozen = new Core.Features.Jobs.FrozenRegistry(store.Frozen);
         IProcessControl control = windows
-            ? new Windows.Processes.Win32ProcessControl(runner, frozen, () => DateTimeOffset.UtcNow)
+            ? new Windows.Processes.Win32ProcessControl(runner, frozen, () => DateTimeOffset.UtcNow, store.Caps)
             : new PortableProcessControl(runner);
         var host = new AgentHost(new AgentOptions
         {
@@ -160,6 +160,7 @@ internal static class Composition
         };
         host.AddFeature(jobs);
         host.QuitRequested += jobs.ResumeAll; // quitting resumes every paused job first
+        host.QuitRequested += () => host.Processes.ReleaseOnQuit(); // then every other freeze and every CPU cap
         host.Own(host.Loop.Every(TimeSpan.FromHours(1), () => jobs.CleanStaleFiles(host.Loop.Clock.UtcNow)));
     }
 

@@ -87,10 +87,15 @@ public sealed class FrozenRegistry
         }
     }
 
-    /// <summary>Record one suspended thread. False when the job's entry is gone (thawed meanwhile): the caller must resume
-    /// the thread itself, since nothing else will.</summary>
-    public bool AddThread(string jobId, uint pid, uint tid, long created = 0, long threadCreated = 0)
+    /// <summary>Record one suspended thread (see <see cref="AddThreads"/>).</summary>
+    public bool AddThread(string jobId, uint pid, uint tid, long created = 0, long threadCreated = 0) =>
+        AddThreads(jobId, [new FrozenThread(pid, tid, created, threadCreated)]);
+
+    /// <summary>Record threads about to be suspended, in one write. False when the job's entry is gone (thawed meanwhile):
+    /// the caller must not suspend them, since nothing would resume them.</summary>
+    public bool AddThreads(string jobId, IReadOnlyCollection<FrozenThread> threads)
     {
+        ArgumentNullException.ThrowIfNull(threads);
         lock (_gate)
         {
             var job = _file.Jobs.FirstOrDefault(j => j.JobId == jobId);
@@ -99,8 +104,30 @@ public sealed class FrozenRegistry
                 return false;
             }
 
-            job.Threads.Add(new FrozenThread(pid, tid, created, threadCreated));
+            job.Threads.AddRange(threads);
             Save();
+            return true;
+        }
+    }
+
+    /// <summary>Forget threads that were recorded but could not be suspended. False when the job's entry is gone.</summary>
+    public bool RemoveThreads(string jobId, IReadOnlyCollection<FrozenThread> threads)
+    {
+        ArgumentNullException.ThrowIfNull(threads);
+        lock (_gate)
+        {
+            var job = _file.Jobs.FirstOrDefault(j => j.JobId == jobId);
+            if (job is null)
+            {
+                return false;
+            }
+
+            if (threads.Count > 0)
+            {
+                job.Threads.RemoveAll(threads.Contains);
+                Save();
+            }
+
             return true;
         }
     }

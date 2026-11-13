@@ -152,6 +152,43 @@ public sealed class FreezeEngineTests : IDisposable
     }
 
     [Fact]
+    public void Every_thread_is_recorded_before_it_is_suspended()
+    {
+        _os.Process(App, 1, 2, 3);
+        var unrecorded = new List<uint>();
+        _os.OnSuspend = tid =>
+        {
+            if (_registry.Find("app:x")?.Threads.Any(t => t.Tid == tid) != true)
+            {
+                unrecorded.Add(tid); // a crash here would lose this thread
+            }
+        };
+        _engine.Freeze("app:x", [App]);
+        Assert.Empty(unrecorded);
+    }
+
+    [Fact]
+    public void A_thread_whose_suspend_failed_is_not_kept_in_the_record()
+    {
+        _os.Process(App, 1, 2);
+        _os.FailSuspend.Add(2);
+        _engine.Freeze("app:x", [App]);
+        Assert.Equal([1u], _registry.Find("app:x")!.Threads.Select(t => t.Tid));
+    }
+
+    [Fact]
+    public void A_freeze_that_suspended_nothing_leaves_no_entry()
+    {
+        _os.Process(App, 1);
+        _os.Deny.Add(1);
+        var outcome = Assert.Single(_engine.Freeze("app:x", [App]));
+        Assert.Equal(ActionStatus.Refused, outcome.Status);
+        Assert.Equal("Access denied", outcome.Reason);
+        Assert.Empty(_registry.Jobs);
+        Assert.False(_registry.IsFrozen(App.Pid));
+    }
+
+    [Fact]
     public void Recovery_after_a_restart_resumes_only_threads_that_are_still_theirs()
     {
         _os.Process(App, 1, 2);
@@ -285,22 +322,17 @@ public sealed class FreezeEngineTests : IDisposable
             }
         }
 
-        public SuspendResult Suspend(uint tid, ProcKey owner, out long threadCreated)
+        public HashSet<uint> FailSuspend { get; } = [];
+
+        public HashSet<uint> Deny { get; } = [];
+
+        public IOpenThread? Open(uint tid, ProcKey owner, out bool denied)
         {
             lock (_gate)
             {
-                threadCreated = 0;
-                if (!_threads.TryGetValue(tid, out var t) || !Matches(t.Owner, owner))
-                {
-                    return SuspendResult.Skipped;
-                }
-
-                threadCreated = t.Created;
-                Counts[tid]++;
+                denied = Deny.Contains(tid);
+                return !denied && _threads.TryGetValue(tid, out var t) && Matches(t.Owner, owner) ? new Opened(this, tid, t.Created) : null;
             }
-
-            OnSuspend?.Invoke(tid);
-            return SuspendResult.Suspended;
         }
 
         public ResumeResult Resume(uint tid, ProcKey owner, long threadCreated)
@@ -320,6 +352,31 @@ public sealed class FreezeEngineTests : IDisposable
 
                 Counts[tid] = Math.Max(0, Counts[tid] - 1);
                 return ResumeResult.Resumed;
+            }
+        }
+
+        private sealed class Opened(FakeThreads os, uint tid, long created) : IOpenThread
+        {
+            public long Created { get; } = created;
+
+            public bool Suspend()
+            {
+                lock (os._gate)
+                {
+                    if (os.FailSuspend.Contains(tid))
+                    {
+                        return false;
+                    }
+
+                    os.Counts[tid]++;
+                }
+
+                os.OnSuspend?.Invoke(tid);
+                return true;
+            }
+
+            public void Dispose()
+            {
             }
         }
 
