@@ -87,6 +87,7 @@ public partial class App : Application
         }
 
         _deep = new MainWindow(_snapshot!, page);
+        _deep.FindRequested += () => _command?.ShowCommand();
         _deep.Closed += (_, _) =>
         {
             _deep = null;

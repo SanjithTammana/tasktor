@@ -29,6 +29,8 @@ public sealed partial class ShelfWindow : Window
     private readonly ShelfController _shelf;
     private readonly Dictionary<Hyperlink, string> _nouns = [];
     private double _widthDip = 1280;
+    private bool _compactHeadline;
+    private bool _confirmationVisible;
 
     public ShelfWindow(SnapshotClient snapshot)
     {
@@ -129,11 +131,17 @@ public sealed partial class ShelfWindow : Window
         RenderActions();
 
         ConfirmRow.Visibility = _shelf.Confirming is null ? Visibility.Collapsed : Visibility.Visible;
+        ConfirmScroll.Visibility = ConfirmRow.Visibility;
         if (_shelf.Confirming is { } c)
         {
             ConfirmButton.Content = c.Action.Label;
-            KeepButton.Focus(FocusState.Programmatic); // the safe choice is the default
+            if (!_confirmationVisible)
+            {
+                KeepButton.Focus(FocusState.Programmatic); // the safe choice is the default
+            }
         }
+
+        _confirmationVisible = _shelf.Confirming is not null;
 
         NoticeText.Text = _shelf.Notice ?? string.Empty;
         NoticeText.Visibility = _shelf.Notice is null ? Visibility.Collapsed : Visibility.Visible;
@@ -192,6 +200,7 @@ public sealed partial class ShelfWindow : Window
         if (_shelf.Unfolded is not { } noun || _shelf.Confirming is not null)
         {
             ActionsRow.Visibility = Visibility.Collapsed;
+            ActionsScroll.Visibility = Visibility.Collapsed;
             return;
         }
 
@@ -204,6 +213,7 @@ public sealed partial class ShelfWindow : Window
         }
 
         ActionsRow.Visibility = Visibility.Visible;
+        ActionsScroll.Visibility = Visibility.Visible;
     }
 
     private async Task LoadGrainAsync()
@@ -265,7 +275,7 @@ public sealed partial class ShelfWindow : Window
             return;
         }
 
-        var width = Math.Max(320, _widthDip - 96);
+        var width = Math.Max(labelW + 1, _widthDip - 96);
         var pastW = (width - labelW) * (TimelineStrip.Past / (TimelineStrip.Past + TimelineStrip.Future));
         var nowX = labelW + pastW;
         var bottom = top + (m.Rows.Count * rowH);
@@ -339,6 +349,22 @@ public sealed partial class ShelfWindow : Window
         Canvas.SetLeft(t, x);
         Canvas.SetTop(t, y);
         return t;
+    }
+
+    private void OnHeadlineSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var compact = e.NewSize.Width < 560;
+        if (compact == _compactHeadline)
+        {
+            return;
+        }
+
+        _compactHeadline = compact;
+        Grid.SetRow(DeepLink, compact ? 1 : 0);
+        Grid.SetColumn(DeepLink, compact ? 1 : 2);
+        DeepLink.HorizontalAlignment = compact ? HorizontalAlignment.Left : HorizontalAlignment.Stretch;
+        DeepLink.Margin = compact ? new Thickness(0, 4, 0, 0) : new Thickness(0, 6, 0, 0);
+        DispatcherQueue.TryEnqueue(Layout);
     }
 
     private void Layout()

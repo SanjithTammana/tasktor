@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Development identity only. Release identity/publisher and signing must be chosen separately. -->
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+         xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+         xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+         xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+         IgnorableNamespaces="uap uap3 com desktop rescap">
+  <Identity Name="Tasktor.Widget.Development" Publisher="CN=Tasktor Development" Version="0.1.0.0" ProcessorArchitecture="x64" />
+  <Properties><DisplayName>Tasktor Widget</DisplayName><PublisherDisplayName>Tasktor Development</PublisherDisplayName><Logo>ProviderAssets\StoreLogo.png</Logo></Properties>
+  <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" /></Dependencies>
+  <Resources><Resource Language="en-us" /></Resources>
+  <Applications>
+    <Application Id="WidgetProvider" Executable="Tasktor.Widget\Tasktor.Widget.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="Tasktor Widget" Description="Tasktor Windows widget provider" BackgroundColor="transparent" Square150x150Logo="ProviderAssets\Square150x150Logo.png" Square44x44Logo="ProviderAssets\Square44x44Logo.png" />
+      <Extensions>
+        <com:Extension Category="windows.comServer"><com:ComServer><com:ExeServer Executable="Tasktor.Widget\Tasktor.Widget.exe" DisplayName="Tasktor Widget"><com:Class Id="EB1FA3BD-4044-4D61-BA86-D13AFC71E2C4" DisplayName="Tasktor Widget" /></com:ExeServer></com:ComServer></com:Extension>
+        <uap3:Extension Category="windows.appExtension">
+          <uap3:AppExtension Name="com.microsoft.windows.widgets" DisplayName="Tasktor" Id="TasktorWidgets" PublicFolder="Public">
+            <uap3:Properties><WidgetProvider>
+              <ProviderIcons><Icon Path="ProviderAssets\TasktorIcon.png" /></ProviderIcons>
+              <Activation><CreateInstance ClassId="EB1FA3BD-4044-4D61-BA86-D13AFC71E2C4" /></Activation>
+              <Definitions><Definition Id="TasktorSystem" DisplayName="Tasktor System" Description="A glance at system activity.">
+                <Capabilities><Capability><Size Name="small" /></Capability><Capability><Size Name="medium" /></Capability><Capability><Size Name="large" /></Capability></Capabilities>
+                <ThemeResources><Icons><Icon Path="ProviderAssets\TasktorIcon.png" /></Icons><Screenshots><Screenshot Path="ProviderAssets\SystemScreenshot.png" DisplayAltText="Tasktor System widget" /></Screenshots></ThemeResources>
+              </Definition>
+              <Definition Id="TasktorJobs" DisplayName="Tasktor Jobs" Description="A glance at active jobs.">
+                <Capabilities><Capability><Size Name="small" /></Capability><Capability><Size Name="medium" /></Capability><Capability><Size Name="large" /></Capability></Capabilities>
+                <ThemeResources><Icons><Icon Path="ProviderAssets\TasktorIcon.png" /></Icons><Screenshots><Screenshot Path="ProviderAssets\JobsScreenshot.png" DisplayAltText="Tasktor Jobs widget" /></Screenshots></ThemeResources>
+              </Definition>
+              <Definition Id="TasktorWorkflow" DisplayName="Tasktor Workflow" Description="A glance at workflow switches.">
+                <Capabilities><Capability><Size Name="small" /></Capability><Capability><Size Name="medium" /></Capability><Capability><Size Name="large" /></Capability></Capabilities>
+                <ThemeResources><Icons><Icon Path="ProviderAssets\TasktorIcon.png" /></Icons><Screenshots><Screenshot Path="ProviderAssets\WorkflowScreenshot.png" DisplayAltText="Tasktor Workflow widget" /></Screenshots></ThemeResources>
+              </Definition></Definitions>
+            </WidgetProvider></uap3:Properties>
+          </uap3:AppExtension>
+        </uap3:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+  <Capabilities><rescap:Capability Name="runFullTrust" /></Capabilities>
+</Package>

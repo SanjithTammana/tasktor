@@ -25,6 +25,10 @@ public sealed partial class CommandWindow : Window
     private const double WidthDip = 640;
     private readonly SnapshotClient _snapshot;
     private readonly CommandController _command;
+    private bool _confirmationVisible;
+    private bool _bringSelectionIntoView;
+    private string? _renderedQuery;
+    private int _renderVersion;
 
     public CommandWindow(SnapshotClient snapshot)
     {
@@ -139,6 +143,9 @@ public sealed partial class CommandWindow : Window
     private void Render()
     {
         Verdict.Text = _command.View.Verdict;
+        var previousOffset = string.Equals(_renderedQuery, _command.Text, StringComparison.Ordinal) ? ResultsScroller.VerticalOffset : 0;
+        _renderedQuery = _command.Text;
+        var version = ++_renderVersion;
         Results.Children.Clear();
         var index = 0;
         foreach (var section in _command.View.Sections)
@@ -153,22 +160,47 @@ public sealed partial class CommandWindow : Window
             });
             foreach (var item in section.Items)
             {
-                Results.Children.Add(Row(item, index == _command.Selected, index));
+                var selected = index == _command.Selected;
+                var row = Row(item, selected, index);
+                if (selected && _bringSelectionIntoView)
+                {
+                    row.Loaded += (_, _) => row.StartBringIntoView();
+                }
+
+                Results.Children.Add(row);
                 index++;
             }
         }
 
         var confirming = _command.Confirming is not null;
         ConfirmRow.Visibility = confirming ? Visibility.Visible : Visibility.Collapsed;
-        Results.Visibility = confirming ? Visibility.Collapsed : Visibility.Visible;
+        ResultsScroller.Visibility = confirming ? Visibility.Collapsed : Visibility.Visible;
         if (_command.Confirming is { } summary)
         {
             ConfirmText.Text = summary;
-            KeepButton.Focus(FocusState.Programmatic); // the safe choice is the default
+            if (!_confirmationVisible)
+            {
+                KeepButton.Focus(FocusState.Programmatic); // the safe choice is the default
+            }
         }
+        else if (_confirmationVisible && IsShown)
+        {
+            Input.Focus(FocusState.Programmatic);
+        }
+
+        _confirmationVisible = confirming;
 
         NoticeText.Text = _command.Notice ?? string.Empty;
         NoticeText.Visibility = _command.Notice is null ? Visibility.Collapsed : Visibility.Visible;
+        if (!_bringSelectionIntoView && !confirming)
+        {
+            // Keep a user's scroll position during live requery; a new query starts at the top.
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (version == _renderVersion) ResultsScroller.ChangeView(null, previousOffset, null, true);
+            });
+        }
+
         DispatcherQueue.TryEnqueue(Layout);
     }
 
@@ -187,6 +219,7 @@ public sealed partial class CommandWindow : Window
         row.Children.Add(new TextBlock
         {
             Text = item.Label,
+            TextTrimming = TextTrimming.CharacterEllipsis,
             FontSize = 16,
             VerticalAlignment = VerticalAlignment.Center,
             Foreground = ThemeBrush(selected ? "TasktorInkBrush" : "TasktorInk2Brush"),
@@ -205,12 +238,22 @@ public sealed partial class CommandWindow : Window
         var area = DisplayArea.Primary;
         var scale = Root.XamlRoot?.RasterizationScale ?? 1.0;
         var work = area.WorkArea;
-        Body.Measure(new Size(WidthDip, double.PositiveInfinity));
-        var width = (int)Math.Ceiling(WidthDip * scale);
-        var height = (int)Math.Ceiling(Math.Min(Body.DesiredSize.Height, 560) * scale);
+        var widthDip = Math.Min(WidthDip, Math.Max(1, (work.Width / scale) - 32));
+        var yOffset = Math.Max(0, work.Height / 6);
+        var heightDip = Math.Min(560, Math.Max(1, (work.Height - yOffset) / scale));
+
+        // Keep the input and confirmation visible and give the results the remaining height.
+        ResultsScroller.MaxHeight = double.PositiveInfinity;
+        Body.Measure(new Size(widthDip, double.PositiveInfinity));
+        var fixedHeight = Math.Max(0, Body.DesiredSize.Height - ResultsScroller.DesiredSize.Height);
+        ResultsScroller.MaxHeight = Math.Max(0, heightDip - fixedHeight);
+        Body.Measure(new Size(widthDip, double.PositiveInfinity));
+
+        var width = Math.Max(1, Math.Min(work.Width, (int)Math.Ceiling(widthDip * scale)));
+        var height = Math.Max(1, Math.Min(work.Height - yOffset, (int)Math.Ceiling(Math.Min(Body.DesiredSize.Height, heightDip) * scale)));
         var x = work.X + ((work.Width - width) / 2);
-        var y = work.Y + (work.Height / 6);
-        AppWindow.MoveAndResize(new RectInt32(x, y, width, Math.Max(height, 1)));
+        var y = work.Y + yOffset;
+        AppWindow.MoveAndResize(new RectInt32(x, y, width, height));
     }
 
     private void OnActivated(object sender, WindowActivatedEventArgs args)
@@ -227,15 +270,24 @@ public sealed partial class CommandWindow : Window
         {
             case VirtualKey.Down:
                 e.Handled = true;
-                _command.Move(1);
+                MoveSelection(1);
                 break;
             case VirtualKey.Up:
                 e.Handled = true;
-                _command.Move(-1);
+                MoveSelection(-1);
                 break;
             case VirtualKey.Enter:
                 e.Handled = true;
-                await _command.EnterAsync();
+                if (_command.Confirming is null)
+                {
+                    await _command.EnterAsync();
+                }
+                else
+                {
+                    // Only the explicit confirm button can answer yes; Enter in the input stays safe.
+                    KeepButton.Focus(FocusState.Programmatic);
+                }
+
                 break;
             case VirtualKey.Escape:
                 e.Handled = true;
@@ -247,6 +299,19 @@ public sealed partial class CommandWindow : Window
                 break;
             default:
                 break;
+        }
+    }
+
+    private void MoveSelection(int delta)
+    {
+        _bringSelectionIntoView = true;
+        try
+        {
+            _command.Move(delta);
+        }
+        finally
+        {
+            _bringSelectionIntoView = false;
         }
     }
 

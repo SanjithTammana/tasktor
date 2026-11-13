@@ -37,9 +37,14 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         _snapshot = snapshot;
         _invoker = new ActionInvoker(ActAsync, Origin.Flyout);
-        SystemBackdrop = new MicaBackdrop();
-        AppWindow.Resize(new Windows.Graphics.SizeInt32(1100, 760));
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(WindowTitleBar);
+        AppWindow.Resize(new Windows.Graphics.SizeInt32(1280, 800));
         snapshot.Changed += _ => DispatcherQueue.TryEnqueue(() => Refresh(fromSnapshot: true));
+        PageContent.LostFocus += (_, _) => DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_page == "system" && _systemMounted && !SystemInteractionActive()) RefreshSystem(_snapshot.Mirror.Cards);
+        });
         OpenPage(page);
     }
 
@@ -50,6 +55,10 @@ public sealed partial class MainWindow : Window
         Refresh(fromSnapshot: false);
         Activate();
     }
+
+    public event Action? FindRequested;
+
+    private void OnFind(object sender, RoutedEventArgs args) => FindRequested?.Invoke();
 
     private Task<ActionResult> ActAsync(ActionRequest request, CancellationToken ct) =>
         _snapshot.Client is { } client ? client.ActAsync(request, ct) : Task.FromException<ActionResult>(new IOException("not connected"));
@@ -74,11 +83,17 @@ public sealed partial class MainWindow : Window
             Nav.MenuItems.Clear();
             foreach (var p in visible)
             {
-                Nav.MenuItems.Add(new NavigationViewItem { Content = p.Name, Tag = p.Id });
+                Nav.MenuItems.Add(new NavigationViewItem { Content = p.Name, Tag = p.Id, Icon = NavigationIcon(p.Id) });
             }
         }
 
         Nav.SelectedItem = Nav.MenuItems.OfType<NavigationViewItem>().FirstOrDefault(i => (string)i.Tag == _page);
+        if (fromSnapshot && _page == "system" && _systemMounted)
+        {
+            RefreshSystem(cards);
+            return;
+        }
+
         if (fromSnapshot && _page is "settings" or "data" or "learned")
         {
             return;
@@ -98,17 +113,33 @@ public sealed partial class MainWindow : Window
 
     private void Draw(IReadOnlyList<Card> cards)
     {
+        _systemMounted = false;
         var page = DeepPages.All.First(p => p.Id == _page);
         PageTitle.Text = page.Name;
         PageContent.Children.Clear();
         var resolver = new BindingResolver(_snapshot.Mirror.Root);
+        if (_page == "system")
+        {
+            DrawSystem(cards, resolver, PageContent);
+            _systemMounted = true;
+            return;
+        }
         if (_page == DeepPages.Home)
         {
-            DrawAlerts();
-            if (HomePage.Undo(_snapshot.Mirror.Root?["state"]?["recent_actions"], DateTimeOffset.Now) is { } undo)
-            {
-                PageContent.Children.Add(Section(undo));
-            }
+            DrawHome(cards, resolver);
+            return;
+        }
+
+        if (_page == "jobs")
+        {
+            DrawJobs(cards, resolver);
+            return;
+        }
+
+        if (_page == "activity")
+        {
+            DrawActivity(cards, resolver);
+            return;
         }
 
         if (_page == "data")
@@ -177,19 +208,48 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        foreach (var section in DataPage.Sections(_data, TimeZoneInfo.Local))
+        PageContent.Children.Add(SystemSurface(Text("Tasktor's agent makes no network connections. Plugins you allow may contact services.", "TasktorInk2Brush")));
+        var left = new StackPanel { Spacing = 10 };
+        var right = new StackPanel { Spacing = 10 };
+        left.Children.Add(SystemHeading("Kept on this PC"));
+        var sections = DataPage.Sections(_data, TimeZoneInfo.Local);
+        foreach (var section in sections.Where(s => s.Id != "data.all"))
         {
-            PageContent.Children.Add(Section(section));
+            left.Children.Add(Section(section));
         }
 
-        DrawExport();
+        right.Children.Add(SystemHeading("Take it with you"));
+        DrawExport(right);
+        if (sections.FirstOrDefault(s => s.Id == "data.all") is { } all)
+        {
+            right.Children.Add(SystemHeading("Start over"));
+            right.Children.Add(Text("Forget everything removes all eligible categories, including learned data, activity and capture. Settings, notes and presets stay.", "TasktorInk2Brush"));
+            right.Children.Add(Section(all));
+        }
+
+        var columns = new Grid { ColumnSpacing = 16, RowSpacing = 24 };
+        columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.25, GridUnitType.Star) });
+        columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.75, GridUnitType.Star) });
+        columns.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        columns.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        Grid.SetColumn(right, 1);
+        columns.Children.Add(left);
+        columns.Children.Add(right);
+        columns.SizeChanged += (_, e) =>
+        {
+            var narrow = e.NewSize.Width < 680;
+            columns.ColumnDefinitions[1].Width = narrow ? new GridLength(0) : new GridLength(0.75, GridUnitType.Star);
+            Grid.SetColumn(right, narrow ? 0 : 1);
+            Grid.SetRow(right, narrow ? 1 : 0);
+        };
+        PageContent.Children.Add(columns);
     }
 
     /// <summary>D-S7 Export: CSV + JSONL per table to a new folder; titles and capture records only when ticked (the agent asks).</summary>
-    private void DrawExport()
+    private void DrawExport(StackPanel target)
     {
-        PageContent.Children.Add(new TextBlock { Text = "Export", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
-        PageContent.Children.Add(Text("A copy of what Tasktor keeps, as CSV and JSONL files with a manifest, in a new folder under Documents. The files are plain text.", "TasktorInk2Brush"));
+        target.Children.Add(new TextBlock { Text = "Export", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+        target.Children.Add(Text("A copy of what Tasktor keeps, as CSV and JSONL files with a manifest, in a new folder under Documents. The files are plain text.", "TasktorInk2Brush"));
         // The page is redrawn after every 15 s re-count: the ticks and the running export live in fields, not in the controls.
         var raw = new CheckBox { Content = "Include window titles (the last 30 days of raw events)", IsChecked = _exportRaw };
         raw.Click += (_, _) => _exportRaw = raw.IsChecked == true;
@@ -216,56 +276,32 @@ public sealed partial class MainWindow : Window
                 }
             }
         };
-        PageContent.Children.Add(raw);
-        PageContent.Children.Add(capture);
-        PageContent.Children.Add(go);
+        target.Children.Add(raw);
+        target.Children.Add(capture);
+        target.Children.Add(go);
     }
 
     private System.Text.Json.Nodes.JsonNode? _learned;
     private bool _pullingLearned;
 
     /// <summary>"What Tasktor learned": the agent's learned pull as sections; pulled again after any action here.</summary>
-    private void DrawLearned()
-    {
-        if (_learned is null && !_pullingLearned)
-        {
-            _pullingLearned = true;
-            _ = PullLearnedAsync();
-        }
-
-        if (_learned is null)
-        {
-            PageContent.Children.Add(Text(_snapshot.Connected ? "Reading what Tasktor learned…" : "Tasktor is not running.", "TasktorInk2Brush"));
-            return;
-        }
-
-        foreach (var section in LearnedPage.Sections(_learned))
-        {
-            PageContent.Children.Add(Section(section));
-        }
-
-        DrawWorkflows();
-    }
+    private void DrawLearned() => DrawLearnedPage();
 
     private Contracts.Workflow.WorkflowsReport? _workflows;
     private bool _pullingWorkflows;
 
     /// <summary>The Learned page's Workflows tab (C7, C9, C10): learned workflows with Rename and Merge into.</summary>
-    private void DrawWorkflows()
+    private void DrawWorkflows(StackPanel target)
     {
-        if (_workflows is null && !_pullingWorkflows)
-        {
-            _pullingWorkflows = true;
-            _ = PullWorkflowsAsync();
-        }
 
-        PageContent.Children.Add(new TextBlock { Text = "Workflows", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 16, 0, 0) });
+
         var (summary, rows) = LearnedPage.Workflows(_workflows);
-        PageContent.Children.Add(Text(_workflows is null ? "Reading learned workflows…" : summary, "TasktorInk2Brush"));
-        var list = new StackPanel();
+        target.Children.Add(Text(_workflows is null ? _workflowsAttempted ? "Learned workflows are unavailable." : "Reading learned workflows…" : summary, "TasktorInk2Brush"));
+        if (_workflows is null && _workflowsAttempted) target.Children.Add(LearnedRetry("workflows"));
+        var list = new StackPanel { Spacing = 2 };
         foreach (var row in rows)
         {
-            var grid = new Grid { MinHeight = 56, ColumnSpacing = 8 };
+            var grid = new Grid { MinHeight = 48, ColumnSpacing = 8 };
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -281,10 +317,11 @@ public sealed partial class MainWindow : Window
                 {
                     var box = new TextBox { Text = row.Title, MaxLength = 80 };
                     var dialog = new ContentDialog { Title = "Rename workflow", Content = box, PrimaryButtonText = "Rename", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Primary, XamlRoot = Content.XamlRoot };
-                    if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+                    if (await ShowTasktorDialogAsync(dialog) == ContentDialogResult.Primary)
                     {
                         await RunAsync(LearnedPage.Rename(row, box.Text));
                         _workflows = null;
+                        _workflowsAttempted = false;
                         Draw(_snapshot.Mirror.Cards);
                     }
                 };
@@ -303,10 +340,11 @@ public sealed partial class MainWindow : Window
                     body.Children.Add(new TextBlock { Text = "From the next refit on, both are learned as one workflow. Until then " + row.Title + " shows as the one you pick.", TextWrapping = TextWrapping.Wrap });
                     body.Children.Add(pick);
                     var dialog = new ContentDialog { Title = "Merge " + row.Title, Content = body, PrimaryButtonText = "Merge", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close, XamlRoot = Content.XamlRoot };
-                    if (await dialog.ShowAsync() == ContentDialogResult.Primary && pick.SelectedIndex >= 0)
+                    if (await ShowTasktorDialogAsync(dialog) == ContentDialogResult.Primary && pick.SelectedIndex >= 0)
                     {
                         await RunAsync(LearnedPage.Merge(row, row.MergeTargets[pick.SelectedIndex].Id));
                         _workflows = null;
+                        _workflowsAttempted = false;
                         Draw(_snapshot.Mirror.Cards);
                     }
                 };
@@ -314,11 +352,10 @@ public sealed partial class MainWindow : Window
                 grid.Children.Add(merge);
             }
 
-            list.Children.Add(grid);
-            list.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
+            list.Children.Add(SystemSurface(grid));
         }
 
-        PageContent.Children.Add(list);
+        target.Children.Add(list);
     }
 
     private async Task PullWorkflowsAsync()
@@ -326,18 +363,19 @@ public sealed partial class MainWindow : Window
         try
         {
             var node = await _snapshot.PullAsync("workflows");
-            _workflows = node is null ? new Contracts.Workflow.WorkflowsReport() : System.Text.Json.JsonSerializer.Deserialize(node, Contracts.ContractsJsonContext.Default.WorkflowsReport);
+            _workflows = node is null ? null : System.Text.Json.JsonSerializer.Deserialize(node, Contracts.ContractsJsonContext.Default.WorkflowsReport);
         }
         catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException or System.Text.Json.JsonException)
         {
-            // stays on "Reading…" until the next visit
+            // The page reports this source as unavailable and offers a retry.
         }
         finally
         {
             _pullingWorkflows = false;
+            _workflowsAttempted = true;
         }
 
-        if (_page == "learned" && _workflows is not null)
+        if (_page == "learned" && _learnedTab == "workflows")
         {
             Draw(_snapshot.Mirror.Cards);
         }
@@ -351,14 +389,15 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException)
         {
-            // stays on "Reading…" until the next visit
+            // The page reports this source as unavailable and offers a retry.
         }
         finally
         {
             _pullingLearned = false;
+            _learnedAttempted = true;
         }
 
-        if (_page == "learned")
+        if (_page == "learned" && _learnedTab == "jobs")
         {
             Draw(_snapshot.Mirror.Cards);
         }
@@ -378,17 +417,43 @@ public sealed partial class MainWindow : Window
         }
 
         var focus = _snapshot.Mirror.Root?["state"]?["focus"];
-        foreach (var section in FocusPage.Sections(focus, _focusPull, DateTimeOffset.Now))
+        var sections = FocusPage.Sections(focus, _focusPull, DateTimeOffset.Now);
+        var left = new StackPanel { Spacing = 10 };
+        var right = new StackPanel { Spacing = 10 };
+        left.Children.Add(SystemHeading("Presets"));
+        foreach (var section in sections)
         {
-            PageContent.Children.Add(Section(section));
+            if (section.Id == "focus.now")
+            {
+                PageContent.Children.Add(Section(section));
+                continue;
+            }
+
+            left.Children.Add(Section(section));
         }
 
         if (_focusPull is null)
         {
-            PageContent.Children.Add(Text(_snapshot.Connected ? "Reading your presets…" : "Tasktor is not running.", "TasktorInk2Brush"));
+            left.Children.Add(Text(_snapshot.Connected ? "Reading your presets…" : "Tasktor is not running.", "TasktorInk2Brush"));
         }
 
-        DrawNotes();
+        DrawNotes(right);
+        var columns = new Grid { ColumnSpacing = 16, RowSpacing = 24 };
+        columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        columns.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        columns.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        Grid.SetColumn(right, 1);
+        columns.Children.Add(left);
+        columns.Children.Add(right);
+        columns.SizeChanged += (_, e) =>
+        {
+            var narrow = e.NewSize.Width < 680;
+            columns.ColumnDefinitions[1].Width = narrow ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+            Grid.SetColumn(right, narrow ? 0 : 1);
+            Grid.SetRow(right, narrow ? 1 : 0);
+        };
+        PageContent.Children.Add(columns);
     }
 
     private async Task PullFocusAsync()
@@ -426,34 +491,75 @@ public sealed partial class MainWindow : Window
             _ = PullWindowsAsync();
         }
 
+        var left = new StackPanel { Spacing = 10 };
+        var right = new StackPanel { Spacing = 10 };
+        left.Children.Add(SystemHeading("Window presets"));
         if (_windowsPull is null)
         {
-            PageContent.Children.Add(Text(_snapshot.Connected ? "Reading your presets…" : "Tasktor is not running.", "TasktorInk2Brush"));
-            return;
+            left.Children.Add(Text(_snapshot.Connected ? "Reading your presets…" : "Tasktor is not running.", "TasktorInk2Brush"));
         }
-
-        foreach (var section in WindowsPage.Sections(_windowsPull))
+        else
         {
-            PageContent.Children.Add(Section(section));
-        }
-
-        var save = new Button { Content = "Save open windows as a preset…", Margin = new Thickness(0, 12, 0, 0) };
-        save.Click += async (_, _) => await SavePresetAsync();
-        PageContent.Children.Add(save);
-
-        var names = (_windowsPull?["presets"] as System.Text.Json.Nodes.JsonArray ?? []).Select(n => n?["name"]?.GetValue<string>()).OfType<string>().ToList();
-        if (names.Count > 0)
-        {
-            var edits = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 8, 0, 0) };
-            foreach (var name in names)
+            foreach (var section in WindowsPage.Sections(_windowsPull))
             {
-                var edit = new Button { Content = "Edit " + name + "…" };
-                edit.Click += async (_, _) => await EditPresetAsync(name);
-                edits.Children.Add(edit);
+                left.Children.Add(Section(section));
             }
 
-            PageContent.Children.Add(new ScrollViewer { Content = edits, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled });
+            var save = new Button { Content = "Save open windows as a preset…", Margin = new Thickness(0, 12, 0, 0) };
+            save.Click += async (_, _) => await SavePresetAsync();
+            left.Children.Add(save);
+
+            var names = (_windowsPull?["presets"] as System.Text.Json.Nodes.JsonArray ?? []).Select(n => n?["name"]?.GetValue<string>()).OfType<string>().ToList();
+            if (names.Count > 0)
+            {
+                var edits = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 8, 0, 0) };
+                foreach (var name in names)
+                {
+                    var edit = new Button { Content = "Edit " + name + "…" };
+                    edit.Click += async (_, _) => await EditPresetAsync(name);
+                    edits.Children.Add(edit);
+                }
+
+                left.Children.Add(new ScrollViewer { Content = edits, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled });
+            }
+
+            left.Children.Add(Caption("Arrange moves open windows; Apply can also open apps saved in the preset.", "TasktorInk2Brush"));
         }
+
+        right.Children.Add(SystemHeading("Switcher"));
+        if (SettingsPage.Switcher(_snapshot.Mirror.Root) is { } sw)
+        {
+            var rows = new StackPanel { Spacing = 2 };
+            rows.Children.Add(SystemSurface(SystemRow("Replace Alt+Tab", sw.ReplaceAltTab ? "On" : "Off", null, null)));
+            rows.Children.Add(SystemSurface(SystemRow("This desktop only", sw.ThisDesktopOnly ? "On" : "Off", null, null)));
+            rows.Children.Add(SystemSurface(SystemRow("Switcher shortcut", sw.Keys, sw.Note, null)));
+            right.Children.Add(rows);
+        }
+        else
+        {
+            right.Children.Add(Text("Switcher settings are unavailable while the module is off or not connected.", "TasktorInk2Brush"));
+        }
+
+        var settings = new Button { Content = "Open switcher settings", HorizontalAlignment = HorizontalAlignment.Left };
+        settings.Click += (_, _) => OpenPage("settings");
+        right.Children.Add(settings);
+
+        var columns = new Grid { ColumnSpacing = 16, RowSpacing = 24 };
+        columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.2, GridUnitType.Star) });
+        columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.8, GridUnitType.Star) });
+        columns.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        columns.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        Grid.SetColumn(right, 1);
+        columns.Children.Add(left);
+        columns.Children.Add(right);
+        columns.SizeChanged += (_, e) =>
+        {
+            var narrow = e.NewSize.Width < 680;
+            columns.ColumnDefinitions[1].Width = narrow ? new GridLength(0) : new GridLength(0.8, GridUnitType.Star);
+            Grid.SetColumn(right, narrow ? 0 : 1);
+            Grid.SetRow(right, narrow ? 1 : 0);
+        };
+        PageContent.Children.Add(columns);
     }
 
     /// <summary>Edit a saved preset: its name, which windows it keeps (each with its launch shown), or delete it (two-step).</summary>
@@ -501,7 +607,7 @@ public sealed partial class MainWindow : Window
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = Content.XamlRoot,
         };
-        var answer = await dialog.ShowAsync(); // closed before any action runs: one dialog at a time (a confirm may follow)
+        var answer = await ShowTasktorDialogAsync(dialog); // closed before any action runs: one dialog at a time (a confirm may follow)
         if (answer == ContentDialogResult.Secondary)
         {
             await RunAsync(WindowsPage.Delete(preset)); // destructive: the agent's two-step confirm follows
@@ -583,7 +689,7 @@ public sealed partial class MainWindow : Window
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = Content.XamlRoot,
         };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        if (await ShowTasktorDialogAsync(dialog) != ContentDialogResult.Primary)
         {
             return;
         }
@@ -622,6 +728,9 @@ public sealed partial class MainWindow : Window
     /// <summary>Settings → Modules: a switch per Module; on asks first (what it reads, where it is kept, what it contacts).</summary>
     private void DrawSettings()
     {
+        var left = new StackPanel { Spacing = 10 };
+        var right = new StackPanel { Spacing = 10 };
+
         if (_modules is null && !_pullingModules)
         {
             _pullingModules = true;
@@ -630,7 +739,7 @@ public sealed partial class MainWindow : Window
 
         if (SettingsPage.Hotkey(_snapshot.Mirror.Root) is { } hotkey)
         {
-            PageContent.Children.Add(new TextBlock { Text = "General", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+            left.Children.Add(new TextBlock { Text = "General", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
             var row = new Grid { MinHeight = 56, ColumnSpacing = 8 };
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -651,13 +760,13 @@ public sealed partial class MainWindow : Window
             };
             Grid.SetColumn(change, 2);
             row.Children.Add(change);
-            PageContent.Children.Add(row);
-            PageContent.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
+            left.Children.Add(row);
+            left.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
         }
 
-        DrawSwitcherSettings();
+        DrawSwitcherSettings(left);
 
-        PageContent.Children.Add(new TextBlock { Text = "Modules", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+        left.Children.Add(new TextBlock { Text = "Modules", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
         var list = new StackPanel();
         foreach (var row in SettingsPage.Modules(_modules))
         {
@@ -677,22 +786,39 @@ public sealed partial class MainWindow : Window
             list.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
         }
 
-        PageContent.Children.Add(list);
+        left.Children.Add(list);
 
-        DrawRules();
-        DrawPlugins();
-        DrawAppearance();
+        DrawRules(right);
+        DrawPlugins(right);
+        DrawAppearance(right);
+
+        var columns = new Grid { ColumnSpacing = 16, RowSpacing = 24 };
+        columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        columns.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        columns.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        Grid.SetColumn(right, 1);
+        columns.Children.Add(left);
+        columns.Children.Add(right);
+        columns.SizeChanged += (_, e) =>
+        {
+            var narrow = e.NewSize.Width < 680;
+            columns.ColumnDefinitions[1].Width = narrow ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+            Grid.SetColumn(right, narrow ? 0 : 1);
+            Grid.SetRow(right, narrow ? 1 : 0);
+        };
+        PageContent.Children.Add(columns);
     }
 
     /// <summary>Settings → Windows (U3 / U4): the window switcher's shortcut and "this desktop only", while its Module is on.</summary>
-    private void DrawSwitcherSettings()
+    private void DrawSwitcherSettings(StackPanel target)
     {
         if (SettingsPage.Switcher(_snapshot.Mirror.Root) is not { } sw)
         {
             return;
         }
 
-        PageContent.Children.Add(new TextBlock { Text = "Windows", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+        target.Children.Add(new TextBlock { Text = "Windows", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
         var row = new Grid { MinHeight = 56, ColumnSpacing = 8 };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -713,7 +839,7 @@ public sealed partial class MainWindow : Window
         };
         Grid.SetColumn(change, 2);
         row.Children.Add(change);
-        PageContent.Children.Add(row);
+        target.Children.Add(row);
 
         var desktop = new Grid { MinHeight = 56 };
         desktop.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -727,7 +853,7 @@ public sealed partial class MainWindow : Window
         toggle.Toggled += async (_, _) => await RunAsync(SettingsPage.SetSwitcher(null, toggle.IsOn));
         Grid.SetColumn(toggle, 1);
         desktop.Children.Add(toggle);
-        PageContent.Children.Add(desktop);
+        target.Children.Add(desktop);
 
         var altTab = new Grid { MinHeight = 56 };
         altTab.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -741,15 +867,15 @@ public sealed partial class MainWindow : Window
         altToggle.Toggled += async (_, _) => await RunAsync(SettingsPage.SetSwitcher(null, null, altToggle.IsOn));
         Grid.SetColumn(altToggle, 1);
         altTab.Children.Add(altToggle);
-        PageContent.Children.Add(altTab);
-        PageContent.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
+        target.Children.Add(altTab);
+        target.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
     }
 
     /// <summary>Settings → Appearance (U4): hide pages from the rail; Home, Your data and Settings always stay.</summary>
-    private void DrawAppearance()
+    private void DrawAppearance(StackPanel target)
     {
-        PageContent.Children.Add(new TextBlock { Text = "Appearance", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 16, 0, 0) });
-        PageContent.Children.Add(Text("Pages shown in the list on the left. Home, Your data and Settings are always there.", "TasktorInk2Brush"));
+        target.Children.Add(new TextBlock { Text = "Appearance", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 16, 0, 0) });
+        target.Children.Add(Text("Pages shown in the list on the left. Home, Your data and Settings are always there.", "TasktorInk2Brush"));
         var hidden = DeepPages.HiddenPages(_snapshot.Mirror.Root);
         var list = new StackPanel();
         foreach (var page in DeepPages.Hideable)
@@ -774,14 +900,14 @@ public sealed partial class MainWindow : Window
             list.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
         }
 
-        PageContent.Children.Add(list);
+        target.Children.Add(list);
     }
 
     private Contracts.Plugins.PluginsReport? _plugins;
     private bool _pullingPlugins;
 
     /// <summary>Settings → Plugins (U1 D-H7): each folder; turning one on shows its consent first (what it reads, contacts, runs).</summary>
-    private void DrawPlugins()
+    private void DrawPlugins(StackPanel target)
     {
         if (_plugins is null && !_pullingPlugins)
         {
@@ -790,10 +916,10 @@ public sealed partial class MainWindow : Window
         }
 
         var rows = SettingsPage.Plugins(_plugins);
-        PageContent.Children.Add(new TextBlock { Text = "Plugins", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 16, 0, 0) });
+        target.Children.Add(new TextBlock { Text = "Plugins", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 16, 0, 0) });
         if (_plugins is not null && rows.Count == 0)
         {
-            PageContent.Children.Add(Text("No plugins. A plugin is a folder with a plugin.json in Tasktor's plugins folder.", "TasktorInk2Brush"));
+            target.Children.Add(Text("No plugins. A plugin is a folder with a plugin.json in Tasktor's plugins folder.", "TasktorInk2Brush"));
         }
 
         var list = new StackPanel();
@@ -828,7 +954,7 @@ public sealed partial class MainWindow : Window
                         DefaultButton = ContentDialogButton.Close,
                         XamlRoot = Content.XamlRoot,
                     };
-                    if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+                    if (await ShowTasktorDialogAsync(dialog) != ContentDialogResult.Primary)
                     {
                         toggle.IsOn = false;
                         return;
@@ -845,7 +971,7 @@ public sealed partial class MainWindow : Window
             list.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
         }
 
-        PageContent.Children.Add(list);
+        target.Children.Add(list);
     }
 
     private async Task PullPluginsAsync()
@@ -874,7 +1000,7 @@ public sealed partial class MainWindow : Window
     private bool _pullingRules;
 
     /// <summary>Settings → Rules: each rule with its switch, where it comes from and when it last fired; load errors on top.</summary>
-    private void DrawRules()
+    private void DrawRules(StackPanel target)
     {
         if (_rules is null && !_pullingRules)
         {
@@ -882,17 +1008,17 @@ public sealed partial class MainWindow : Window
             _ = PullRulesAsync();
         }
 
-        PageContent.Children.Add(new TextBlock { Text = "Rules", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 16, 0, 0) });
+        target.Children.Add(new TextBlock { Text = "Rules", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 16, 0, 0) });
         var editRules = new Button { Content = SettingsPage.EditRules.Label, Margin = new Thickness(0, 4, 0, 8) };
         editRules.Click += async (_, _) =>
         {
             await RunAsync(SettingsPage.EditRules); // a save reloads the rules; re-read the list then
             _rules = null;
         };
-        PageContent.Children.Add(editRules);
+        target.Children.Add(editRules);
         foreach (var error in _rules?.Errors ?? [])
         {
-            PageContent.Children.Add(Text("Not loaded: " + error, "TasktorInkBrush"));
+            target.Children.Add(Text("Not loaded: " + error, "TasktorInkBrush"));
         }
 
         var list = new StackPanel();
@@ -924,13 +1050,13 @@ public sealed partial class MainWindow : Window
             list.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
         }
 
-        PageContent.Children.Add(list);
-        DrawPackRules();
-        DrawArrangeRequests();
+        target.Children.Add(list);
+        DrawPackRules(target);
+        DrawArrangeRequests(target);
     }
 
     /// <summary>U3 OQ-W2: rules that would arrange windows wait here for their one-time consent.</summary>
-    private void DrawArrangeRequests()
+    private void DrawArrangeRequests(StackPanel target)
     {
         var rows = SettingsPage.ArrangeRequests(_rules);
         if (rows.Count == 0)
@@ -938,7 +1064,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        PageContent.Children.Add(new TextBlock { Text = "Waiting for your consent", Style = StyleOf("TasktorBodyStrongTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 12, 0, 0) });
+        target.Children.Add(new TextBlock { Text = "Waiting for your consent", Style = StyleOf("TasktorBodyStrongTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 12, 0, 0) });
         foreach (var row in rows)
         {
             var grid = new Grid { MinHeight = 56 };
@@ -961,7 +1087,7 @@ public sealed partial class MainWindow : Window
                     DefaultButton = ContentDialogButton.Close,
                     XamlRoot = Content.XamlRoot,
                 };
-                if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+                if (await ShowTasktorDialogAsync(dialog) == ContentDialogResult.Primary)
                 {
                     await RunAsync(SettingsPage.AllowArrange(row));
                     _rules = null;
@@ -970,12 +1096,12 @@ public sealed partial class MainWindow : Window
             };
             Grid.SetColumn(allow, 1);
             grid.Children.Add(allow);
-            PageContent.Children.Add(grid);
+            target.Children.Add(grid);
         }
     }
 
     /// <summary>Settings → Rules, from plugin packs: every rule of a pack that is on, each off until ticked.</summary>
-    private void DrawPackRules()
+    private void DrawPackRules(StackPanel target)
     {
         var rows = SettingsPage.PackRules(_rules);
         if (rows.Count == 0)
@@ -983,7 +1109,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        PageContent.Children.Add(new TextBlock { Text = "From plugin packs", Style = StyleOf("TasktorBodyStrongTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 12, 0, 0) });
+        target.Children.Add(new TextBlock { Text = "From plugin packs", Style = StyleOf("TasktorBodyStrongTextStyle"), Foreground = ThemeBrush("TasktorInkBrush"), Margin = new Thickness(0, 12, 0, 0) });
         var list = new StackPanel();
         foreach (var row in rows)
         {
@@ -1013,7 +1139,7 @@ public sealed partial class MainWindow : Window
             list.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
         }
 
-        PageContent.Children.Add(list);
+        target.Children.Add(list);
     }
 
     private async Task PullRulesAsync()
@@ -1071,7 +1197,7 @@ public sealed partial class MainWindow : Window
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = Content.XamlRoot,
             };
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            if (await ShowTasktorDialogAsync(dialog) != ContentDialogResult.Primary)
             {
                 toggle.IsOn = false;
                 return;
@@ -1117,7 +1243,7 @@ public sealed partial class MainWindow : Window
         };
         ack.Checked += (_, _) => dialog.IsPrimaryButtonEnabled = CaptureConsent.CanConfirm(true);
         ack.Unchecked += (_, _) => dialog.IsPrimaryButtonEnabled = CaptureConsent.CanConfirm(false);
-        var yes = await dialog.ShowAsync() == ContentDialogResult.Primary;
+        var yes = await ShowTasktorDialogAsync(dialog) == ContentDialogResult.Primary;
         return yes && ack.IsChecked == true ? CaptureConsent.Request(acknowledged: true) : null;
     }
 
@@ -1186,7 +1312,7 @@ public sealed partial class MainWindow : Window
 
     private StackPanel Section(CardRows card)
     {
-        var section = new StackPanel { Spacing = 0 };
+        var section = new StackPanel { Spacing = 0, Tag = "card:" + card.Id };
         var header = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12, Margin = new Thickness(0, 0, 0, 8) };
         header.Children.Add(new TextBlock { Text = card.Title, Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
         if (card.Severity != Severity.Normal)
@@ -1203,16 +1329,23 @@ public sealed partial class MainWindow : Window
         }
 
         section.Children.Add(header);
+        var rowIndex = 0;
         foreach (var row in card.Rows)
         {
             var element = Row(row);
+            if (element is FrameworkElement rowElement)
+            {
+                rowElement.Tag = "row:" + row.Kind + ":" + (row.RowKey ?? rowIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
+
+            rowIndex++;
             if (row is { Kind: RowKind.TableRow, RowKey: { } key } && card.RowActions.Count > 0 && element is FrameworkElement fe)
             {
                 // Right-click (or Shift+F10) on a row offers the card's row actions for that row.
                 var menu = new MenuFlyout();
                 foreach (var action in card.RowActions)
                 {
-                    var item = new MenuFlyoutItem { Text = action.Label };
+                    var item = new MenuFlyoutItem { Text = action.Label, Tag = ActionKey(action, key) };
                     item.Click += async (_, _) => await RunAsync(action, key);
                     menu.Items.Add(item);
                 }
@@ -1230,6 +1363,7 @@ public sealed partial class MainWindow : Window
             foreach (var action in actions)
             {
                 var button = new HyperlinkButton { Content = action.Label, Foreground = ThemeBrush("TasktorAccentBrush") };
+                button.Tag = ActionKey(action, null);
                 button.Click += async (_, _) => await RunAsync(action);
                 bar.Children.Add(button);
             }
@@ -1347,7 +1481,7 @@ public sealed partial class MainWindow : Window
         var menu = new MenuFlyout();
         foreach (var action in actions)
         {
-            var item = new MenuFlyoutItem { Text = action.Label };
+            var item = new MenuFlyoutItem { Text = action.Label, Tag = ActionKey(action, null) };
             item.Click += async (_, _) => await RunAsync(action);
             menu.Items.Add(item);
         }
@@ -1370,6 +1504,8 @@ public sealed partial class MainWindow : Window
             _procsAt = DateTimeOffset.Now;
             _pullingProcs = false;
         }
+
+        if (_page == "system") RefreshSystem(_snapshot.Mirror.Cards);
     }
 
     /// <summary>A sparkline row: label, the line, and the latest value; a series is pulled from the agent and cached.</summary>
@@ -1423,7 +1559,14 @@ public sealed partial class MainWindow : Window
             _pulling.Remove(id);
         }
 
-        Draw(_snapshot.Mirror.Cards);
+        if (_page == "system")
+        {
+            RefreshSystem(_snapshot.Mirror.Cards);
+        }
+        else
+        {
+            Draw(_snapshot.Mirror.Cards);
+        }
     }
 
     /// <summary>A label-left, value-right row with a hairline under it.</summary>
@@ -1474,6 +1617,12 @@ public sealed partial class MainWindow : Window
 
     private async Task<ActionOutcome?> RunAsync(CardAction action, string? rowKey = null)
     {
+        if (_page == "system" && !CurrentSystemAction(action, rowKey))
+        {
+            await OnUi(() => InformAsync("This item changed. Close the menu and try again."));
+            return null;
+        }
+
         ActionOutcome outcome;
         try
         {
@@ -1488,6 +1637,7 @@ public sealed partial class MainWindow : Window
         if (_page == "learned")
         {
             _learned = null; // relearn / forget / learning on-off: read it again
+            _learnedAttempted = false;
             Draw(_snapshot.Mirror.Cards);
         }
 
@@ -1506,6 +1656,12 @@ public sealed partial class MainWindow : Window
         return outcome;
     }
 
+    // Keep the native ContentDialog template and each caller's choices; scope the palette to this window.
+    private async Task<ContentDialogResult> ShowTasktorDialogAsync(ContentDialog dialog)
+    {
+        dialog.Style = (Style)Root.Resources["TasktorDialogStyle"];
+        return await dialog.ShowAsync();
+    }
     private async Task<bool> ConfirmAsync(string summary)
     {
         // A summary with lines (a settings diff, a list) keeps its lines: monospace, scrollable, selectable.
@@ -1526,13 +1682,13 @@ public sealed partial class MainWindow : Window
             DefaultButton = ContentDialogButton.Close, // the safe choice is the default
             XamlRoot = Content.XamlRoot,
         };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        return await ShowTasktorDialogAsync(dialog) == ContentDialogResult.Primary;
     }
 
     private async Task<bool> InformAsync(string message)
     {
         var dialog = new ContentDialog { Title = "Tasktor", Content = message, CloseButtonText = "OK", XamlRoot = Content.XamlRoot };
-        await dialog.ShowAsync();
+        await ShowTasktorDialogAsync(dialog);
         return true;
     }
 

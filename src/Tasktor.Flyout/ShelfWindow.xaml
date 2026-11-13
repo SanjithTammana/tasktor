@@ -19,7 +19,11 @@
         </Canvas>
 
         <StackPanel x:Name="Body" Grid.Row="1" Padding="48,24,48,24" Spacing="16">
-            <Grid ColumnSpacing="24">
+            <Grid x:Name="HeadlineGrid" ColumnSpacing="24" SizeChanged="OnHeadlineSizeChanged">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
@@ -30,7 +34,7 @@
                 <Path x:Name="SeverityMark" Grid.Column="0" Width="10" Height="10" Margin="0,14,0,0" VerticalAlignment="Top"
                       Stretch="Uniform" Visibility="Collapsed" />
 
-                <RichTextBlock x:Name="Sentence" Grid.Column="1" MaxWidth="980" HorizontalAlignment="Left" TextWrapping="Wrap"
+                <RichTextBlock x:Name="Sentence" Grid.Column="1" HorizontalAlignment="Stretch" TextWrapping="Wrap"
                                FontFamily="Segoe UI Variable Display" FontSize="26" LineHeight="38" FontWeight="SemiLight"
                                Foreground="{ThemeResource TasktorInkBrush}" IsTextSelectionEnabled="False"
                                AutomationProperties.LiveSetting="Polite" />
@@ -40,24 +44,28 @@
                                  Click="OnDeepLink" />
             </Grid>
 
-            <!-- The hour as rows, alerts written on it, the lead row carried past "now" (dotted). -->
-            <Canvas x:Name="Strip" Height="0" AutomationProperties.Name="The last hour" />
+            <ScrollViewer x:Name="ActionsScroll" Visibility="Collapsed" HorizontalScrollMode="Auto" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="ActionsRow" Orientation="Horizontal" Spacing="24" Visibility="Collapsed"
+                            AutomationProperties.Name="Actions">
+                    <TextBlock x:Name="ActionsLabel" VerticalAlignment="Center" Style="{StaticResource TasktorBodyTextStyle}"
+                               Foreground="{ThemeResource TasktorInk3Brush}" />
+                </StackPanel>
+            </ScrollViewer>
 
-            <StackPanel x:Name="ActionsRow" Orientation="Horizontal" Spacing="24" Visibility="Collapsed"
-                        AutomationProperties.Name="Actions">
-                <TextBlock x:Name="ActionsLabel" VerticalAlignment="Center" Style="{StaticResource TasktorBodyTextStyle}"
-                           Foreground="{ThemeResource TasktorInk3Brush}" />
-            </StackPanel>
-
-            <StackPanel x:Name="ConfirmRow" Orientation="Horizontal" Spacing="16" Visibility="Collapsed">
-                <Button x:Name="KeepButton" Style="{StaticResource AccentButtonStyle}" MinHeight="36" Padding="18,7,18,7"
-                        Content="Keep it" Click="OnKeep" />
-                <Button x:Name="ConfirmButton" MinHeight="36" Padding="18,7,18,7" Background="Transparent" BorderThickness="0"
-                        Foreground="{ThemeResource TasktorInk2Brush}" Click="OnConfirm" />
-            </StackPanel>
+            <ScrollViewer x:Name="ConfirmScroll" Visibility="Collapsed" HorizontalScrollMode="Auto" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="ConfirmRow" Orientation="Horizontal" Spacing="16" Visibility="Collapsed">
+                    <Button x:Name="KeepButton" Style="{StaticResource AccentButtonStyle}" MinHeight="36" Padding="18,7,18,7"
+                            Content="Keep it" Click="OnKeep" />
+                    <Button x:Name="ConfirmButton" MinHeight="36" Padding="18,7,18,7" Background="Transparent" BorderThickness="0"
+                            Foreground="{ThemeResource TasktorInk2Brush}" Click="OnConfirm" />
+                </StackPanel>
+            </ScrollViewer>
 
             <TextBlock x:Name="NoticeText" Visibility="Collapsed" Style="{StaticResource TasktorBodyTextStyle}"
                        Foreground="{ThemeResource TasktorInk2Brush}" AutomationProperties.LiveSetting="Polite" />
+
+            <!-- The hour as rows, alerts written on it, the lead row carried past "now" (dotted). -->
+            <Canvas x:Name="Strip" Height="0" AutomationProperties.Name="The last hour" />
         </StackPanel>
     </Grid>
 </Window>

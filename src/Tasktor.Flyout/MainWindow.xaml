@@ -6,13 +6,46 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Tasktor">
 
-    <Grid x:Name="Root">
-        <NavigationView x:Name="Nav" PaneDisplayMode="Left" IsBackButtonVisible="Collapsed" IsSettingsVisible="False"
-                        OpenPaneLength="280" SelectionChanged="OnNavigate">
-            <ScrollViewer>
-                <StackPanel Padding="56,32,56,48" Spacing="8" MaxWidth="1000" HorizontalAlignment="Left">
+    <Grid x:Name="Root" Background="{ThemeResource TasktorMicaBrush}">
+        <Grid.Resources>
+            <!-- Retain the native template, footer, and high-contrast resources. -->
+            <Style x:Key="TasktorDialogStyle" TargetType="ContentDialog" BasedOn="{StaticResource DefaultContentDialogStyle}">
+                <Setter Property="Background" Value="{ThemeResource TasktorMicaBrush}" />
+                <Setter Property="Foreground" Value="{ThemeResource TasktorInkBrush}" />
+            </Style>
+        </Grid.Resources>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <TitleBar x:Name="WindowTitleBar" Title="Tasktor" Height="48">
+            <TitleBar.Content>
+                <Button x:Name="FindButton" Width="480" MaxWidth="480" Height="32"
+                        HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                        Background="{ThemeResource TasktorSurfaceBrush}" Foreground="{ThemeResource TasktorInkBrush}"
+                        FontFamily="Segoe UI Variable Text" FontSize="14" CornerRadius="16"
+                        AutomationProperties.Name="Find anything" Click="OnFind">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <SymbolIcon Symbol="Find" />
+                        <TextBlock Text="Find anything" VerticalAlignment="Center"
+                                   Style="{StaticResource TasktorBodyTextStyle}" />
+                    </StackPanel>
+                </Button>
+            </TitleBar.Content>
+        </TitleBar>
+        <NavigationView x:Name="Nav" Grid.Row="1" PaneDisplayMode="Auto"
+                        IsBackButtonVisible="Collapsed" IsSettingsVisible="False"
+                        OpenPaneLength="268" ExpandedModeThresholdWidth="1100" SelectionChanged="OnNavigate"
+                        FontFamily="Segoe UI Variable Text" FontSize="14"
+                        Foreground="{ThemeResource TasktorInkBrush}">
+            <NavigationView.Resources>
+                <StaticResource x:Key="NavigationViewContentBackground" ResourceKey="TasktorMicaBrush" />
+                <StaticResource x:Key="NavigationViewItemBackgroundSelected" ResourceKey="TasktorSurfaceRaisedBrush" />
+            </NavigationView.Resources>
+            <ScrollViewer HorizontalContentAlignment="Stretch">
+                <StackPanel Padding="28,8,40,40" Spacing="16" HorizontalAlignment="Stretch">
                     <TextBlock x:Name="PageTitle" Style="{StaticResource TasktorTitleTextStyle}" Foreground="{ThemeResource TasktorInkBrush}" />
-                    <StackPanel x:Name="PageContent" Spacing="32" />
+                    <StackPanel x:Name="PageContent" Spacing="24" />
                 </StackPanel>
             </ScrollViewer>
         </NavigationView>

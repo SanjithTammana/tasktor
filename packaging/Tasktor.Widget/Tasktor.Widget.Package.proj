@@ -1,0 +1,28 @@
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- This optional project is independent of Tasktor.sln and the portable release. -->
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
+    <ProviderProject>$(MSBuildThisFileDirectory)..\..\src\Tasktor.Widget\Tasktor.Widget.csproj</ProviderProject>
+    <MakeAppx Condition="'$(MakeAppx)' == ''">$(MSBuildProgramFiles32)\Windows Kits\10\bin\10.0.26100.0\x64\makeappx.exe</MakeAppx>
+    <WidgetAssets Condition="'$(WidgetAssets)' == ''">$(MSBuildThisFileDirectory)ProviderAssets</WidgetAssets>
+    <PackageOutput Condition="'$(PackageOutput)' == ''">$(MSBuildThisFileDirectory)out\Tasktor.Widget.unsigned.msix</PackageOutput>
+    <Stage>$(MSBuildThisFileDirectory)obj\stage-$([System.Guid]::NewGuid().ToString('N'))</Stage>
+  </PropertyGroup>
+  <Target Name="Build">
+    <MSBuild Projects="$(ProviderProject)" Targets="Build" Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier)" />
+    <Message Importance="high" Text="Widget provider built. Build does not create or install an MSIX; use PackWidget with the required assets." />
+  </Target>
+  <Target Name="PackWidget">
+    <Error Condition="'$(RuntimeIdentifier)' != 'win-x64'" Text="The draft manifest currently declares x64. Set RuntimeIdentifier=win-x64." />
+    <Error Condition="!Exists('$(MakeAppx)')" Text="Set MakeAppx to the Windows SDK makeappx.exe path." />
+    <Error Condition="!Exists('$(WidgetAssets)\StoreLogo.png') Or !Exists('$(WidgetAssets)\Square44x44Logo.png') Or !Exists('$(WidgetAssets)\Square150x150Logo.png') Or !Exists('$(WidgetAssets)\TasktorIcon.png') Or !Exists('$(WidgetAssets)\SystemScreenshot.png') Or !Exists('$(WidgetAssets)\JobsScreenshot.png') Or !Exists('$(WidgetAssets)\WorkflowScreenshot.png')" Text="Supply genuine package logos, widget icon, and accurate picker screenshots in WidgetAssets; see README.md." />
+    <MakeDir Directories="$(Stage)\Tasktor.Widget;$(Stage)\ProviderAssets;$(Stage)\Public;$([System.IO.Path]::GetDirectoryName('$(PackageOutput)'))" />
+    <Exec Command="dotnet publish &quot;$(ProviderProject)&quot; --configuration $(Configuration) --runtime $(RuntimeIdentifier) --output &quot;$(Stage)\Tasktor.Widget&quot;" />
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)AppxManifest.xml" DestinationFiles="$(Stage)\AppxManifest.xml" />
+    <ItemGroup><PackageAssets Include="$(WidgetAssets)\StoreLogo.png;$(WidgetAssets)\Square44x44Logo.png;$(WidgetAssets)\Square150x150Logo.png;$(WidgetAssets)\TasktorIcon.png;$(WidgetAssets)\SystemScreenshot.png;$(WidgetAssets)\JobsScreenshot.png;$(WidgetAssets)\WorkflowScreenshot.png" /></ItemGroup>
+    <Copy SourceFiles="@(PackageAssets)" DestinationFolder="$(Stage)\ProviderAssets" />
+    <Exec Command="&quot;$(MakeAppx)&quot; pack /d &quot;$(Stage)&quot; /p &quot;$(PackageOutput)&quot;" />
+    <Message Importance="high" Text="Created unsigned package $(PackageOutput). It has not been signed, installed, or verified in the widget host." />
+  </Target>
+</Project>

@@ -22,7 +22,7 @@ public sealed partial class MainWindow
 
     private NotesEditor Notes => _notesEditor ??= new NotesEditor(new NotesStore(StoreLayout.Resolve(null, AppContext.BaseDirectory).NotesDir));
 
-    private void DrawNotes()
+    private void DrawNotes(StackPanel target)
     {
         var section = new StackPanel { Spacing = 8, Margin = new Thickness(0, 16, 0, 0) };
         section.Children.Add(new TextBlock { Text = "Notes", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
@@ -35,7 +35,7 @@ public sealed partial class MainWindow
             }
 
             section.Children.Add(_editorPanel);
-            PageContent.Children.Add(section);
+            target.Children.Add(section);
             return;
         }
 
@@ -92,7 +92,7 @@ public sealed partial class MainWindow
             Draw(_snapshot.Mirror.Cards);
         };
         section.Children.Add(add);
-        PageContent.Children.Add(section);
+        target.Children.Add(section);
     }
 
     private StackPanel Editor(NoteDraft draft)

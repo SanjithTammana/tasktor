@@ -26,6 +26,7 @@ internal sealed unsafe class SwitcherWindow : IDisposable
     private readonly List<nint> _thumbnails = [];
     private nint _hwnd;
     private nint _font;
+    private uint _fontDpi;
     private string? _hotkeyText;
     private Hotkey? _hotkey;
     private SwitcherLayout? _layout;
@@ -63,7 +64,7 @@ internal sealed unsafe class SwitcherWindow : IDisposable
                 return 2;
             }
 
-            _font = CreateFontW(-16, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 5, 0, "Segoe UI");
+            RefreshFont();
             var start = _feed();
             ApplyHotkey(start?.Hotkey);
             if (start?.ReplaceAltTab == true)
@@ -174,6 +175,13 @@ internal sealed unsafe class SwitcherWindow : IDisposable
                 }
 
                 return true;
+            case WmDpiChanged:
+                RefreshFont();
+                Redraw();
+                return false;
+            case WmSysColorChange or WmSettingChange or WmThemeChanged:
+                Redraw(); // let Windows also perform its default theme-change handling
+                return false;
             case WmEraseBkgnd:
                 return true;
             case WmPaint:
@@ -389,10 +397,35 @@ internal sealed unsafe class SwitcherWindow : IDisposable
         _first = first;
         _layout = SwitcherLayout.For(count, work, _scale);
         SetWindowPos(_hwnd, -1, _layout.Window.X, _layout.Window.Y, _layout.Window.W, _layout.Window.H, SwpNoActivate);
+        RefreshFont(); // after the move, use the destination monitor's DPI
         RegisterThumbnails();
         Redraw();
     }
 
+    private void RefreshFont()
+    {
+        var dpi = GetDpiForWindow(_hwnd);
+        if (dpi == 0) dpi = 96;
+        if (_font != 0 && _fontDpi == dpi) return;
+        var font = CreateFontW(-Math.Max(1, (int)Math.Round(14 * dpi / 96.0)), 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 5, 0, Tasktor.Hosts.Common.Theme.ThemeTokens.Text);
+        if (font == 0) return; // keep the previous font if Windows cannot create the replacement
+        var old = _font;
+        _font = font;
+        _fontDpi = dpi;
+        if (old != 0) DeleteObject(old);
+    }
+
+    private static bool AppsUseLightTheme()
+    {
+        try
+        {
+            return Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "AppsUseLightTheme", 1) is not int value || value != 0;
+        }
+        catch (Exception e) when (e is UnauthorizedAccessException or System.Security.SecurityException or IOException)
+        {
+            return true; // Windows' default app theme if the preference cannot be read
+        }
+    }
     private void Redraw()
     {
         if (_hwnd != 0)
@@ -454,16 +487,23 @@ internal sealed unsafe class SwitcherWindow : IDisposable
                 return;
             }
 
-            var background = CreateSolidBrush(Rgb(0x20, 0x20, 0x20));
-            var tile = CreateSolidBrush(Rgb(0x2C, 0x2C, 0x2C));
-            var accent = CreateSolidBrush(Rgb(0x4C, 0xA0, 0xE0));
+            // High contrast always uses the user-selected Windows colors.
+            var highContrast = Tasktor.Hosts.Common.Command.DimLayer.HighContrast();
+            var palette = AppsUseLightTheme() ? Tasktor.Hosts.Common.Theme.ThemeTokens.Light : Tasktor.Hosts.Common.Theme.ThemeTokens.Dark;
+            static uint Color(Tasktor.Hosts.Common.Theme.Rgb c) => Rgb(c.R, c.G, c.B);
+            var surfaceColor = highContrast ? GetSysColor(5) : Color(palette.Name == "Light" ? palette.Surface : palette.Shelf); // COLOR_WINDOW
+            var tileColor = highContrast ? surfaceColor : Color(palette.Mica);
+            var inkColor = highContrast ? GetSysColor(8) : Color(palette.Ink); // COLOR_WINDOWTEXT
+            var background = CreateSolidBrush(surfaceColor);
+            var tile = CreateSolidBrush(tileColor);
+            var accent = CreateSolidBrush(inkColor);
             try
             {
                 var all = new Rect(0, 0, layout.Window.W, layout.Window.H);
                 FillRect(hdc, &all, background);
                 var oldFont = SelectObject(hdc, _font);
                 SetBkMode(hdc, 1);
-                SetTextColor(hdc, Rgb(0xF0, 0xF0, 0xF0));
+                SetTextColor(hdc, inkColor);
                 var header = _session.Prompt
                     ?? (_session.Query.Length > 0 ? "Search: " + _session.Query
                         : _session.View switch
@@ -481,14 +521,40 @@ internal sealed unsafe class SwitcherWindow : IDisposable
                 for (var i = 0; i < layout.Tiles.Count && _first + i < _session.Tiles.Count; i++)
                 {
                     var cell = layout.Tiles[i];
-                    if (_first + i == _session.Selected)
-                    {
-                        var ring = new Rect(cell.X - 3, cell.Y - 3, cell.W + 6, cell.H + 6);
-                        FillRect(hdc, &ring, accent);
-                    }
-
                     var body = new Rect(cell.X, cell.Y, cell.W, cell.H);
                     FillRect(hdc, &body, tile);
+                    if (_first + i == _session.Selected)
+                    {
+                        // Keep the ring outside the DWM destination and above the caption.
+                        var thumb = SwitcherLayout.Thumbnail(cell, _scale);
+                        var caption = SwitcherLayout.Caption(cell, _scale);
+                        var stroke = Math.Max(1, (int)Math.Round(2 * _scale));
+                        if (thumb.W > 0 && thumb.H > 0 && thumb.X - stroke >= cell.X
+                            && thumb.Y - stroke >= cell.Y && thumb.Right + stroke <= cell.Right
+                            && thumb.Bottom + stroke <= caption.Y)
+                        {
+                            var top = new Rect(thumb.X - stroke, thumb.Y - stroke, thumb.W + (2 * stroke), stroke);
+                            var bottom = new Rect(thumb.X - stroke, thumb.Bottom, thumb.W + (2 * stroke), stroke);
+                            var left = new Rect(thumb.X - stroke, thumb.Y, stroke, thumb.H);
+                            var right = new Rect(thumb.Right, thumb.Y, stroke, thumb.H);
+                            FillRect(hdc, &top, accent);
+                            FillRect(hdc, &bottom, accent);
+                            FillRect(hdc, &left, accent);
+                            FillRect(hdc, &right, accent);
+                        }
+                        else if (cell.W > 0 && cell.H > 0)
+                        {
+                            // A cell-edge marker remains visible when the thumbnail outline will not fit.
+                            var top = new Rect(cell.X, cell.Y, cell.W, 1);
+                            var bottom = new Rect(cell.X, cell.Bottom - 1, cell.W, 1);
+                            var left = new Rect(cell.X, cell.Y, 1, cell.H);
+                            var right = new Rect(cell.Right - 1, cell.Y, 1, cell.H);
+                            FillRect(hdc, &top, accent);
+                            FillRect(hdc, &bottom, accent);
+                            FillRect(hdc, &left, accent);
+                            FillRect(hdc, &right, accent);
+                        }
+                    }
                     Text(hdc, _session.Describe(_session.Tiles[_first + i]), SwitcherLayout.Caption(cell, _scale));
                 }
 

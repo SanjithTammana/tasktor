@@ -13,12 +13,14 @@ internal static unsafe partial class Native
     public const uint WmActivate = 0x0006;
     public const uint WmPaint = 0x000F;
     public const uint WmEraseBkgnd = 0x0014;
+    public const uint WmSysColorChange = 0x0015, WmSettingChange = 0x001A, WmThemeChanged = 0x031A;
     public const uint WmKeyDown = 0x0100;
     public const uint WmKeyUp = 0x0101;
     public const uint WmChar = 0x0102;
     public const uint WmSysKeyDown = 0x0104;
     public const uint WmSysKeyUp = 0x0105;
     public const uint WmSysChar = 0x0106;
+    public const uint WmDpiChanged = 0x02E0;
     public const uint WmHotKey = 0x0312;
     public const uint WmApp = 0x8000;
 
@@ -138,6 +140,7 @@ internal static unsafe partial class Native
     [LibraryImport("user32.dll")] public static partial int GetMonitorInfoW(nint monitor, MonitorInfoW* info);
     [LibraryImport("user32.dll")] public static partial uint GetDpiForWindow(nint hwnd);
     [LibraryImport("user32.dll")] public static partial nint SetThreadDpiAwarenessContext(nint context);
+    [LibraryImport("user32.dll")] public static partial uint GetSysColor(int index);
     [LibraryImport("user32.dll")] public static partial int InvalidateRect(nint hwnd, Rect* rect, int erase);
     [LibraryImport("user32.dll")] public static partial nint BeginPaint(nint hwnd, PaintStruct* ps);
     [LibraryImport("user32.dll")] public static partial int EndPaint(nint hwnd, PaintStruct* ps);

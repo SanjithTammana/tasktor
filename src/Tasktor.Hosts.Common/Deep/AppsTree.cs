@@ -19,7 +19,7 @@ public sealed record AppNode(string AppId, string Name, string Cpu, string Memor
 /// </summary>
 public static class AppsTree
 {
-    public static IReadOnlyList<AppNode> From(JsonNode? pulled)
+    public static IReadOnlyList<AppNode> From(JsonNode? pulled, bool byMemory = false)
     {
         if (pulled is not JsonArray groups)
         {
@@ -27,7 +27,13 @@ public static class AppsTree
         }
 
         var apps = new List<AppNode>();
-        foreach (var g in groups.OfType<JsonObject>())
+        var ordered = groups.OfType<JsonObject>();
+        if (byMemory)
+        {
+            ordered = ordered.OrderByDescending(g => BindingResolver.AsDouble(g["private_mb"]) ?? double.NegativeInfinity);
+        }
+
+        foreach (var g in ordered)
         {
             if (Str(g, "app_id") is not { } id)
             {
