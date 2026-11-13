@@ -25,6 +25,9 @@ public sealed record PluginConsent
     public required DateTimeOffset GivenAt { get; init; }
 
     public string? Pack { get; init; }
+
+    /// <summary>Plugin contract 2: the capability names the user left ticked; null = everything the manifest asks.</summary>
+    public IReadOnlyList<string>? Granted { get; init; }
 }
 
 /// <summary><c>state\selfuse.json</c> (H14): counts per feature, numbers only.</summary>

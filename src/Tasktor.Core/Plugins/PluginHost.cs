@@ -32,7 +32,7 @@ public enum PluginLifecycle
 }
 
 /// <summary>One discovered plugin and its run state. Loop-only.</summary>
-public sealed class PluginEntry
+public sealed partial class PluginEntry
 {
     public required string Id { get; init; }
 
@@ -74,8 +74,9 @@ public sealed class PluginEntry
 /// <summary>A discovered pack: one consent dialog for all its plugins; its rule and config entries start off until ticked.</summary>
 public sealed record PackEntry(string Id, string Dir, PackManifest Manifest, RulesFile? Rules, string? Problem);
 
-/// <summary>What the consent dialog shows (U1 D-H7): name, author, reads, network, actions and the exact command line.</summary>
-public sealed record PluginConsentView(string Id, string Name, string? Author, IReadOnlyList<string> Reads, IReadOnlyList<string> Network, IReadOnlyList<string> Actions, string CommandLine, string ManifestSha256, string CommandSha256, string? Pack);
+/// <summary>What the consent dialog shows (U1 D-H7): name, author, reads, network, actions and the exact command line.
+/// <c>Capabilities</c> (contract 2): one line per capability, each one the user can untick.</summary>
+public sealed record PluginConsentView(string Id, string Name, string? Author, IReadOnlyList<string> Reads, IReadOnlyList<string> Network, IReadOnlyList<string> Actions, string CommandLine, string ManifestSha256, string CommandSha256, string? Pack, IReadOnlyList<PluginCapabilityLine>? Capabilities = null);
 
 /// <summary>Outcome of one plugin run.</summary>
 public sealed record PluginRunResult(bool Ok, string? Error);
@@ -88,7 +89,7 @@ public sealed record PluginRunResult(bool Ok, string? Error);
 /// block subset; 3 failures in a row turn it off with an error card. Plugins get only their settings, their data folder
 /// and the snapshot path. Loop-only; runs happen off the loop and post back.
 /// </summary>
-public sealed class PluginHost : ICardProvider
+public sealed partial class PluginHost : ICardProvider
 {
     public const int FailureLimit = 3;
 
@@ -169,6 +170,7 @@ public sealed class PluginHost : ICardProvider
 
         foreach (var gone in _plugins.Keys.Where(k => !seen.Contains(k)).ToList())
         {
+            Invalidate(_plugins[gone]);
             _plugins.Remove(gone);
         }
 
@@ -193,29 +195,45 @@ public sealed class PluginHost : ICardProvider
             string.Join(" ", ResolveCommand(m, e.Dir).Select(Quote)),
             e.ManifestSha256,
             e.CommandSha256,
-            e.Pack);
+            e.Pack,
+            e.V2?.Capabilities?.Select(c => new PluginCapabilityLine(PluginCapabilityText.Name(c), PluginCapabilityText.Line(c, e.V2.WatchExes))).ToList());
     }
 
-    /// <summary>Consent given: pin the hashes and turn the plugin on (first run at once).</summary>
-    public bool Enable(string id, DateTimeOffset now)
+    /// <summary>
+    /// Consent given: pin the hashes and turn the plugin on (first run at once). <paramref name="granted"/> is the capability
+    /// names the user left ticked; a contract-2 plugin needs it (null refuses: nothing is granted that the user was not shown),
+    /// and names the manifest does not ask are ignored. Contract 1 has no capabilities and ignores it.
+    /// </summary>
+    public bool Enable(string id, DateTimeOffset now, IReadOnlyCollection<string>? granted = null)
     {
-        if (!_plugins.TryGetValue(id, out var e) || e.Manifest is null || e.State == PluginLifecycle.Invalid)
+        if (!_plugins.TryGetValue(id, out var e) || e.Manifest is null || e.State == PluginLifecycle.Invalid
+            || (e.V2 is not null && granted is null))
         {
             return false;
         }
 
-        _consents.GivePlugin(id, new PluginConsent { ManifestSha256 = e.ManifestSha256, CommandSha256 = e.CommandSha256, GivenAt = now, Pack = e.Pack });
+        List<string>? ticked = null;
+        if (e.V2 is not null)
+        {
+            var asked = (e.V2.Capabilities ?? []).Select(PluginCapabilityText.Name).ToHashSet(StringComparer.Ordinal);
+            ticked = granted!.Where(asked.Contains).Distinct(StringComparer.Ordinal).ToList();
+        }
+
+        _consents.GivePlugin(id, new PluginConsent { ManifestSha256 = e.ManifestSha256, CommandSha256 = e.CommandSha256, GivenAt = now, Pack = e.Pack, Granted = ticked });
+        Invalidate(e);
+        ClearEffects(e); // a narrower consent must not keep a page, wake or queue the old one allowed; the first render rebuilds them
         e.State = PluginLifecycle.On;
         e.ChangedSinceConsent = false;
         e.Failures = 0;
         e.LastError = null;
         e.NextRun = now;
+        e.NeedsRender = true;
         _log?.Info("plugin.enabled", LogField.Of("plugin", id));
         Changed?.Invoke();
         return true;
     }
 
-    /// <summary>One dialog for a whole pack.</summary>
+    /// <summary>One dialog for a whole pack. Contract-2 plugins are skipped: each needs its own capability consent.</summary>
     public int EnablePack(string packId, DateTimeOffset now) =>
         _plugins.Values.Where(p => p.Pack == packId).Count(p => Enable(p.Id, now));
 
@@ -225,8 +243,11 @@ public sealed class PluginHost : ICardProvider
         if (_plugins.TryGetValue(id, out var e))
         {
             _consents.RevokePlugin(id);
+            Invalidate(e);
+            ClearEffects(e);
             e.State = e.State == PluginLifecycle.Invalid ? PluginLifecycle.Invalid : PluginLifecycle.Found;
             e.Cards = [];
+            e.NeedsRender = false;
             Changed?.Invoke();
         }
     }
@@ -238,10 +259,17 @@ public sealed class PluginHost : ICardProvider
             return false;
         }
 
+        if (paused == (e.State == PluginLifecycle.Paused))
+        {
+            return true;
+        }
+
+        Invalidate(e);
         e.State = paused ? PluginLifecycle.Paused : PluginLifecycle.On;
         if (!paused)
         {
             e.NextRun = now;
+            e.NeedsRender = true;
         }
 
         Changed?.Invoke();
@@ -254,6 +282,17 @@ public sealed class PluginHost : ICardProvider
         var started = 0;
         foreach (var e in _plugins.Values)
         {
+            if (e.State == PluginLifecycle.On && !e.Running && e.V2 is not null)
+            {
+                if (DueCall(e, now) is { } call)
+                {
+                    StartRun(e, call, null, null, null, now);
+                    started++;
+                }
+
+                continue;
+            }
+
             if (e.State == PluginLifecycle.On && !e.Running && e.Manifest is { } m && (m.Interval != "manual" || e.Runs == 0) && e.NextRun <= now)
             {
                 StartRun(e, PluginCall.Render, null, null, now);
@@ -266,8 +305,9 @@ public sealed class PluginHost : ICardProvider
 
     /// <summary>When the next run is due (for the loop's timer).</summary>
     public DateTimeOffset? NextDue =>
-        _plugins.Values.Where(e => e.State == PluginLifecycle.On && !e.Running && e.Manifest is not null && (e.Manifest.Interval != "manual" || e.Runs == 0))
-            .Select(e => (DateTimeOffset?)e.NextRun).Min();
+        _plugins.Values.Where(e => e.State == PluginLifecycle.On && !e.Running && e.Manifest is not null)
+            .Select(e => e.V2 is not null ? DueAt2(e) : e.Manifest!.Interval != "manual" || e.Runs == 0 ? e.NextRun : null)
+            .Where(d => d is not null).Min();
 
     /// <summary>Run a plugin's own declared action (D-H4 plugin row), then re-render.</summary>
     public Task<PluginRunResult> Act(string id, string action, IReadOnlyDictionary<string, string>? args, DateTimeOffset now)
@@ -287,13 +327,13 @@ public sealed class PluginHost : ICardProvider
             return Task.FromResult(new PluginRunResult(false, "Plugin is busy; try again"));
         }
 
-        return StartRun(e, PluginCall.Action, action, args, now);
+        return e.V2 is not null ? StartRun(e, PluginCall2.Action, action, args, null, now) : StartRun(e, PluginCall.Action, action, args, now);
     }
 
     /// <summary>Refresh a plugin now (manual plugins, the Refresh button).</summary>
     public Task<PluginRunResult> RunNow(string id, DateTimeOffset now) =>
         _plugins.TryGetValue(id, out var e) && e.State == PluginLifecycle.On && !e.Running
-            ? StartRun(e, PluginCall.Render, null, null, now)
+            ? e.V2 is not null ? StartRun(e, PluginCall2.Render, null, null, null, now) : StartRun(e, PluginCall.Render, null, null, now)
             : Task.FromResult(new PluginRunResult(false, "Plugin is off or busy"));
 
     public IReadOnlyList<Card> Cards()
@@ -304,6 +344,10 @@ public sealed class PluginHost : ICardProvider
             if (e.State == PluginLifecycle.On || e.State == PluginLifecycle.Paused)
             {
                 cards.AddRange(e.Cards);
+                if (e.Warnings.Count > 0)
+                {
+                    cards.Add(WarningCard(e));
+                }
             }
             else if (e.State == PluginLifecycle.Error)
             {
@@ -426,7 +470,15 @@ public sealed class PluginHost : ICardProvider
         AtomicFile.Write(Path.Combine(_layout.PluginData(id), "settings.json"), JsonSerializer.SerializeToUtf8Bytes(stored, ContractsJsonContext.Default.DictionaryStringString));
     }
 
-    private Task<PluginRunResult> StartRun(PluginEntry e, PluginCall call, string? action, IReadOnlyDictionary<string, string>? args, DateTimeOffset now)
+    private Task<PluginRunResult> StartRun(PluginEntry e, PluginCall call, string? action, IReadOnlyDictionary<string, string>? args, DateTimeOffset now) =>
+        Launch(e, now, dataDir => JsonSerializer.Serialize(
+            new PluginInput { Call = call, Action = action, Args = args, Settings = Settings(e.Id), SnapshotPath = _layout.Snapshot, DataDir = dataDir },
+            ContractsJsonContext.Default.PluginInput));
+
+    private Task<PluginRunResult> StartRun(PluginEntry e, PluginCall2 call, string? action, IReadOnlyDictionary<string, string>? args, IReadOnlyDictionary<string, string>? form, DateTimeOffset now) =>
+        Launch(e, now, dataDir => BuildInput2(e, call, action, args, form, now, dataDir));
+
+    private Task<PluginRunResult> Launch(PluginEntry e, DateTimeOffset now, Func<string, string> stdinFor)
     {
         var m = e.Manifest!;
         e.Running = true;
@@ -434,15 +486,6 @@ public sealed class PluginHost : ICardProvider
         var command = ResolveCommand(m, e.Dir);
         var dataDir = _layout.PluginData(e.Id);
         Directory.CreateDirectory(dataDir);
-        var input = new PluginInput
-        {
-            Call = call,
-            Action = action,
-            Args = args,
-            Settings = Settings(e.Id),
-            SnapshotPath = _layout.Snapshot,
-            DataDir = dataDir,
-        };
         var spec = new WorkerSpec
         {
             Kind = WorkerKind.Plugin,
@@ -451,24 +494,33 @@ public sealed class PluginHost : ICardProvider
             WorkingDir = e.Dir,
             MemoryMb = 256,
             TimeoutMs = (int)DurationText.Parse(m.Timeout).TotalMilliseconds,
-            Stdin = JsonSerializer.Serialize(input, ContractsJsonContext.Default.PluginInput),
+            Stdin = stdinFor(dataDir),
             ClearEnv = ClearedEnv,
         };
         var tcs = new TaskCompletionSource<PluginRunResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var generation = e.Generation;
         Task.Run(async () =>
         {
             var handle = _processes.StartWorker(spec);
             return await _processes.WaitWorker(handle, CancellationToken.None).ConfigureAwait(false);
         }).ContinueWith(
-            t => _post(() => tcs.SetResult(Complete(e, t.IsCompletedSuccessfully ? t.Result : null, t.Exception?.InnerException, now))),
+            t => _post(() => tcs.SetResult(Complete(e, generation, t.IsCompletedSuccessfully ? t.Result : null, t.Exception?.InnerException, now))),
             TaskScheduler.Default);
         return tcs.Task;
     }
 
-    private PluginRunResult Complete(PluginEntry e, WorkerExit? exit, Exception? startError, DateTimeOffset startedAt)
+    private PluginRunResult Complete(PluginEntry e, long generation, WorkerExit? exit, Exception? startError, DateTimeOffset startedAt)
     {
         e.Running = false;
-        var m = e.Manifest!;
+        if (generation != e.Generation || e.Manifest is null || !_plugins.TryGetValue(e.Id, out var current) || !ReferenceEquals(current, e))
+        {
+            // Turned off, paused or changed while it ran: its output belongs to a consent that no longer holds.
+            _log?.Info("plugin.run_discarded", LogField.Of("plugin", e.Id));
+            Changed?.Invoke();
+            return new PluginRunResult(false, "The plugin was turned off or changed while it ran");
+        }
+
+        var m = e.Manifest;
         if (m.Interval != "manual")
         {
             e.NextRun = startedAt + DurationText.Parse(m.Interval);
@@ -492,6 +544,17 @@ public sealed class PluginHost : ICardProvider
         {
             error = "exited with code " + exit.ExitCode;
         }
+        else if (e.V2 is not null)
+        {
+            try
+            {
+                error = Apply2(e, exit.Stdout, startedAt);
+            }
+            catch (Exception ex) when (ex is JsonException or ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
+            {
+                error = "output could not be applied: " + ex.Message.Split('\n')[0];
+            }
+        }
         else
         {
             (cards, error) = PluginValidation.CheckOutput(m, exit.Stdout, startedAt);
@@ -502,7 +565,11 @@ public sealed class PluginHost : ICardProvider
         {
             e.Failures = 0;
             e.LastError = null;
-            e.Cards = cards!;
+            if (cards is not null)
+            {
+                e.Cards = cards;
+            }
+
             e.UpdatedAt = startedAt;
             if (e.State == PluginLifecycle.Error)
             {
@@ -516,6 +583,7 @@ public sealed class PluginHost : ICardProvider
             _log?.Warn("plugin.failed", LogField.Of("plugin", e.Id), LogField.Of("failures", e.Failures));
             if (e.Failures >= FailureLimit && e.State == PluginLifecycle.On)
             {
+                Invalidate(e);
                 e.State = PluginLifecycle.Error;
                 e.Cards = [];
                 _log?.Warn("plugin.turned_off", LogField.Of("plugin", e.Id));
@@ -544,35 +612,52 @@ public sealed class PluginHost : ICardProvider
         seen.Add(folder);
         var bytes = File.ReadAllBytes(manifestPath);
         e.ManifestSha256 = Convert.ToHexStringLower(SHA256.HashData(bytes));
-        try
-        {
-            e.Manifest = JsonSerializer.Deserialize(bytes, ContractsJsonContext.Default.PluginManifest);
-            e.Problem = e.Manifest is null ? "empty plugin.json" : PluginValidation.CheckManifest(e.Manifest, folder, TasktorVersion);
-        }
-        catch (JsonException ex)
-        {
-            e.Manifest = null;
-            e.Problem = "plugin.json: " + ex.Message.Split('\n')[0];
-        }
+        var (read, problem) = PluginManifestReader.Read(bytes);
+        e.Manifest = read?.View;
+        e.V2 = read?.V2;
+        var unsupported = (e.V2?.Capabilities ?? []).Where(Unsupported.Contains).Select(PluginCapabilityText.Name).FirstOrDefault();
+        e.Problem = problem ?? PluginValidation.CheckManifest(e.Manifest!, folder, TasktorVersion)
+            ?? (e.V2?.Capabilities?.Contains(PluginCapability.Resident) == true ? "This plugin asks to keep running between wakes, which Tasktor does not allow yet" : null)
+            ?? (unsupported is not null ? "Needs " + unsupported + ", which this version of Tasktor does not support yet" : null);
 
+        var wasLive = e.State is PluginLifecycle.On or PluginLifecycle.Paused or PluginLifecycle.Error;
         if (e.Problem is not null)
         {
+            if (wasLive)
+            {
+                Invalidate(e);
+            }
+
             e.State = PluginLifecycle.Invalid;
             e.LastError = e.Problem;
+            e.Cards = [];
+            e.Page = null;
             return;
         }
 
         e.CommandSha256 = CommandHash(e.Manifest!, dir);
+        if (e.V2 is not null)
+        {
+            LoadState(e);
+        }
+
         var consented = _consents.PluginAllowed(folder, e.ManifestSha256, e.CommandSha256);
         e.ChangedSinceConsent = !consented && _consents.Current.Plugins.ContainsKey(folder);
         if (!consented)
         {
+            if (wasLive)
+            {
+                Invalidate(e);
+            }
+
             e.State = PluginLifecycle.Found; // new, or changed since consent: ask again
             e.Cards = [];
+            e.Page = null;
         }
         else if (e.State is PluginLifecycle.Found or PluginLifecycle.Invalid)
         {
             e.State = PluginLifecycle.On;
+            e.NeedsRender = true;
         }
     }
 

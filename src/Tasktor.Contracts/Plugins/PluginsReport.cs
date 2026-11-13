@@ -46,4 +46,19 @@ public sealed record PluginInfo
     public string? CommandLine { get; init; }
 
     public string? Pack { get; init; }
+
+    /// <summary>Contract 2: what the plugin asks to do, one consent line each (the dialog's checkboxes); null for contract 1.</summary>
+    public IReadOnlyList<PluginCapabilityInfo>? Capabilities { get; init; }
+
+    /// <summary>Contract 2: the capability names the user granted (empty until turned on).</summary>
+    public IReadOnlyList<string>? Granted { get; init; }
+}
+
+/// <summary>One contract-2 capability as the consent dialog shows it.</summary>
+public sealed record PluginCapabilityInfo
+{
+    /// <summary>The name in <c>plugin.json</c>, sent back in <c>plugin.enable</c>'s <c>granted</c> argument.</summary>
+    public required string Name { get; init; }
+
+    public required string Line { get; init; }
 }

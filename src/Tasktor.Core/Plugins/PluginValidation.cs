@@ -32,7 +32,7 @@ public static partial class PluginValidation
     public static string? CheckManifest(PluginManifest m, string folderName, Version tasktorVersion)
     {
         ArgumentNullException.ThrowIfNull(m);
-        if (m.Contract != 1)
+        if (m.Contract is not (1 or 2))
         {
             return "contract " + m.Contract + " is not supported";
         }
@@ -118,23 +118,30 @@ public static partial class PluginValidation
             return (null, "output contract " + output.Contract + " is not supported");
         }
 
-        if (output.Cards.Count > MaxCards)
+        return CheckCards(manifest, output.Cards, now, MaxCards, MaxActionsPerCard);
+    }
+
+    /// <summary>The card checks shared by contracts 1 and 2: ids, action counts, literal values, the block subset, declared
+    /// actions; returns the cards rewritten for the snapshot.</summary>
+    internal static (IReadOnlyList<Card>? Cards, string? Error) CheckCards(PluginManifest manifest, IReadOnlyList<Card> input, DateTimeOffset now, int maxCards, int maxActions)
+    {
+        if (input.Count > maxCards)
         {
-            return (null, "more than 3 cards");
+            return (null, "more than " + maxCards + " cards");
         }
 
         var declared = (manifest.Actions ?? []).ToDictionary(a => a.Id, StringComparer.Ordinal);
         var cards = new List<Card>();
-        foreach (var c in output.Cards)
+        foreach (var c in input)
         {
             if (!CardIdPattern().IsMatch(c.Id))
             {
                 return (null, "card id \"" + c.Id + "\" is not allowed");
             }
 
-            if ((c.Actions?.Count ?? 0) > MaxActionsPerCard)
+            if ((c.Actions?.Count ?? 0) > maxActions)
             {
-                return (null, "card " + c.Id + ": more than 3 actions");
+                return (null, "card " + c.Id + ": more than " + maxActions + " actions");
             }
 
             if (c.Severity is { IsBinding: true })

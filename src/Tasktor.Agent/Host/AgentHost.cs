@@ -2,6 +2,7 @@ using System.Text.Json;
 using Tasktor.Contracts;
 using Tasktor.Contracts.Actions;
 using Tasktor.Contracts.Platform;
+using Tasktor.Contracts.Plugins;
 using Tasktor.Contracts.Snapshot;
 using Tasktor.Core.Actions;
 using Tasktor.Core.Logging;
@@ -138,6 +139,25 @@ public sealed class AgentHost : IAsyncDisposable
             SecretProtection = options.KeyProtection,
         };
         Plugins.Changed += OnPluginsChanged;
+        Plugins.Requests = new PluginRequestHandler(Router);
+        Plugins.JobsSource = () => (State.Current.Jobs ?? []).Select(j => new PluginJob
+        {
+            Id = j.Id,
+            Label = j.Label,
+            Status = JsonNamingPolicy.SnakeCaseLower.ConvertName(j.Status.ToString()),
+            Pct = j.Pct,
+        }).ToList();
+        Plugins.Notice += OnPluginNotice;
+        Plugins.Silenced += WithdrawPluginToasts;
+
+        // P1 delivers no events, ports table, browser or window arranging yet: a plugin asking for one is refused at load
+        // rather than turned on to receive nothing.
+        Plugins.Unsupported = new HashSet<PluginCapability>
+        {
+            PluginCapability.EventsProcess, PluginCapability.EventsForeground, PluginCapability.EventsNetwork, PluginCapability.EventsWindows,
+            PluginCapability.ReadListeners, PluginCapability.BrowserTabs, PluginCapability.CaptureBrowser, PluginCapability.BrowserBlock,
+            PluginCapability.BrowserCard, PluginCapability.ActArrange,
+        };
         Cards.Add(Plugins);
         Rules = new RuleRunner(Loop, new RuleEngine(KnownFolder), Router, options.Notifier ?? NullNotifier.Instance, Log, () => _features, change => UpdateState(change));
         RegisterCoreHandlers();
@@ -1059,6 +1079,72 @@ public sealed class AgentHost : IAsyncDisposable
 
     private IDisposable? _pluginTimer;
 
+    /// <summary>Plugin contract 2: a plugin's notice as a toast, silent while rule toasts are snoozed. Its buttons run the
+    /// plugin's own declared actions, offered by this toast only.</summary>
+    private void OnPluginNotice(string pluginId, PluginNotice notice)
+    {
+        if (Rules.SnoozedAllUntil is { } until && Loop.Clock.UtcNow < until)
+        {
+            return;
+        }
+
+        // '/' is in neither a plugin id nor a notice id, so one plugin's tag can never equal another's.
+        var tag = "plugin/" + pluginId + "/" + notice.Id;
+        var declared = Plugins.Find(pluginId)?.Manifest?.Actions ?? [];
+        var buttons = (notice.Buttons ?? []).Select(b => declared.FirstOrDefault(d => d.Id == b)).OfType<PluginActionDecl>().Select(d => new ToastButton
+        {
+            Label = d.Label,
+            Request = new ActionRequest
+            {
+                Action = "plugin.action",
+                Target = new Dictionary<string, string>(StringComparer.Ordinal) { ["plugin"] = pluginId },
+                Args = new Dictionary<string, string>(StringComparer.Ordinal) { ["action"] = d.Id },
+                Origin = Origin.Toast,
+                Toast = tag,
+            },
+        }).ToList();
+        // A reused tag replaces its toast, so it must not keep the old toast's buttons; past the cap the oldest tag goes.
+        Router.Toasts.Withdraw(tag);
+        if (!_pluginToasts.TryGetValue(pluginId, out var tags))
+        {
+            _pluginToasts[pluginId] = tags = [];
+        }
+
+        tags.Remove(tag);
+        tags.Add(tag);
+        while (tags.Count > MaxToastsPerPlugin)
+        {
+            Router.Toasts.Withdraw(tags[0]);
+            (Options.Notifier ?? NullNotifier.Instance).Withdraw(tags[0]);
+            tags.RemoveAt(0);
+        }
+
+        foreach (var b in buttons)
+        {
+            Router.Toasts.Offer(tag, b.Request);
+        }
+
+        // The host, not the plugin, says who is speaking: a plugin cannot word a notice as Tasktor's own.
+        var name = Plugins.Find(pluginId)?.Manifest?.Name ?? pluginId;
+        var body = string.IsNullOrWhiteSpace(notice.Body) ? "From the " + name + " plugin" : notice.Body + "\nFrom the " + name + " plugin";
+        (Options.Notifier ?? NullNotifier.Instance).Show(new ToastRequest { Tag = tag, Title = notice.Title, Body = body, Buttons = buttons });
+    }
+
+    private const int MaxToastsPerPlugin = 10;
+    private readonly Dictionary<string, List<string>> _pluginToasts = new(StringComparer.Ordinal);
+
+    private void WithdrawPluginToasts(string pluginId)
+    {
+        if (_pluginToasts.Remove(pluginId, out var tags))
+        {
+            foreach (var tag in tags)
+            {
+                Router.Toasts.Withdraw(tag);
+                (Options.Notifier ?? NullNotifier.Instance).Withdraw(tag);
+            }
+        }
+    }
+
     private void OnPluginsChanged()
     {
         UpdateState(s => s with { Plugins = Plugins.Statuses() });
@@ -1250,6 +1336,8 @@ public sealed class AgentHost : IAsyncDisposable
                 Actions = c?.Actions ?? [],
                 CommandLine = c?.CommandLine,
                 Pack = c?.Pack,
+                Capabilities = c?.Capabilities?.Select(l => new Contracts.Plugins.PluginCapabilityInfo { Name = l.Name, Line = l.Line }).ToList(),
+                Granted = c?.Capabilities is null ? null : Plugins.Granted(st.Id).Select(PluginCapabilityText.Name).ToList(),
             };
         })],
         Packs = [.. Plugins.Packs.Where(p => p.Problem is null).OrderBy(p => p.Id, StringComparer.Ordinal).Select(p => new Contracts.Plugins.PackInfo { Id = p.Id, Name = p.Manifest.Name, Author = p.Manifest.Author })],
@@ -1273,7 +1361,15 @@ public sealed class AgentHost : IAsyncDisposable
             Done = _ => act(),
         };
 
-        Router.Register("plugin.enable", req => Plugin(req, id => Now("Turned on " + id, () => Plugins.Enable(id, Loop.Clock.UtcNow))));
+        // Contract 2: args.granted lists the capability names the user left ticked (comma-separated, may be empty); a
+        // contract-2 plugin without it is refused, so nothing is granted that the dialog did not show.
+        Router.Register("plugin.enable", req => Plugin(req, id =>
+        {
+            var granted = req.Args?.GetValueOrDefault("granted")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return Plugins.Find(id)?.V2 is not null && granted is null
+                ? new PreparedAction { Summary = "plugin", Refusal = "Choose what this plugin may do first" }
+                : Now("Turned on " + id, () => Plugins.Enable(id, Loop.Clock.UtcNow, granted));
+        }));
         Router.Register("plugin.enable_pack", req =>
         {
             // D-H7: one consent for every plugin in the pack (the dialog listed each one's facts).
