@@ -654,38 +654,6 @@ public sealed class FrozenRegistryTests : IDisposable
     }
 
     [Fact]
-    public void Recovery_thaws_exactly_the_recorded_processes_and_clears_the_file()
-    {
-        var crashed = new FrozenRegistry(Path);
-        crashed.Begin("a", [new ProcKey(10, 100)], DateTimeOffset.UnixEpoch);
-        crashed.Begin("b", [new ProcKey(20, 200), new ProcKey(21, 210)], DateTimeOffset.UnixEpoch);
-
-        var thawed = new List<string>();
-        var ids = new FrozenRegistry(Path).Recover((id, keys) => thawed.Add(id + ":" + string.Join(",", keys.Select(k => $"{k.Pid}/{k.CreatedTicks}"))));
-
-        Assert.Equal(["a", "b"], ids);
-        Assert.Equal(["a:10/100", "b:20/200,21/210"], thawed);
-        Assert.Empty(new FrozenRegistry(Path).Jobs); // a second start finds nothing to thaw
-    }
-
-    [Fact]
-    public void A_freeze_that_died_before_any_suspend_is_still_recovered()
-    {
-        new FrozenRegistry(Path).Begin("half", [new ProcKey(30, 300)], DateTimeOffset.UnixEpoch);
-        var calls = 0;
-        Assert.Equal(["half"], new FrozenRegistry(Path).Recover((_, _) => calls++));
-        Assert.Equal(1, calls);
-    }
-
-    [Fact]
-    public void A_throwing_thaw_keeps_the_record_for_the_next_start()
-    {
-        new FrozenRegistry(Path).Begin("x", [new ProcKey(40, 400)], DateTimeOffset.UnixEpoch);
-        Assert.Throws<InvalidOperationException>(() => new FrozenRegistry(Path).Recover((_, _) => throw new InvalidOperationException()));
-        Assert.Single(new FrozenRegistry(Path).Jobs);
-    }
-
-    [Fact]
     public void A_torn_file_reads_as_empty_and_does_not_throw()
     {
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);

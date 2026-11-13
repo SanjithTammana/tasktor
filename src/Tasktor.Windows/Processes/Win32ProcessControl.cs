@@ -20,6 +20,7 @@ public sealed partial class Win32ProcessControl(ChildProcessRunner runner, Froze
     private const uint ProcessSetQuota = 0x100;
     private const uint ProcessQueryLimited = 0x1000;
     private const uint ThreadSuspendResume = 0x2;
+    private const uint ThreadQueryLimited = 0x800;
     private const uint Th32csSnapThread = 0x4;
     private const uint WmClose = 0x10;
 
@@ -73,80 +74,41 @@ public sealed partial class Win32ProcessControl(ChildProcessRunner runner, Froze
     public override IReadOnlyList<ProcessOutcome> SetEfficiency(IReadOnlyList<ProcKey> keys, bool on) =>
         keys.Select(k => WithProcess(k, ProcessSetInformation, h => Native.SetEcoQoS(h, on) ? null : "Access denied")).ToList();
 
-    public override IReadOnlyList<ProcessOutcome> Freeze(string jobId, IReadOnlyList<ProcKey> tree)
+    // One engine for the agent's life: its per-job locks are what keep a freeze and a thaw of one job apart.
+    private readonly FreezeEngine _engine = new(frozen, new Win32Threads(), now);
+
+    public override IReadOnlyList<ProcessOutcome> Freeze(string jobId, IReadOnlyList<ProcKey> tree) => _engine.Freeze(jobId, tree);
+
+    public override IReadOnlyList<ProcessOutcome> Thaw(string jobId, IReadOnlyList<ProcKey> tree) => _engine.Thaw(jobId, tree);
+
+    public override IReadOnlyList<string> RecoverFrozen() => _engine.Recover();
+
+    /// <summary>The Win32 thread calls behind <see cref="FreezeEngine"/>.</summary>
+    private sealed class Win32Threads : IThreadApi
     {
-        var alive = tree.Where(k => WithProcess(k, 0, _ => null).Status == ActionStatus.Ok).ToList();
-        frozen.Begin(jobId, alive, now()); // intent first: a crash from here on is recovered at the next start
-        var pids = alive.Select(k => k.Pid).ToHashSet();
-        var suspended = new HashSet<uint>();
-        var denied = new HashSet<uint>();
-        for (var pass = 0; pass < 8; pass++)
+        public bool IsAlive(ProcKey key) => WithProcess(key, 0, _ => null).Status == ActionStatus.Ok;
+
+        public IEnumerable<(uint Pid, uint Tid)> Threads(IReadOnlySet<uint> pids) => Win32ProcessControl.Threads(pids);
+
+        public SuspendResult Suspend(uint tid, ProcKey owner, out long threadCreated)
         {
-            var found = 0;
-            foreach (var (pid, tid) in Threads(pids))
-            {
-                if (suspended.Contains(tid))
-                {
-                    continue;
-                }
-
-                var th = OpenThread(ThreadSuspendResume, false, tid);
-                if (th == 0)
-                {
-                    denied.Add(pid);
-                    continue;
-                }
-
-                try
-                {
-                    if (SuspendThread(th) != uint.MaxValue)
-                    {
-                        frozen.AddThread(jobId, pid, tid);
-                        suspended.Add(tid);
-                        found++;
-                    }
-                }
-                finally
-                {
-                    CloseHandle(th);
-                }
-            }
-
-            if (found == 0)
-            {
-                break; // a pass that finds no new running thread
-            }
-        }
-
-        var byPid = frozen.Find(jobId)?.Threads.GroupBy(t => t.Pid).ToDictionary(g => g.Key, g => g.Count()) ?? [];
-        return tree.Select(k => !pids.Contains(k.Pid)
-            ? new ProcessOutcome(k, ActionStatus.Failed, "Already exited")
-            : byPid.ContainsKey(k.Pid) ? new ProcessOutcome(k, ActionStatus.Ok) : new ProcessOutcome(k, ActionStatus.Refused, denied.Contains(k.Pid) ? "Access denied" : "No threads")).ToList();
-    }
-
-    public override IReadOnlyList<ProcessOutcome> Thaw(string jobId, IReadOnlyList<ProcKey> tree)
-    {
-        var entry = frozen.Find(jobId);
-        if (entry is null)
-        {
-            return tree.Select(k => new ProcessOutcome(k, ActionStatus.Failed, "Not frozen")).ToList();
-        }
-
-        var resumed = new HashSet<uint>();
-        foreach (var t in entry.Threads)
-        {
-            var th = OpenThread(ThreadSuspendResume, false, t.Tid);
+            threadCreated = 0;
+            var th = OpenThread(ThreadSuspendResume | ThreadQueryLimited, false, tid);
             if (th == 0)
             {
-                continue; // the thread or the process is gone
+                return Marshal.GetLastPInvokeError() == 5 ? SuspendResult.Denied : SuspendResult.Skipped;
             }
 
             try
             {
-                if (ResumeThread(th) != uint.MaxValue)
+                // The open handle pins the thread: its id cannot be reused while we hold it. The id came from an enumeration
+                // that may be stale, so check it still names a thread of the process we mean before suspending it.
+                if (!Owns(th, owner) || !GetThreadTimes(th, out threadCreated, out _, out _, out _))
                 {
-                    resumed.Add(t.Pid); // once each: only the threads Tasktor suspended
+                    return SuspendResult.Skipped;
                 }
+
+                return SuspendThread(th) != uint.MaxValue ? SuspendResult.Suspended : SuspendResult.Skipped;
             }
             finally
             {
@@ -154,11 +116,37 @@ public sealed partial class Win32ProcessControl(ChildProcessRunner runner, Froze
             }
         }
 
-        frozen.Remove(jobId); // cleared last
-        return tree.Select(k => new ProcessOutcome(k, resumed.Contains(k.Pid) ? ActionStatus.Ok : ActionStatus.Failed, resumed.Contains(k.Pid) ? null : "Already exited")).ToList();
-    }
+        public ResumeResult Resume(uint tid, ProcKey owner, long threadCreated)
+        {
+            var th = OpenThread(ThreadSuspendResume | ThreadQueryLimited, false, tid);
+            if (th == 0)
+            {
+                // Access denied: the thread may well still be suspended, so keep its record. Anything else: it is gone.
+                return Marshal.GetLastPInvokeError() == 5 ? ResumeResult.Failed : ResumeResult.Gone;
+            }
 
-    public override IReadOnlyList<string> RecoverFrozen() => frozen.Recover((id, keys) => Thaw(id, keys));
+            try
+            {
+                // Same owner process (pid and creation time) and, when recorded, the same thread (its own creation time):
+                // a reused id in the same process is another thread, which may be suspended on purpose.
+                if (!Owns(th, owner) || (threadCreated != 0 && (!GetThreadTimes(th, out var created, out _, out _, out _) || created != threadCreated)))
+                {
+                    return ResumeResult.Gone;
+                }
+
+                return ResumeThread(th) != uint.MaxValue ? ResumeResult.Resumed : ResumeResult.Failed;
+            }
+            finally
+            {
+                CloseHandle(th);
+            }
+        }
+
+        /// <summary>The opened thread belongs to <paramref name="owner"/>: same pid, and that process has the recorded creation
+        /// time (0 = pid only). The thread handle keeps its process from being freed, so the pid cannot be reused meanwhile.</summary>
+        private static bool Owns(nint thread, ProcKey owner) =>
+            GetProcessIdOfThread(thread) == owner.Pid && (owner.CreatedTicks == 0 || WithProcess(owner, 0, _ => null).Status == ActionStatus.Ok);
+    }
 
     public override (ProcessOutcome Outcome, long Before, long After) TrimMemory(ProcKey key)
     {
@@ -240,7 +228,7 @@ public sealed partial class Win32ProcessControl(ChildProcessRunner runner, Froze
         }
     }
 
-    private static unsafe List<(uint Pid, uint Tid)> Threads(HashSet<uint> pids)
+    private static unsafe List<(uint Pid, uint Tid)> Threads(IReadOnlySet<uint> pids)
     {
         var list = new List<(uint, uint)>();
         var snap = CreateToolhelp32Snapshot(Th32csSnapThread, 0);
@@ -412,4 +400,11 @@ public sealed partial class Win32ProcessControl(ChildProcessRunner runner, Froze
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool PostMessageW(nint hwnd, uint msg, nint wparam, nint lparam);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    private static partial uint GetProcessIdOfThread(nint thread);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetThreadTimes(nint thread, out long creation, out long exit, out long kernel, out long user);
 }

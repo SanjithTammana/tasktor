@@ -52,6 +52,33 @@ public sealed class ActionRouterTests
         Add(104, "widgets.exe");
     }
 
+    [Fact]
+    public void Work_in_Done_waits_for_the_confirm_like_work_in_Run()
+    {
+        var forgotten = 0;
+        _router.Register("learned.forget", _ => new PreparedAction
+        {
+            Summary = "Forget",
+            Immediate = new ActionResult { Action = "learned.forget", Status = ActionStatus.Ok, Message = "Forgotten" },
+            Done = _ => forgotten++,
+        });
+        var first = Act("learned.forget", Origin.Flyout);
+        Assert.Equal((ActionStatus.NeedsConfirm, 0), (first.Status, forgotten));
+        Assert.Equal(ActionStatus.Ok, Act("learned.forget", Origin.Flyout, confirm: first.Token).Status);
+        Assert.Equal(1, forgotten);
+    }
+
+    [Fact]
+    public void A_destructive_handler_with_nothing_to_do_answers_without_a_confirm()
+    {
+        _router.Register("learned.forget", _ => new PreparedAction
+        {
+            Summary = "Forget",
+            Immediate = new ActionResult { Action = "learned.forget", Status = ActionStatus.Ok, Message = "Nothing to forget" },
+        });
+        Assert.Equal(ActionStatus.Ok, Act("learned.forget", Origin.Flyout).Status);
+    }
+
     private void Add(uint pid, string exe, bool elevated = false) =>
         _procs[pid] = new ProcessRow { Key = new ProcKey(pid, 1000 + pid), Exe = exe, Elevated = elevated };
 

@@ -193,8 +193,9 @@ public sealed class ActionRouter
             allowed.AddRange(prep.Processes);
         }
 
-        // Step 4: two-step confirm. A handler with nothing left to do (an immediate result, no work) needs no confirm.
-        if (verdict == PolicyVerdict.NeedsConfirm && prep is { Immediate: not null, Run: null })
+        // Step 4: two-step confirm. A handler with nothing left to do (an immediate result, no work, nothing in Done) needs no
+        // confirm; work in Done is work, and a destructive Done (learned.forget) must wait for the token like a Run.
+        if (verdict == PolicyVerdict.NeedsConfirm && prep is { Immediate: not null, Run: null, Done: null })
         {
             return Finish(req, prep, prep.Immediate);
         }
