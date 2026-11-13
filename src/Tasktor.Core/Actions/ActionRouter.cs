@@ -31,26 +31,66 @@ public sealed record PreparedAction
     public ActionResult? Immediate { get; init; }
 }
 
-/// <summary>Toasts register the requests their buttons carry; a toast-origin request must match one (D-H4 toast row).</summary>
-public sealed class ToastOffers
+/// <summary>Toasts register the requests their buttons carry; a toast-origin request must match one (D-H4 toast row). An
+/// offer lasts <see cref="Lifetime"/> (a toast older than that is gone from Action Center in practice) and a destructive
+/// offer is used up by the click that runs it, so a toast's button cannot be replayed later (F-AR3).</summary>
+public sealed class ToastOffers(Func<DateTimeOffset> now)
 {
-    private readonly Dictionary<string, HashSet<string>> _byTag = new(StringComparer.Ordinal);
+    public static readonly TimeSpan Lifetime = TimeSpan.FromDays(1);
+
+    private readonly Dictionary<string, Dictionary<string, DateTimeOffset>> _byTag = new(StringComparer.Ordinal);
+
+    public ToastOffers()
+        : this(() => DateTimeOffset.UtcNow)
+    {
+    }
+
+    public int Count => _byTag.Count;
 
     public void Offer(string tag, ActionRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (!_byTag.TryGetValue(tag, out var set))
+        Prune();
+        if (!_byTag.TryGetValue(tag, out var offers))
         {
-            _byTag[tag] = set = new HashSet<string>(StringComparer.Ordinal);
+            _byTag[tag] = offers = new Dictionary<string, DateTimeOffset>(StringComparer.Ordinal);
         }
 
-        set.Add(ActionRouter.Fingerprint(request));
+        offers[ActionRouter.Fingerprint(request)] = now() + Lifetime;
     }
 
     public void Withdraw(string tag) => _byTag.Remove(tag);
 
     public bool IsOffered(ActionRequest request) =>
-        request.Toast is { } tag && _byTag.TryGetValue(tag, out var set) && set.Contains(ActionRouter.Fingerprint(request));
+        request.Toast is { } tag && _byTag.TryGetValue(tag, out var offers)
+        && offers.TryGetValue(ActionRouter.Fingerprint(request), out var expires) && expires > now();
+
+    /// <summary>Use up the offer this request matched (a destructive button runs once).</summary>
+    public void Consume(ActionRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Toast is { } tag && _byTag.TryGetValue(tag, out var offers) && offers.Remove(ActionRouter.Fingerprint(request)) && offers.Count == 0)
+        {
+            _byTag.Remove(tag);
+        }
+    }
+
+    private void Prune()
+    {
+        var t = now();
+        foreach (var (tag, offers) in _byTag.ToList())
+        {
+            foreach (var fp in offers.Where(o => o.Value <= t).Select(o => o.Key).ToList())
+            {
+                offers.Remove(fp);
+            }
+
+            if (offers.Count == 0)
+            {
+                _byTag.Remove(tag);
+            }
+        }
+    }
 }
 
 /// <summary>
@@ -68,7 +108,7 @@ public sealed class ActionRouter
     private readonly LogSink? _log;
     private readonly Func<Func<ActionResult>, Task<ActionResult>> _offLoop;
     private readonly Dictionary<string, Func<ActionRequest, PreparedAction>> _handlers = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, (string Fingerprint, DateTimeOffset Expires)> _tokens = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (string Fingerprint, DateTimeOffset Expires, HashSet<ProcKey> Keys)> _tokens = new(StringComparer.Ordinal);
 
     public ActionRouter(
         LogicLoop loop,
@@ -84,9 +124,10 @@ public sealed class ActionRouter
         _readProcess = readProcess;
         _log = log;
         _offLoop = offLoop ?? (work => Task.Run(work));
+        Toasts = new ToastOffers(() => _loop.Clock.UtcNow);
     }
 
-    public ToastOffers Toasts { get; } = new();
+    public ToastOffers Toasts { get; }
 
     /// <summary>Which rules are shipped built-ins (may call <c>use_fallback</c> / <c>relearn</c>).</summary>
     public Func<string?, bool> IsBuiltinRule { get; set; } = _ => false;
@@ -132,11 +173,16 @@ public sealed class ActionRouter
             return Finish(req, null, Refused(req, "builtin_rules_only", "Only built-in rules may do this"));
         }
 
-        var tokenValid = req.Confirm is { } t && t != OriginPolicy.CliYes && ConsumeToken(t, req);
-        var (verdict, reason) = _policy.Check(def, req, Toasts.IsOffered(req), tokenValid);
+        var confirmed = req.Confirm is { } t && t != OriginPolicy.CliYes ? ConsumeToken(t, req) : null;
+        var (verdict, reason) = _policy.Check(def, req, Toasts.IsOffered(req), confirmed is not null);
         if (verdict == PolicyVerdict.Refuse)
         {
             return Finish(req, null, Refused(req, "origin_policy:" + reason, PolicyMessage(reason)));
+        }
+
+        if (req.Origin == Origin.Toast && def.Class == ActionClass.Destructive)
+        {
+            Toasts.Consume(req); // the click was the confirmation, once
         }
 
         if (!_handlers.TryGetValue(req.Action, out var handler))
@@ -152,6 +198,12 @@ public sealed class ActionRouter
         catch (ArgumentException ex)
         {
             return Finish(req, null, Refused(req, "bad_request", ex.Message));
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // A handler bug must still answer the caller (F-AR5); the type and where it came from go to the log.
+            _log?.Error("action.prepare_error", LogField.Of("action", req.Action), LogField.Of("type", ex.GetType().Name), LogField.Of("at", ErrorWhere.Of(ex)));
+            return Finish(req, null, new ActionResult { Action = req.Action, Status = ActionStatus.Failed, Message = "Failed", Reason = ex.GetType().Name });
         }
 
         if (prep.Refusal is { } refusal)
@@ -193,6 +245,22 @@ public sealed class ActionRouter
             allowed.AddRange(prep.Processes);
         }
 
+        // The confirm covered the processes it named: if the target has grown since (a job started more workers, a group
+        // gained members), ask again rather than act on processes the user never saw (F-AR4).
+        if (confirmed is { Count: > 0 } && allowed.Any(k => !confirmed.Contains(k)))
+        {
+            var again = IssueToken(req, allowed);
+            return Finish(req, prep, new ActionResult
+            {
+                Action = req.Action,
+                Status = ActionStatus.NeedsConfirm,
+                Token = again,
+                Summary = prep.Summary,
+                Reason = "target_changed",
+                Message = "What this acts on changed; confirm again: " + prep.Summary,
+            });
+        }
+
         // Step 4: two-step confirm. A handler with nothing left to do (an immediate result, no work, nothing in Done) needs no
         // confirm; work in Done is work, and a destructive Done (learned.forget) must wait for the token like a Run.
         if (verdict == PolicyVerdict.NeedsConfirm && prep is { Immediate: not null, Run: null, Done: null })
@@ -207,7 +275,7 @@ public sealed class ActionRouter
                 return Finish(req, prep, new ActionResult { Action = req.Action, Status = ActionStatus.NeedsConfirm, Summary = prep.Summary, Reason = "needs_yes", Message = "Add --yes to confirm: " + prep.Summary });
             }
 
-            var token = IssueToken(req);
+            var token = IssueToken(req, allowed);
             return Finish(req, prep, new ActionResult { Action = req.Action, Status = ActionStatus.NeedsConfirm, Token = token, Summary = prep.Summary });
         }
 
@@ -233,7 +301,7 @@ public sealed class ActionRouter
                 _loop.Post(() =>
                 {
                     var merged = Merge(result, items);
-                    tcs.SetResult(Finish(req, prep, merged).Result); // Finish completes synchronously
+                    tcs.SetResult(Finish(req, prep, merged, ran: true).Result); // Finish completes synchronously
                 });
             },
             CancellationToken.None,
@@ -264,29 +332,26 @@ public sealed class ActionRouter
         return sb.ToString();
     }
 
-    private string IssueToken(ActionRequest req)
+    private string IssueToken(ActionRequest req, IReadOnlyList<ProcKey> keys)
     {
         Prune();
         var token = "c-" + Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
-        _tokens[token] = (Fingerprint(req), _loop.Clock.UtcNow + TokenLifetime);
+        _tokens[token] = (Fingerprint(req), _loop.Clock.UtcNow + TokenLifetime, [.. keys]);
         return token;
     }
 
-    private bool ConsumeToken(string token, ActionRequest req)
+    /// <summary>The processes the confirm named when <paramref name="token"/> is valid for this request (used up); null
+    /// otherwise.</summary>
+    private HashSet<ProcKey>? ConsumeToken(string token, ActionRequest req)
     {
         Prune();
-        if (!_tokens.TryGetValue(token, out var entry))
+        if (!_tokens.TryGetValue(token, out var entry) || entry.Fingerprint != Fingerprint(req))
         {
-            return false;
-        }
-
-        if (entry.Fingerprint != Fingerprint(req))
-        {
-            return false;
+            return null;
         }
 
         _tokens.Remove(token);
-        return true;
+        return entry.Keys;
     }
 
     private void Prune()
@@ -298,11 +363,24 @@ public sealed class ActionRouter
         }
     }
 
-    private Task<ActionResult> Finish(ActionRequest req, PreparedAction? prep, ActionResult result)
+    /// <summary>
+    /// Log and announce a result. <see cref="PreparedAction.Done"/> follows the work (F-AR6): it runs when <see
+    /// cref="PreparedAction.Run"/> ran (whatever its status: Done may release what Run took) or the result is ok or
+    /// partial, never for a refusal that stopped the action before any work. A Done that throws is logged; the caller
+    /// still gets the result (F-AR5).
+    /// </summary>
+    private Task<ActionResult> Finish(ActionRequest req, PreparedAction? prep, ActionResult result, bool ran = false)
     {
-        if (result.Status != ActionStatus.NeedsConfirm)
+        if (prep?.Done is { } done && result.Status != ActionStatus.NeedsConfirm && (ran || result.Status is ActionStatus.Ok or ActionStatus.Partial))
         {
-            prep?.Done?.Invoke(result);
+            try
+            {
+                done(result);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                _log?.Error("action.done_error", LogField.Of("action", req.Action), LogField.Of("type", ex.GetType().Name), LogField.Of("at", ErrorWhere.Of(ex)));
+            }
         }
 
         _log?.Info(

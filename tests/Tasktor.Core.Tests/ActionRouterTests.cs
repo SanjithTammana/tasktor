@@ -203,6 +203,106 @@ public sealed class ActionRouterTests
     }
 
     [Fact]
+    public void A_destructive_toast_button_runs_once_and_offers_expire()
+    {
+        // F-AR3: the click is the confirmation, once; and a toast long gone cannot be answered at all.
+        var end = new ActionRequest { Action = "run", Origin = Origin.Toast, Toast = "t:1", Target = new Dictionary<string, string> { ["rule"] = "new-pdf", ["command"] = "convert" } };
+        _router.Toasts.Offer("t:1", end);
+        Assert.Equal(ActionStatus.Ok, LoopPump.Run(_loop, _router.Submit(end)).Status);
+        Assert.Equal(ActionStatus.Refused, LoopPump.Run(_loop, _router.Submit(end)).Status);
+
+        var lower = end with { Action = "priority.set", Toast = "t:2", Target = new Dictionary<string, string> { ["pids"] = "100" } };
+        _router.Toasts.Offer("t:2", lower);
+        Assert.Equal(ActionStatus.Ok, LoopPump.Run(_loop, _router.Submit(lower)).Status);
+        Assert.Equal(ActionStatus.Ok, LoopPump.Run(_loop, _router.Submit(lower)).Status); // reversible: still offered
+        _clock.Advance(ToastOffers.Lifetime + TimeSpan.FromMinutes(1));
+        Assert.Equal(ActionStatus.Refused, LoopPump.Run(_loop, _router.Submit(lower)).Status);
+        _router.Toasts.Offer("t:3", lower with { Toast = "t:3" });
+        Assert.Equal(1, _router.Toasts.Count); // expired offers are pruned, not kept for the agent's lifetime
+    }
+
+    [Fact]
+    public void A_confirm_does_not_cover_processes_added_since()
+    {
+        // F-AR4: "End app (1)?" confirmed, but the app started another process meanwhile.
+        var keys = new List<ProcKey> { _procs[100].Key };
+        _router.Register("app.end", _ => new PreparedAction
+        {
+            Summary = "End app (" + keys.Count + ")",
+            Processes = [.. keys],
+            Run = k =>
+            {
+                _ran.Add(("app.end", k));
+                return new ActionResult { Action = "app.end", Status = ActionStatus.Ok };
+            },
+        });
+        var first = Act("app.end", Origin.Flyout);
+        Assert.Equal(ActionStatus.NeedsConfirm, first.Status);
+        keys.Add(_procs[101].Key);
+
+        var second = Act("app.end", Origin.Flyout, confirm: first.Token);
+        Assert.Equal((ActionStatus.NeedsConfirm, "target_changed"), (second.Status, second.Reason));
+        Assert.Empty(_ran);
+
+        Assert.Equal(ActionStatus.Ok, Act("app.end", Origin.Flyout, confirm: second.Token).Status);
+        Assert.Equal(2, Assert.Single(_ran).Keys.Count);
+
+        // Fewer processes than confirmed (one exited) is still within what the user agreed to.
+        var third = Act("app.end", Origin.Flyout);
+        keys.RemoveAt(1);
+        Assert.Equal(ActionStatus.Ok, Act("app.end", Origin.Flyout, confirm: third.Token).Status);
+    }
+
+    [Fact]
+    public void A_handler_or_Done_that_throws_still_answers_the_caller()
+    {
+        // F-AR5.
+        var completed = new List<ActionResult>();
+        _router.Completed += (_, r) => completed.Add(r);
+        _router.Register("priority.set", _ => throw new InvalidOperationException("handler bug"));
+        var r = Act("priority.set", Origin.Flyout, "100");
+        Assert.Equal((ActionStatus.Failed, "InvalidOperationException"), (r.Status, r.Reason));
+
+        _router.Register("priority.set", _ => new PreparedAction
+        {
+            Summary = "Lower",
+            Processes = [_procs[100].Key],
+            Run = _ => new ActionResult { Action = "priority.set", Status = ActionStatus.Ok },
+            Done = _ => throw new InvalidOperationException("done bug"),
+        });
+        Assert.Equal(ActionStatus.Ok, Act("priority.set", Origin.Flyout, "100").Status);
+        Assert.Equal(2, completed.Count);
+        Assert.Contains(_logLines.Lines, l => l.Contains("action.done_error", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Done_follows_the_work_not_a_refusal_before_it()
+    {
+        // F-AR6: a guard refuses every process, so nothing ran and Done must not record it as done.
+        var done = 0;
+        _router.Register("priority.set", _ => new PreparedAction
+        {
+            Summary = "Lower",
+            Processes = [_procs[103].Key], // lsass: the denylist refuses it
+            Run = _ => new ActionResult { Action = "priority.set", Status = ActionStatus.Ok },
+            Done = _ => done++,
+        });
+        Assert.Equal(ActionStatus.Refused, Act("priority.set", Origin.Flyout).Status);
+        Assert.Equal(0, done);
+
+        // Work that ran and failed still gets its Done (it may release what Run took).
+        _router.Register("priority.set", _ => new PreparedAction
+        {
+            Summary = "Lower",
+            Processes = [_procs[100].Key],
+            Run = _ => new ActionResult { Action = "priority.set", Status = ActionStatus.Failed },
+            Done = _ => done++,
+        });
+        Assert.Equal(ActionStatus.Failed, Act("priority.set", Origin.Flyout).Status);
+        Assert.Equal(1, done);
+    }
+
+    [Fact]
     public void Builtin_rules_may_use_guardrail_actions()
     {
         _router.IsBuiltinRule = id => id == "job-silent-guard";

@@ -53,8 +53,20 @@ public sealed class ProcessTargets
 
         if (target.TryGetValue("pids", out var pidList))
         {
-            var wanted = pidList.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => uint.TryParse(x, out var v) ? v : 0).ToHashSet();
-            var keys = table.Values.Where(r => wanted.Contains(r.Key.Pid)).Select(r => r.Key).ToList();
+            // "pid" or "pid:created": a pair whose process now has another creation time keeps the recorded key, so the
+            // identity guard refuses it ("Process changed") instead of acting on whatever has the pid now.
+            var keys = new List<ProcKey>();
+            foreach (var part in pidList.Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var bits = part.Split(':');
+                if (!uint.TryParse(bits[0], out var p) || table.Values.FirstOrDefault(r => r.Key.Pid == p) is not { } row)
+                {
+                    continue; // exited since: nothing to do
+                }
+
+                keys.Add(bits.Length > 1 && long.TryParse(bits[1], out var ct) && ct != row.Key.CreatedTicks ? new ProcKey(p, ct) : row.Key);
+            }
+
             var name = target.GetValueOrDefault("name") ?? "processes";
             return keys.Count == 0 ? null : new ResolvedTarget(LeafFirst(keys, table), name, name);
         }

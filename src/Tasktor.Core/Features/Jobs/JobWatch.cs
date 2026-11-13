@@ -1121,7 +1121,13 @@ public sealed class JobWatch : Feature
                 Processes = polite ? [] : tree,
                 Immediate = polite ? new ActionResult { Action = "job.resume", Status = ActionStatus.Ok, Message = "Resumed " + j.Label } : null,
                 Run = polite ? null : keys => SystemMonitor.Apps.Summarize("job.resume", "Resume", j.Label, tree.Count, Context.Processes!.Thaw(j.Id, keys)),
-                Done = _ => MarkResumed(j),
+                Done = r =>
+                {
+                    if (r.Status is ActionStatus.Ok or ActionStatus.Partial)
+                    {
+                        MarkResumed(j); // a refused or failed resume leaves the job paused, so Resume can be tried again
+                    }
+                },
             };
         }));
         router.Register("job.end", req => ForJob(req, j =>

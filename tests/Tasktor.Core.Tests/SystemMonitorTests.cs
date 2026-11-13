@@ -263,6 +263,26 @@ public sealed class AppsTests : IDisposable
     }
 
     [Fact]
+    public void End_tree_refuses_a_pid_that_now_names_another_process()
+    {
+        // F-AR2: the row showed pid 10 created at 999; pid 10 is now another process (created 10) with a child.
+        using var lease = _rig.Scheduler.Lease(AppsFeature.SamplerName, TimeSpan.FromSeconds(2), ColumnSet.All);
+        Procs((10, 1, "other.exe", 10, 0, false), (11, 10, "other.exe", 10, 0, false));
+        _rig.Pump();
+        var stale = new Dictionary<string, string> { ["pid"] = "10", ["created"] = "999" };
+        var r = _rig.Act(new ActionRequest { Action = "proc.end_tree", Origin = Origin.Flyout, Target = stale });
+        Assert.Equal(ActionStatus.Refused, r.Status);
+        Assert.Contains("Process changed", r.Message, StringComparison.Ordinal);
+        Assert.Empty(_rig.Processes.Calls);
+
+        var current = new Dictionary<string, string> { ["pid"] = "10", ["created"] = "10" };
+        var first = _rig.Act(new ActionRequest { Action = "proc.end_tree", Origin = Origin.Flyout, Target = current });
+        Assert.Equal(ActionStatus.NeedsConfirm, first.Status);
+        Assert.Equal(ActionStatus.Ok, _rig.Act(new ActionRequest { Action = "proc.end_tree", Origin = Origin.Flyout, Target = current, Confirm = first.Token }).Status);
+        Assert.Equal("end:11,10", _rig.Processes.Calls.Single(c => c.StartsWith("end:", StringComparison.Ordinal)));
+    }
+
+    [Fact]
     public void Lower_then_restore_returns_the_original_priority()
     {
         // A3 acceptance 4.

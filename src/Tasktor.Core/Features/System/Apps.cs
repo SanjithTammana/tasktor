@@ -418,22 +418,34 @@ public sealed class Apps : Feature
             return target is null ? null : new Dictionary<string, string>(target, StringComparer.Ordinal);
         }
 
-        // End tree (A3.2): the process and every descendant, from the snapshot; ended leaf-first.
+        // The row the button came from must still be that process: a pid reused since then is another program, and its
+        // tree is not the one the user meant (F-AR2). Left as pid + created, the identity guard refuses it.
+        var root = _table.Rows.Values.FirstOrDefault(r => r.Key.Pid == pid);
+        if (root is null || (target.TryGetValue("created", out var c) && long.TryParse(c, out var created) && created != root.Key.CreatedTicks))
+        {
+            return new Dictionary<string, string>(target, StringComparer.Ordinal);
+        }
+
+        // End tree (A3.2): the process and every descendant, from the snapshot, each with its creation time so every key is
+        // re-checked before it is ended; ended leaf-first.
         var children = _table.Rows.Values.GroupBy(r => r.ParentPid).ToDictionary(g => g.Key, g => g.ToList());
-        var all = new List<uint> { pid };
+        var all = new List<ProcKey> { root.Key };
         for (var i = 0; i < all.Count; i++)
         {
-            foreach (var c in children.GetValueOrDefault(all[i]) ?? [])
+            foreach (var ch in children.GetValueOrDefault(all[i].Pid) ?? [])
             {
-                if (!all.Contains(c.Key.Pid))
+                if (ch.Key.CreatedTicks >= all[i].CreatedTicks && !all.Contains(ch.Key)) // a "child" older than its parent is a reused parent pid
                 {
-                    all.Add(c.Key.Pid);
+                    all.Add(ch.Key);
                 }
             }
         }
 
-        var exe = _table.Rows.Values.FirstOrDefault(r => r.Key.Pid == pid)?.Exe ?? "*";
-        return new Dictionary<string, string>(StringComparer.Ordinal) { ["pids"] = string.Join(",", all), ["name"] = exe };
+        return new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["pids"] = string.Join(",", all.Select(k => k.Pid + ":" + k.CreatedTicks)),
+            ["name"] = root.Exe,
+        };
     }
 
     private static ActionResult Launched(string action, bool ok) =>
