@@ -88,6 +88,9 @@ public sealed record SnapshotState
     /// <summary>Deep-window pages the user hid (Settings → Appearance); null when none.</summary>
     public IReadOnlyList<string>? HiddenPages { get; init; }
 
+    /// <summary>The screen the shelf and command line open on (<c>working</c> or <c>main</c>); null until the user chose.</summary>
+    public string? Screen { get; init; }
+
     /// <summary>Cards pinned to Home, in order (U4 D-G3). Null = never chosen: the defaults (System, Jobs, Workflow); empty = none.</summary>
     public IReadOnlyList<string>? Pinned { get; init; }
 

@@ -45,6 +45,7 @@ public static class ActionCatalog
         new("export.data", ActionClass.Read, "Export my data", Surface.Flyout | Surface.Cli, ConfirmArgs: ["include_raw", "include_capture"]),
         new("settings.export", ActionClass.Read, "Export settings", Surface.Flyout | Surface.Cli),
         new("settings.page", ActionClass.Reversible, "Show or hide a page", Surface.Flyout, UserOnly: true),
+        new("settings.screen", ActionClass.Reversible, "Choose the screen Tasktor opens on", Surface.Flyout, UserOnly: true),
         new("settings.hotkey", ActionClass.Reversible, "Set the command line's hotkey", Surface.Flyout | Surface.Cli, UserOnly: true),
         new("settings.start_with_windows", ActionClass.Reversible, "Start with Windows", Surface.Flyout | Surface.Cli, UserOnly: true),
         new("switcher.settings", ActionClass.Reversible, "Window switcher settings", Surface.Flyout | Surface.Cli, UserOnly: true),

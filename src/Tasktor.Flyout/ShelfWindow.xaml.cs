@@ -9,6 +9,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Tasktor.Contracts.Actions;
 using Tasktor.Contracts.Cards;
+using Tasktor.Hosts.Common.Deep;
 using Tasktor.Hosts.Common.Pipe;
 using Tasktor.Hosts.Common.Render;
 using Tasktor.Hosts.Common.Shelf;
@@ -19,8 +20,8 @@ using Windows.System;
 namespace Tasktor.Flyout;
 
 /// <summary>
-/// U4 amended D-G11: the shelf window. Borderless, topmost, out of Alt+Tab, full width above the taskbar of the primary
-/// monitor (<see cref="ShelfLayout"/>), as tall as its content. All behaviour is in <see cref="ShelfController"/>;
+/// U4 amended D-G11: the shelf window. Borderless, topmost, out of Alt+Tab, full width above the taskbar of the monitor the
+/// user is working on (<see cref="GlanceDisplay"/>, <see cref="ShelfLayout"/>), as tall as its content. All behaviour is in <see cref="ShelfController"/>;
 /// this class only draws it and forwards taps, Esc and focus loss.
 /// </summary>
 public sealed partial class ShelfWindow : Window
@@ -31,6 +32,7 @@ public sealed partial class ShelfWindow : Window
     private double _widthDip = 1280;
     private bool _compactHeadline;
     private bool _confirmationVisible;
+    private DisplayArea? _area;
 
     public ShelfWindow(SnapshotClient snapshot)
     {
@@ -78,6 +80,8 @@ public sealed partial class ShelfWindow : Window
     public void ShowShelf()
     {
         Refresh();
+        _area = GlanceDisplay.Target(_snapshot.Mirror.Root);
+        RenderScreenAsk();
         Layout();
         AppWindow.Show(true);
         Activate();
@@ -102,7 +106,64 @@ public sealed partial class ShelfWindow : Window
     private Task<ActionResult> ActAsync(ActionRequest request, CancellationToken ct) =>
         _snapshot.Client is { } client ? client.ActAsync(request, ct) : Task.FromException<ActionResult>(new IOException("not connected"));
 
-    private void Refresh() => _shelf.Update(_snapshot.Mirror.Cards, new BindingResolver(_snapshot.Mirror.Root));
+    private void Refresh()
+    {
+        _shelf.Update(_snapshot.Mirror.Cards, new BindingResolver(_snapshot.Mirror.Root));
+        if (IsShown)
+        {
+            RenderScreenAsk();
+        }
+    }
+
+    /// <summary>The one-time screen question: shown with more than one screen until a choice is kept.</summary>
+    private void RenderScreenAsk()
+    {
+        var ask = ScreenSetting.Ask(_snapshot.Mirror.Root, GlanceDisplay.Count(), _snapshot.Connected);
+        var wanted = ask ? Visibility.Visible : Visibility.Collapsed;
+        if (ScreenAsk.Visibility == wanted)
+        {
+            return;
+        }
+
+        ScreenAskText.Text = ScreenSetting.Question;
+        ScreenWorking.Content = ScreenSetting.Choices[0].Label;
+        ScreenWorking.Tag = ScreenSetting.Choices[0].Id;
+        ScreenMain.Content = ScreenSetting.Choices[1].Label;
+        ScreenMain.Tag = ScreenSetting.Choices[1].Id;
+        ScreenAsk.Visibility = wanted;
+        if (IsShown)
+        {
+            DispatcherQueue.TryEnqueue(Layout);
+        }
+    }
+
+    private async void OnScreenChosen(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string screen })
+        {
+            return;
+        }
+
+        var set = ScreenSetting.Set(screen);
+        try
+        {
+            var result = await ActAsync(new ActionRequest { Action = set.Action!, Origin = Origin.Shelf, Args = set.Args }, CancellationToken.None);
+            if (result.Status == ActionStatus.Ok)
+            {
+                ScreenAsk.Visibility = Visibility.Collapsed; // the snapshot confirms it a moment later
+                if (screen == ScreenSetting.Main)
+                {
+                    _area = DisplayArea.Primary;
+                }
+
+                Layout();
+            }
+        }
+        catch (IOException)
+        {
+            // The agent went away: the question stays and is asked again next time.
+        }
+    }
 
     private void Render()
     {
@@ -369,7 +430,7 @@ public sealed partial class ShelfWindow : Window
 
     private void Layout()
     {
-        var area = DisplayArea.Primary;
+        var area = _area = GlanceDisplay.Current(_area, _snapshot.Mirror.Root);
         var monitor = area.OuterBounds;
         var work = area.WorkArea;
         var scale = Tasktor.Hosts.Common.Command.DisplayScale.At(work.X + (work.Width / 2), work.Y + (work.Height / 2));

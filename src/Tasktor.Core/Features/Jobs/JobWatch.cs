@@ -250,7 +250,8 @@ public sealed class JobWatch : Feature
         var byPid = rows.GroupBy(r => r.Key.Pid).ToDictionary(g => g.Key, g => g.First());
         _parents = byPid.ToDictionary(kv => kv.Key, kv => kv.Value.ParentPid);
         var bypassPids = _progressRows.Values.Where(p => p.Pid is not null && p.Invalid is null && p.State is not (ProgressState.Done or ProgressState.Error)).Select(p => p.Pid!.Value).ToHashSet();
-        bool Watched(ProcessRow r) => Gate.IsWatched(r.Exe) || bypassPids.Contains(r.Key.Pid);
+        // A pinned process (job.pin, "Watch as a job") counts whatever its exe: the user chose it.
+        bool Watched(ProcessRow r) => Gate.IsWatched(r.Exe) || bypassPids.Contains(r.Key.Pid) || Gate.IsPinnedPid(r.Key.Pid);
 
         // Topmost watch-list ancestor per watched process (B1.4: workers fold into the root).
         uint Root(ProcessRow r)

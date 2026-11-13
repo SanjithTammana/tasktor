@@ -157,6 +157,12 @@ public sealed record FlyoutSettings
 
     /// <summary>Cards pinned to Home, in order (<c>card.pin</c> / <c>card.unpin</c>). Null = the defaults; empty = none.</summary>
     public IReadOnlyList<string>? PinnedCards { get; init; }
+
+    /// <summary>
+    /// Which screen the shelf and the command line open on: <c>working</c> (the active window's) or <c>main</c>. Null = not
+    /// chosen yet: <c>working</c>, and the shelf asks once when it sees more than one screen (<c>settings.screen</c>).
+    /// </summary>
+    public string? Screen { get; init; }
 }
 
 public sealed record WindowsSettings

@@ -64,6 +64,14 @@
             <TextBlock x:Name="NoticeText" Visibility="Collapsed" Style="{StaticResource TasktorBodyTextStyle}"
                        Foreground="{ThemeResource TasktorGlanceInk2Brush}" AutomationProperties.LiveSetting="Polite" />
 
+            <!-- Asked once, only with more than one screen: where the shelf and command line open (ScreenSetting). -->
+            <StackPanel x:Name="ScreenAsk" Orientation="Horizontal" Spacing="12" Visibility="Collapsed">
+                <TextBlock x:Name="ScreenAskText" VerticalAlignment="Center" Style="{StaticResource TasktorBodyTextStyle}"
+                           Foreground="{ThemeResource TasktorGlanceInk2Brush}" />
+                <Button x:Name="ScreenWorking" MinHeight="32" Padding="14,5,14,5" Click="OnScreenChosen" />
+                <Button x:Name="ScreenMain" MinHeight="32" Padding="14,5,14,5" Click="OnScreenChosen" />
+            </StackPanel>
+
             <!-- The hour as rows, alerts written on it, the lead row carried past "now" (dotted). -->
             <Canvas x:Name="Strip" Height="0" AutomationProperties.Name="The last hour" />
         </StackPanel>

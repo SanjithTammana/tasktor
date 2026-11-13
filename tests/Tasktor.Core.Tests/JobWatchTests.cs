@@ -104,6 +104,28 @@ public sealed class JobWatchTests : IDisposable
     }
 
     [Fact]
+    public void A_pinned_program_off_the_watch_list_becomes_a_job_on_the_next_scan()
+    {
+        // The backend check found job.pin answered "Watching ... as a job" while the scan, which only looked at the watch
+        // list, never considered the process.
+        _w.Add(400, 1, "render-tool.exe", "render-tool.exe --scene a", Ticks(TimeSpan.Zero));
+        _rig.ProcessTable[400] = _w.Procs[400];
+        Run(0, 0, TimeSpan.FromMinutes(2));
+        Assert.Null(JobOf(400)); // not on the watch list: never a job by itself
+        var pin = _rig.Act(new ActionRequest { Action = "job.pin", Origin = Origin.Flyout, Target = new Dictionary<string, string> { ["pid"] = "400" } });
+        Assert.Equal(ActionStatus.Ok, pin.Status);
+        Run(0, 0, TimeSpan.FromMinutes(1));
+        Assert.NotNull(JobOf(400));
+
+        // A reused PID is a different process: the pin does not carry over.
+        _w.Procs.Remove(400);
+        _w.Add(400, 1, "render-tool.exe", "render-tool.exe --scene b", Ticks(TimeSpan.FromMinutes(10)));
+        _jobs.OnExit(new ProcessExit(new ProcKey(400, Ticks(TimeSpan.Zero)), 0, _rig.Clock.UtcNow));
+        Run(0, 0, TimeSpan.FromMinutes(2));
+        Assert.DoesNotContain(_jobs.Jobs, j => j.Live && j.Root.Pid == 400 && j.Root.CreatedTicks == Ticks(TimeSpan.FromMinutes(10)));
+    }
+
+    [Fact]
     public void The_old_total_cpu_floor_is_gone_a_long_idle_helper_is_not_a_job()
     {
         _w.Add(300, 1, "node.exe", "node.exe codex-runtime.js", Ticks(TimeSpan.FromHours(-15)), cpuS: 25.5);

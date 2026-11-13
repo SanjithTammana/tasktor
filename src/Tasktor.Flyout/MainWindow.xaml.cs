@@ -210,6 +210,7 @@ public sealed partial class MainWindow : Window
     private bool _exportRaw;
     private bool _exportCapture;
     private bool _exporting;
+    private const int DataCountWaits = 20; // seconds to wait for the agent's first count before showing a failure
     private string? _dataProblem; // why the first count failed; null while counting or once counted
     private bool _dataProblemOffline;
     private string? _redrawPage;
@@ -751,6 +752,47 @@ public sealed partial class MainWindow : Window
     private bool _pullingModules;
 
     /// <summary>Settings → Modules: a switch per Module; on asks first (what it reads, where it is kept, what it contacts).</summary>
+    /// <summary>Settings → General: which screen the shelf and command line open on; only with more than one screen.</summary>
+    private void DrawScreenSetting(StackPanel left, bool generalShown)
+    {
+        if (!_snapshot.Connected || !ScreenSetting.Offered(GlanceDisplay.Count()))
+        {
+            return;
+        }
+
+        if (!generalShown)
+        {
+            left.Children.Add(new TextBlock { Text = "General", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+        }
+
+        var row = new Grid { MinHeight = 56, ColumnSpacing = 8 };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        text.Children.Add(new TextBlock { Text = "Open Tasktor on", Style = StyleOf("TasktorBodyTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+        text.Children.Add(new TextBlock { Text = "Where the shelf and the command line appear", TextWrapping = TextWrapping.Wrap, Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush("TasktorInk3Brush") });
+        row.Children.Add(text);
+        var choice = new ComboBox { MinWidth = 240, VerticalAlignment = VerticalAlignment.Center };
+        AutomationProperties.SetName(choice, "Open Tasktor on");
+        var effective = ScreenSetting.Effective(_snapshot.Mirror.Root);
+        foreach (var (id, label) in ScreenSetting.Choices)
+        {
+            choice.Items.Add(new ComboBoxItem { Content = label, Tag = id, IsSelected = id == effective });
+        }
+
+        choice.SelectionChanged += async (_, _) =>
+        {
+            if (choice.SelectedItem is ComboBoxItem { Tag: string id } && id != ScreenSetting.Chosen(_snapshot.Mirror.Root))
+            {
+                await RunAsync(ScreenSetting.Set(id)); // the result (or why it was refused) shows as usual
+            }
+        };
+        Grid.SetColumn(choice, 1);
+        row.Children.Add(choice);
+        left.Children.Add(row);
+        left.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
+    }
+
     private void DrawSettings()
     {
         var left = new StackPanel { Spacing = 10 };
@@ -789,6 +831,7 @@ public sealed partial class MainWindow : Window
             left.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
         }
 
+        DrawScreenSetting(left, generalShown: SettingsPage.Hotkey(_snapshot.Mirror.Root) is not null);
         DrawSwitcherSettings(left);
 
         left.Children.Add(new TextBlock { Text = "Modules", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
@@ -1299,14 +1342,26 @@ public sealed partial class MainWindow : Window
         var problem = _dataProblem;
         try
         {
+            // The agent counts off its loop, so the first pull after it starts answers null while it counts: ask again a
+            // second apart (the backend check saw this on every fresh agent) before calling it a failure.
             var node = await _snapshot.PullAsync("data");
+            for (var wait = 0; node is null && _data is null && _page == "data" && wait < DataCountWaits; wait++)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1));
+                node = await _snapshot.PullAsync("data");
+            }
+
             if (node is not null)
             {
                 _data = System.Text.Json.JsonSerializer.Deserialize(node, Contracts.ContractsJsonContext.Default.DataReport);
             }
-            else if (_data is null)
+            else if (_data is null && _page == "data")
             {
                 DataFailed("Tasktor didn't report what it keeps.");
+            }
+            else if (_data is null)
+            {
+                _dataAt = DateTimeOffset.MinValue; // left the page while it counted: count again on the next visit
             }
         }
         catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException or System.Text.Json.JsonException)
@@ -1316,7 +1371,11 @@ public sealed partial class MainWindow : Window
         }
         finally
         {
-            _dataAt = DateTimeOffset.Now;
+            if (_data is not null || _dataProblem is not null)
+            {
+                _dataAt = DateTimeOffset.Now;
+            }
+
             _pullingData = false;
         }
 

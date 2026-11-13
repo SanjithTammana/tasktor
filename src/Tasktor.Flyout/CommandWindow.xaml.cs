@@ -89,6 +89,7 @@ public sealed partial class CommandWindow : Window
     public bool IsShown { get; private set; }
 
     private readonly Tasktor.Hosts.Common.Command.DimLayer _dim = new();
+    private DisplayArea? _area;
 
     public event Action? Hidden;
 
@@ -99,10 +100,11 @@ public sealed partial class CommandWindow : Window
     {
         Refresh();
         Input.Text = string.Empty;
+        _area = GlanceDisplay.Target(_snapshot.Mirror.Root);
         Layout();
 
         // G2 (D-G12): the dimmed desktop under the input, on the same monitor; none in high-contrast mode.
-        var monitor = DisplayArea.Primary.OuterBounds;
+        var monitor = _area.OuterBounds;
         if (Tasktor.Hosts.Common.Command.DimSpec.For(monitor.X, monitor.Y, monitor.Width, monitor.Height, Tasktor.Hosts.Common.Command.DimLayer.HighContrast()) is { } dim)
         {
             _dim.Show(dim.X, dim.Y, dim.W, dim.H, dim.Alpha, WinRT.Interop.WindowNative.GetWindowHandle(this));
@@ -235,7 +237,7 @@ public sealed partial class CommandWindow : Window
 
     private void Layout()
     {
-        var area = DisplayArea.Primary;
+        var area = _area = GlanceDisplay.Current(_area, _snapshot.Mirror.Root);
         var work = area.WorkArea;
         var scale = Tasktor.Hosts.Common.Command.DisplayScale.At(work.X + (work.Width / 2), work.Y + (work.Height / 2));
         var widthDip = Math.Min(WidthDip, Math.Max(1, (work.Width / scale) - 32));

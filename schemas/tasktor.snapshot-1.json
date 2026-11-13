@@ -893,6 +893,12 @@
             "type": "string"
           }
         },
+        "screen": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "pinned": {
           "type": [
             "array",

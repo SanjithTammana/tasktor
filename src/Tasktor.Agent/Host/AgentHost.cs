@@ -117,7 +117,7 @@ public sealed class AgentHost : IAsyncDisposable
         Archive = new SettingsArchive(Store);
         LoadPause();
         History.Changed += () => UpdateState(s => s with { RecentActions = History.Items.Count == 0 ? null : [.. History.Items] });
-        UpdateState(s => s with { Pinned = Settings.Current.Flyout?.PinnedCards, HiddenPages = Settings.Current.Flyout?.HiddenPages is { Count: > 0 } h ? h : null });
+        UpdateState(s => s with { Pinned = Settings.Current.Flyout?.PinnedCards, HiddenPages = Settings.Current.Flyout?.HiddenPages is { Count: > 0 } h ? h : null, Screen = Settings.Current.Flyout?.Screen is "working" or "main" ? Settings.Current.Flyout.Screen : null });
         Router.Finished += (req, result, summary) => History.Record(req, result, summary, Loop.Clock.UtcNow);
         _owned.Add(Loop.Every(TimeSpan.FromMinutes(1), () => History.Prune(Loop.Clock.UtcNow)));
         Router.Completed += (req, result) =>
@@ -692,6 +692,27 @@ public sealed class AgentHost : IAsyncDisposable
                         return c with { Flyout = (c.Flyout ?? new Contracts.Config.FlyoutSettings()) with { HiddenPages = list.Count == 0 ? null : list } };
                     });
                     UpdateState(s => s with { HiddenPages = Settings.Current.Flyout?.HiddenPages });
+                },
+            };
+        });
+        Router.Register("settings.screen", req =>
+        {
+            // The shelf's one-time question and Settings → General: open the shelf and command line on the working screen or the main one.
+            var screen = req.Args?.GetValueOrDefault("screen");
+            if (screen is not ("working" or "main"))
+            {
+                return new PreparedAction { Summary = "Choose a screen", Refusal = "Say working or main" };
+            }
+
+            var message = screen == "main" ? "Tasktor opens on your main screen" : "Tasktor opens on the screen you're working on";
+            return new PreparedAction
+            {
+                Summary = "Choose the screen Tasktor opens on",
+                Immediate = new ActionResult { Action = req.Action, Status = ActionStatus.Ok, Message = message },
+                Done = _ =>
+                {
+                    Settings.Update(c => c with { Flyout = (c.Flyout ?? new Contracts.Config.FlyoutSettings()) with { Screen = screen } });
+                    UpdateState(s => s with { Screen = screen });
                 },
             };
         });

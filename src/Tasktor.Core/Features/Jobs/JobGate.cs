@@ -69,6 +69,12 @@ public sealed class JobGate
 
     public bool IsPinned(ProcKey key) => _pinned.Contains(key);
 
+    /// <summary>
+    /// Whether a pinned process has this PID. The names-only scan has no creation time, so it admits the PID as a
+    /// candidate; <see cref="Classify"/> then checks the full key, so a reused PID is not taken for the pinned process.
+    /// </summary>
+    public bool IsPinnedPid(uint pid) => _pinned.Any(k => k.Pid == pid);
+
     /// <summary>Classify a candidate from its CPU samples (oldest first) and whether a progress file names it.</summary>
     public GateVerdict Classify(string exe, string? commandLine, ProcKey key, DateTimeOffset firstSeen, IReadOnlyList<(DateTimeOffset At, double CpuS)> samples, DateTimeOffset now, bool bypass, bool alreadyJob, bool learnedStarting)
     {
