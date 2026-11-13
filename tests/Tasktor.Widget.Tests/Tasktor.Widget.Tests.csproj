@@ -7,5 +7,6 @@
     <ProjectReference Include="../../src/Tasktor.Hosts.Common/Tasktor.Hosts.Common.csproj" />
     <Compile Include="../../src/Tasktor.Widget/WidgetGlance.cs" Link="WidgetGlance.cs" />
     <Compile Include="../../src/Tasktor.Widget/WidgetActivity.cs" Link="WidgetActivity.cs" />
+    <Compile Include="../../src/Tasktor.Widget/ServerLifetime.cs" Link="ServerLifetime.cs" />
   </ItemGroup>
 </Project>

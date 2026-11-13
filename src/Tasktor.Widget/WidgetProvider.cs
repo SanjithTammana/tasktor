@@ -1,15 +1,35 @@
+using System.Runtime.InteropServices;
 using Microsoft.Windows.Widgets.Providers;
 using Tasktor.Hosts.Common.Pipe;
 
 namespace Tasktor.Widget;
 
-/// <summary>Serves aggregate data for active widgets.</summary>
-internal sealed class WidgetProvider : IWidgetProvider
+/// <summary>
+/// Serves aggregate data for active widgets. Host callbacks never wait on an update: the Widgets contract lets a provider
+/// update a widget at any time, so the one update that may already be in flight when <see cref="Deactivate"/> arrives is
+/// allowed, and blocking the callback on it could deadlock against a host that holds its own lock across the call. No
+/// later update reaches that instance (the generation check), and every payload is aggregate-only.
+/// </summary>
+internal sealed class WidgetProvider(ProviderConnections connections) : IWidgetProvider, ICustomQueryInterface
 {
     private static readonly WidgetActivity Active = new();
     private static readonly SnapshotClient Snapshot = new("widget");
+    private readonly ExternalConnection _external = new(connections);
 
     static WidgetProvider() => _ = Task.Run(UpdateLoopAsync);
+
+    /// <summary>Hands COM's stub manager the connection counter that ends the server (<see cref="ServerLifetime"/>).</summary>
+    public CustomQueryInterfaceResult GetInterface(ref Guid iid, out IntPtr ppv)
+    {
+        if (iid == ExternalConnection.Iid)
+        {
+            ppv = Marshal.GetComInterfaceForObject(_external, typeof(IExternalConnection));
+            return CustomQueryInterfaceResult.Handled;
+        }
+
+        ppv = IntPtr.Zero;
+        return CustomQueryInterfaceResult.NotHandled;
+    }
 
     public void CreateWidget(WidgetContext widgetContext) { }
 
@@ -74,8 +94,8 @@ internal sealed class WidgetProvider : IWidgetProvider
                             if (!Active.IsCurrent(active)) break;
                             try
                             {
-                                // Do not hold a managed lock over this host COM call: deactivation may
-                                // race after the check, so one in-flight update can still reach the host.
+                                // No lock over this host call (see the class remarks): an update already past
+                                // the check may land just after Deactivate, which the Widgets contract allows.
                                 WidgetManager.GetDefault().UpdateWidget(new WidgetUpdateRequestOptions(instance.Key)
                                 {
                                     Template = output.TemplateJson,

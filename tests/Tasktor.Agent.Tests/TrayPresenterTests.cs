@@ -114,8 +114,8 @@ public sealed class TrayPresenterTests
         var edge = TrayPresenter.Edge(Display, load, sev);
         Assert.Equal(new TrayRect(0, 1032, 1920, 6), edge.Bounds);
         Assert.Equal(1920 * 6, edge.Pixels.Length);
-        var bright = TrayArt.Opaque(ThemeTokens.Dark.Ink);
-        var plain = TrayArt.Opaque(ThemeTokens.Dark.Ink3);
+        var bright = TrayArt.Opaque(ThemeTokens.Dark.GlanceInk);
+        var plain = TrayArt.Opaque(ThemeTokens.Dark.GlanceInk3);
         Assert.Contains(bright, edge.Pixels[(5 * 1920)..]);
         Assert.Contains(plain, edge.Pixels[(5 * 1920)..]);
         var lastBright = Array.LastIndexOf(edge.Pixels, bright) % 1920;

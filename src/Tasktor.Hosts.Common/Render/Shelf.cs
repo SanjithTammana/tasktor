@@ -176,9 +176,9 @@ public static class EdgeGrain
         return ticks;
     }
 
-    /// <summary>The agent's <c>series</c> pull (percent per minute under <c>hour</c>) as 0–1 load; empty when missing.</summary>
+    /// <summary>The agent's <c>series</c> pull (percent per minute under <c>hour</c>) as 0–1 load; empty when missing or any other shape.</summary>
     public static IReadOnlyList<double> LoadFromSeries(System.Text.Json.Nodes.JsonNode? pulled) =>
-        pulled?["hour"] is System.Text.Json.Nodes.JsonArray hour
+        pulled is System.Text.Json.Nodes.JsonObject series && series["hour"] is System.Text.Json.Nodes.JsonArray hour
             ? [.. hour.Select(v => (BindingResolver.AsDouble(v) ?? 0) / 100.0)]
             : [];
 
@@ -189,7 +189,7 @@ public static class EdgeGrain
     public static IReadOnlyList<bool> HotFromSeries(System.Text.Json.Nodes.JsonNode? pulled, int count)
     {
         var hot = new bool[Math.Max(0, count)];
-        if (pulled?["severity"] is not System.Text.Json.Nodes.JsonArray sev)
+        if (pulled is not System.Text.Json.Nodes.JsonObject series || series["severity"] is not System.Text.Json.Nodes.JsonArray sev)
         {
             return hot;
         }

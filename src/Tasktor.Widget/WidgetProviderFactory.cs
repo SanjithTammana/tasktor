@@ -11,21 +11,29 @@ internal interface IClassFactory
     [PreserveSig] int LockServer(bool locked);
 }
 
+/// <summary>Creates providers, each holding a creation pin on the server until COM connects to it (<see cref="ServerLifetime"/>).</summary>
 [ComVisible(true)]
-internal sealed class WidgetProviderFactory : IClassFactory
+internal sealed class WidgetProviderFactory(ServerLifetime lifetime) : IClassFactory
 {
+    private const int NoAggregation = unchecked((int)0x80040110), ServerStopping = unchecked((int)0x80004008);
+
     public int CreateInstance(IntPtr outer, ref Guid iid, out IntPtr result)
     {
         result = IntPtr.Zero;
-        if (outer != IntPtr.Zero) return unchecked((int)0x80040110);
+        if (outer != IntPtr.Zero) return NoAggregation;
+        if (!lifetime.TryPin()) return ServerStopping; // COM retries the activation on a fresh server
+        var connections = new ProviderConnections(lifetime);
         var provider = IntPtr.Zero;
         try
         {
-            provider = MarshalInspectable<IWidgetProvider>.FromManaged(new WidgetProvider());
-            return Marshal.QueryInterface(provider, in iid, out result);
+            provider = MarshalInspectable<IWidgetProvider>.FromManaged(new WidgetProvider(connections));
+            var hr = Marshal.QueryInterface(provider, in iid, out result);
+            if (hr < 0) connections.Abandon();
+            return hr;
         }
         catch (Exception e)
         {
+            connections.Abandon();
             return Marshal.GetHRForException(e);
         }
         finally
@@ -34,5 +42,14 @@ internal sealed class WidgetProviderFactory : IClassFactory
         }
     }
 
-    public int LockServer(bool locked) => 0;
+    public int LockServer(bool locked)
+    {
+        if (!locked)
+        {
+            lifetime.Unpin();
+            return 0;
+        }
+
+        return lifetime.TryPin() ? 0 : ServerStopping;
+    }
 }

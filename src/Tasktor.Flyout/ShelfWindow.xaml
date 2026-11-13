@@ -14,8 +14,8 @@
 
         <!-- The edge, grown: last hour of load, left = an hour ago. -->
         <Canvas x:Name="GrainCanvas" Grid.Row="0" Height="6" AutomationProperties.AccessibilityView="Raw">
-            <Path x:Name="GrainPath" Stroke="{ThemeResource TasktorInk3Brush}" StrokeThickness="1" />
-            <Path x:Name="HotPath" Stroke="{ThemeResource TasktorInkBrush}" StrokeThickness="1" />
+            <Path x:Name="GrainPath" Stroke="{ThemeResource TasktorGlanceInk3Brush}" StrokeThickness="1" />
+            <Path x:Name="HotPath" Stroke="{ThemeResource TasktorGlanceInkBrush}" StrokeThickness="1" />
         </Canvas>
 
         <StackPanel x:Name="Body" Grid.Row="1" Padding="48,24,48,24" Spacing="16">
@@ -36,11 +36,11 @@
 
                 <RichTextBlock x:Name="Sentence" Grid.Column="1" HorizontalAlignment="Stretch" TextWrapping="Wrap"
                                FontFamily="Segoe UI Variable Display" FontSize="26" LineHeight="38" FontWeight="SemiLight"
-                               Foreground="{ThemeResource TasktorInkBrush}" IsTextSelectionEnabled="False"
+                               Foreground="{ThemeResource TasktorGlanceInkBrush}" IsTextSelectionEnabled="False"
                                AutomationProperties.LiveSetting="Polite" />
 
                 <HyperlinkButton x:Name="DeepLink" Grid.Column="2" VerticalAlignment="Top" Margin="0,6,0,0"
-                                 Content="Everything Tasktor knows ›" Foreground="{ThemeResource TasktorInk2Brush}"
+                                 Content="Everything Tasktor knows ›" Foreground="{ThemeResource TasktorGlanceInk2Brush}"
                                  Click="OnDeepLink" />
             </Grid>
 
@@ -48,7 +48,7 @@
                 <StackPanel x:Name="ActionsRow" Orientation="Horizontal" Spacing="24" Visibility="Collapsed"
                             AutomationProperties.Name="Actions">
                     <TextBlock x:Name="ActionsLabel" VerticalAlignment="Center" Style="{StaticResource TasktorBodyTextStyle}"
-                               Foreground="{ThemeResource TasktorInk3Brush}" />
+                               Foreground="{ThemeResource TasktorGlanceInk3Brush}" />
                 </StackPanel>
             </ScrollViewer>
 
@@ -57,12 +57,12 @@
                     <Button x:Name="KeepButton" Style="{StaticResource AccentButtonStyle}" MinHeight="36" Padding="18,7,18,7"
                             Content="Keep it" Click="OnKeep" />
                     <Button x:Name="ConfirmButton" MinHeight="36" Padding="18,7,18,7" Background="Transparent" BorderThickness="0"
-                            Foreground="{ThemeResource TasktorInk2Brush}" Click="OnConfirm" />
+                            Foreground="{ThemeResource TasktorGlanceInk2Brush}" Click="OnConfirm" />
                 </StackPanel>
             </ScrollViewer>
 
             <TextBlock x:Name="NoticeText" Visibility="Collapsed" Style="{StaticResource TasktorBodyTextStyle}"
-                       Foreground="{ThemeResource TasktorInk2Brush}" AutomationProperties.LiveSetting="Polite" />
+                       Foreground="{ThemeResource TasktorGlanceInk2Brush}" AutomationProperties.LiveSetting="Polite" />
 
             <!-- The hour as rows, alerts written on it, the lead row carried past "now" (dotted). -->
             <Canvas x:Name="Strip" Height="0" AutomationProperties.Name="The last hour" />

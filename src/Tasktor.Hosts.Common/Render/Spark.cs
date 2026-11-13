@@ -16,7 +16,8 @@ public static class Sparks
     {
         var raw = points is { Count: > 0 }
             ? points.ToList()
-            : pulled?["hour"] is JsonArray hour ? hour.Select(v => BindingResolver.AsDouble(v) ?? 0).ToList() : [];
+            // Only an object has "hour": indexing any other shape throws, and on the UI thread that ends the viewer.
+            : pulled is JsonObject series && series["hour"] is JsonArray hour ? hour.Select(v => BindingResolver.AsDouble(v) ?? 0).ToList() : [];
         raw = [.. raw.Select(v => double.IsNaN(v) || double.IsInfinity(v) ? 0 : v)];
         if (raw.Count == 0)
         {

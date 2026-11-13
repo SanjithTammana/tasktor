@@ -235,6 +235,6 @@ public sealed partial class MainWindow
             _pullingJobsLearned = false;
         }
 
-        if (refreshed && _page == "jobs") Draw(_snapshot.Mirror.Cards);
+        if (refreshed) RequestRedraw("jobs");
     }
 }

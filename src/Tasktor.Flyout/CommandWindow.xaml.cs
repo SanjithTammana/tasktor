@@ -156,7 +156,7 @@ public sealed partial class CommandWindow : Window
                 FontWeight = FontWeights.SemiBold,
                 FontSize = 13,
                 Margin = new Thickness(16, 14, 0, 2),
-                Foreground = ThemeBrush("TasktorInk3Brush"),
+                Foreground = ThemeBrush("TasktorGlanceInk3Brush"),
             });
             foreach (var item in section.Items)
             {
@@ -222,7 +222,7 @@ public sealed partial class CommandWindow : Window
             TextTrimming = TextTrimming.CharacterEllipsis,
             FontSize = 16,
             VerticalAlignment = VerticalAlignment.Center,
-            Foreground = ThemeBrush(selected ? "TasktorInkBrush" : "TasktorInk2Brush"),
+            Foreground = ThemeBrush(selected ? "TasktorGlanceInkBrush" : "TasktorGlanceInk2Brush"),
         });
         AutomationProperties.SetName(row, item.Label);
         row.Tapped += async (_, _) =>
@@ -236,8 +236,8 @@ public sealed partial class CommandWindow : Window
     private void Layout()
     {
         var area = DisplayArea.Primary;
-        var scale = Root.XamlRoot?.RasterizationScale ?? 1.0;
         var work = area.WorkArea;
+        var scale = Tasktor.Hosts.Common.Command.DisplayScale.At(work.X + (work.Width / 2), work.Y + (work.Height / 2));
         var widthDip = Math.Min(WidthDip, Math.Max(1, (work.Width / scale) - 32));
         var yOffset = Math.Max(0, work.Height / 6);
         var heightDip = Math.Min(560, Math.Max(1, (work.Height - yOffset) / scale));

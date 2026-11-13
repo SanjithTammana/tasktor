@@ -36,8 +36,9 @@ public readonly record struct Rgb(byte R, byte G, byte B)
 }
 
 /// <summary>
-/// One theme's colours (U4 amended D-G14): neutral surfaces, three inks, the accent fallback, and the three marks.
-/// <see cref="Accent"/> is used only where the system accent is unavailable; viewers bind the Windows accent.
+/// One theme's colours (U4 amended D-G14): neutral surfaces, three inks for the deep window, dialogs and switcher, three
+/// raised-contrast glance inks for the shelf, command line and tray, the approved accent, and the three marks.
+/// <see cref="Accent"/> is the approved design accent; viewers pin it instead of following the Windows accent.
 /// </summary>
 public sealed record Palette(
     string Name,
@@ -49,6 +50,9 @@ public sealed record Palette(
     Rgb Ink,
     Rgb Ink2,
     Rgb Ink3,
+    Rgb GlanceInk,
+    Rgb GlanceInk2,
+    Rgb GlanceInk3,
     Rgb Accent,
     Rgb OnAccent,
     Rgb Caution,
@@ -60,7 +64,8 @@ public sealed record Palette(
     public IReadOnlyList<(string Name, Rgb Color)> Entries =>
     [
         (nameof(Mica), Mica), (nameof(Shelf), Shelf), (nameof(Surface), Surface), (nameof(SurfaceRaised), SurfaceRaised),
-        (nameof(Rule), Rule), (nameof(Ink), Ink), (nameof(Ink2), Ink2), (nameof(Ink3), Ink3), (nameof(Accent), Accent),
+        (nameof(Rule), Rule), (nameof(Ink), Ink), (nameof(Ink2), Ink2), (nameof(Ink3), Ink3),
+        (nameof(GlanceInk), GlanceInk), (nameof(GlanceInk2), GlanceInk2), (nameof(GlanceInk3), GlanceInk3), (nameof(Accent), Accent),
         (nameof(OnAccent), OnAccent),
         (nameof(Caution), Caution), (nameof(Critical), Critical), (nameof(Success), Success), (nameof(Recording), Recording),
     ];
@@ -68,7 +73,8 @@ public sealed record Palette(
     /// <summary>Tokens drawn as text or as a mark that carries meaning; each must reach 4.5:1 on every background.</summary>
     public IReadOnlyList<(string Name, Rgb Color)> Foregrounds =>
     [
-        (nameof(Ink), Ink), (nameof(Ink2), Ink2), (nameof(Ink3), Ink3), (nameof(Accent), Accent),
+        (nameof(Ink), Ink), (nameof(Ink2), Ink2), (nameof(Ink3), Ink3),
+        (nameof(GlanceInk), GlanceInk), (nameof(GlanceInk2), GlanceInk2), (nameof(GlanceInk3), GlanceInk3), (nameof(Accent), Accent),
         (nameof(Caution), Caution), (nameof(Critical), Critical), (nameof(Success), Success), (nameof(Recording), Recording),
     ];
 
@@ -82,8 +88,8 @@ public sealed record TypeStep(string Name, string Family, double Size, double Li
 
 /// <summary>
 /// U4 amended D-G14: the shared tokens behind every Tasktor surface. The WinUI viewers load the same values from
-/// <c>Themes/Tasktor.xaml</c>; a test keeps the two equal. Surfaces come from the mockups' shared stylesheet (Windows Settings values); inks come from the later glance
-/// boards, which raised contrast.
+/// <c>Themes/Tasktor.xaml</c>; a test keeps the two equal. Surfaces and inks come from the approved deep-window, dialog and switcher boards
+/// (Windows Settings values); the glance inks come from the later glance boards, which raised contrast.
 /// </summary>
 public static class ThemeTokens
 {
@@ -97,8 +103,11 @@ public static class ThemeTokens
         SurfaceRaised: Rgb.Parse("#323232"),
         Rule: Rgb.Parse("#3D3D3D"),
         Ink: Rgb.Parse("#FFFFFF"),
-        Ink2: Rgb.Parse("#D6D6D6"),
-        Ink3: Rgb.Parse("#ABABAB"),
+        Ink2: Rgb.Parse("#CFCFCF"),
+        Ink3: Rgb.Parse("#9D9D9D"),
+        GlanceInk: Rgb.Parse("#FFFFFF"),
+        GlanceInk2: Rgb.Parse("#D6D6D6"),
+        GlanceInk3: Rgb.Parse("#ABABAB"),
         Accent: Rgb.Parse("#60CDFF"),
         OnAccent: Rgb.Parse("#000000"),
         Caution: Rgb.Parse("#FCE100"),
@@ -113,9 +122,12 @@ public static class ThemeTokens
         Surface: Rgb.Parse("#FBFBFB"),
         SurfaceRaised: Rgb.Parse("#F6F6F6"),
         Rule: Rgb.Parse("#D6D6D6"),
-        Ink: Rgb.Parse("#111111"),
-        Ink2: Rgb.Parse("#3D3D3D"),
-        Ink3: Rgb.Parse("#5A5A5A"),
+        Ink: Rgb.Parse("#1A1A1A"),
+        Ink2: Rgb.Parse("#5D5D5D"),
+        Ink3: Rgb.Parse("#616161"),
+        GlanceInk: Rgb.Parse("#111111"),
+        GlanceInk2: Rgb.Parse("#3D3D3D"),
+        GlanceInk3: Rgb.Parse("#5A5A5A"),
         Accent: Rgb.Parse("#005FB8"),
         OnAccent: Rgb.Parse("#FFFFFF"),
         Caution: Rgb.Parse("#9D5D00"),

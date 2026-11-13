@@ -6,8 +6,11 @@ using Tasktor.Contracts.Pipe;
 
 namespace Tasktor.Hosts.Common.Pipe;
 
-/// <summary>The agent is not running (CLI exit code 3).</summary>
-public sealed class AgentNotRunningException(string message) : Exception(message);
+/// <summary>
+/// The agent is not running or the pipe dropped (CLI exit code 3). An <see cref="IOException"/>, so every caller that
+/// already treats pipe I/O failure as "try again later" handles agent loss the same way instead of letting it escape.
+/// </summary>
+public sealed class AgentNotRunningException(string message) : IOException(message);
 
 /// <summary>
 /// A pipe client: connects, says hello, then sends requests and matches replies by id. Pushed <c>delta</c> messages go to

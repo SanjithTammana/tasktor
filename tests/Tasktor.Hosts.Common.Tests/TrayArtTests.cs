@@ -66,7 +66,7 @@ public sealed class TrayArtTests
 
         // The gap: fewer ink pixels than the plain icon.
         var normal = TrayArt.Icon(TrayIconState.Normal, false, 32, Dark);
-        Assert.True(Count(caution, Dark.Ink) < Count(normal, Dark.Ink));
+        Assert.True(Count(caution, Dark.GlanceInk) < Count(normal, Dark.GlanceInk));
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed class TrayArtTests
     {
         var open = TrayArt.Icon(TrayIconState.Normal, true, 32, Dark);
         Assert.True(Count(open, Dark.Accent) > 20);
-        Assert.Equal(0, Count(open, Dark.Ink));
+        Assert.Equal(0, Count(open, Dark.GlanceInk));
         Assert.NotEqual(TrayArt.Icon(TrayIconState.Normal, false, 32, Dark), TrayArt.Icon(TrayIconState.Paused, false, 32, Dark));
     }
 
@@ -87,8 +87,8 @@ public sealed class TrayArtTests
         Assert.All(px, p => Assert.True(p >> 24 >= 1));
 
         uint At(int x, int y) => px[(y * 12) + x];
-        var plain = TrayArt.Opaque(Dark.Ink3);
-        var bright = TrayArt.Opaque(Dark.Ink);
+        var plain = TrayArt.Opaque(Dark.GlanceInk3);
+        var bright = TrayArt.Opaque(Dark.GlanceInk);
         Assert.Equal(plain, At(2, 8)); // first tick at x = round(1 × 1.5) = 2, two px wide, round(0.6 × 9) = 5 of 9 rows
         Assert.Equal(plain, At(3, 4));
         Assert.Equal(TrayArt.HitTestPixel, At(2, 3));

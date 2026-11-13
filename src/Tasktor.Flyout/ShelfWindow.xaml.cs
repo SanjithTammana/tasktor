@@ -150,7 +150,7 @@ public sealed partial class ShelfWindow : Window
 
     private Hyperlink Noun(string text, string id)
     {
-        var link = new Hyperlink { UnderlineStyle = UnderlineStyle.Single, FontWeight = FontWeights.SemiBold, Foreground = ThemeBrush("TasktorInkBrush") };
+        var link = new Hyperlink { UnderlineStyle = UnderlineStyle.Single, FontWeight = FontWeights.SemiBold, Foreground = ThemeBrush("TasktorGlanceInkBrush") };
         link.Inlines.Add(new Run { Text = text });
         link.Click += (sender, _) =>
         {
@@ -284,14 +284,14 @@ public sealed partial class ShelfWindow : Window
         foreach (var e in m.Events)
         {
             Strip.Children.Add(new Line { X1 = X(e.At), Y1 = top - 4, X2 = X(e.At), Y2 = bottom, Stroke = ThemeBrush("TasktorRuleBrush"), StrokeThickness = 1 });
-            Strip.Children.Add(Label(e.Label, X(e.At) + 4, 0, "TasktorInk2Brush"));
+            Strip.Children.Add(Label(e.Label, X(e.At) + 4, 0, "TasktorGlanceInk2Brush"));
         }
 
         for (var r = 0; r < m.Rows.Count; r++)
         {
             var row = m.Rows[r];
             var c = top + (r * rowH) + (rowH / 2);
-            var band = new Polygon { Fill = ThemeBrush(row.Lead ? "TasktorInkBrush" : "TasktorInk3Brush") };
+            var band = new Polygon { Fill = ThemeBrush(row.Lead ? "TasktorGlanceInkBrush" : "TasktorGlanceInk3Brush") };
             for (var i = 0; i < row.Values.Count; i++)
             {
                 band.Points.Add(new Point(X(TimelineStrip.At(i, row.Values.Count)), c - (row.Values[i] * maxT / 2)));
@@ -303,15 +303,15 @@ public sealed partial class ShelfWindow : Window
             }
 
             Strip.Children.Add(band);
-            var name = Label(row.Label, 0, c - 8, row.Lead ? "TasktorInkBrush" : "TasktorInk3Brush");
+            var name = Label(row.Label, 0, c - 8, row.Lead ? "TasktorGlanceInkBrush" : "TasktorGlanceInk3Brush");
             name.FontWeight = row.Lead ? FontWeights.SemiBold : FontWeights.Normal;
             Strip.Children.Add(name);
 
             if (row.Lead && m.Forecast is { } f)
             {
                 var step = (width - nowX) / f.Values.Count;
-                var upper = new Polyline { Stroke = ThemeBrush("TasktorInkBrush"), StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 3, 4 } };
-                var lower = new Polyline { Stroke = ThemeBrush("TasktorInkBrush"), StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 3, 4 } };
+                var upper = new Polyline { Stroke = ThemeBrush("TasktorGlanceInkBrush"), StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 3, 4 } };
+                var lower = new Polyline { Stroke = ThemeBrush("TasktorGlanceInkBrush"), StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 3, 4 } };
                 upper.Points.Add(new Point(nowX, c - (row.Values[^1] * maxT / 2)));
                 lower.Points.Add(new Point(nowX, c + (row.Values[^1] * maxT / 2)));
                 for (var k = 0; k < f.Values.Count; k++)
@@ -324,18 +324,18 @@ public sealed partial class ShelfWindow : Window
                 Strip.Children.Add(lower);
                 if (f.Label is { } text)
                 {
-                    Strip.Children.Add(Label(text, nowX + 8, c - 22, "TasktorInkBrush"));
+                    Strip.Children.Add(Label(text, nowX + 8, c - 22, "TasktorGlanceInkBrush"));
                 }
             }
         }
 
-        Strip.Children.Add(new Line { X1 = nowX, Y1 = top - 4, X2 = nowX, Y2 = bottom, Stroke = ThemeBrush("TasktorInk3Brush"), StrokeThickness = 1 });
-        Strip.Children.Add(Label(m.Start, labelW, bottom + 4, "TasktorInk3Brush"));
-        var now = Label("now", nowX - 20, bottom + 4, "TasktorInkBrush");
+        Strip.Children.Add(new Line { X1 = nowX, Y1 = top - 4, X2 = nowX, Y2 = bottom, Stroke = ThemeBrush("TasktorGlanceInk3Brush"), StrokeThickness = 1 });
+        Strip.Children.Add(Label(m.Start, labelW, bottom + 4, "TasktorGlanceInk3Brush"));
+        var now = Label("now", nowX - 20, bottom + 4, "TasktorGlanceInkBrush");
         now.Width = 40;
         now.TextAlignment = TextAlignment.Center;
         Strip.Children.Add(now);
-        var end = Label(m.End, width - 60, bottom + 4, "TasktorInk3Brush");
+        var end = Label(m.End, width - 60, bottom + 4, "TasktorGlanceInk3Brush");
         end.Width = 60;
         end.TextAlignment = TextAlignment.Right;
         Strip.Children.Add(end);
@@ -370,9 +370,9 @@ public sealed partial class ShelfWindow : Window
     private void Layout()
     {
         var area = DisplayArea.Primary;
-        var scale = Root.XamlRoot?.RasterizationScale ?? 1.0;
         var monitor = area.OuterBounds;
         var work = area.WorkArea;
+        var scale = Tasktor.Hosts.Common.Command.DisplayScale.At(work.X + (work.Width / 2), work.Y + (work.Height / 2));
         _widthDip = monitor.Width / scale;
         Body.Measure(new Size(_widthDip, double.PositiveInfinity));
         var placement = ShelfLayout.Place(

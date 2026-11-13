@@ -2,8 +2,10 @@
 <!--
   U4 amended D-G14: Tasktor's shared theme. The colours, type ramp and spacing equal
   src/Tasktor.Hosts.Common/Theme/ThemeTokens.cs; ThemeParityTests keeps the two in step.
-  Tasktor{Name}Color is the token; Tasktor{Name}Brush is what controls bind. The accent brush follows the
-  Windows accent (TasktorAccentColor is only its fallback). High contrast uses system colours only.
+  Tasktor{Name}Color is the token; Tasktor{Name}Brush is what controls bind. The approved accent is pinned: the
+  SystemAccentColor* keys below replace the user's Windows accent with Windows' default blue so every control
+  (navigation, links, switches, check boxes) draws #60CDFF dark / #005FB8 light, as the approved boards do.
+  High contrast uses system colours only.
 -->
 <ResourceDictionary
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -17,8 +19,11 @@
             <Color x:Key="TasktorSurfaceRaisedColor">#FF323232</Color>
             <Color x:Key="TasktorRuleColor">#FF3D3D3D</Color>
             <Color x:Key="TasktorInkColor">#FFFFFFFF</Color>
-            <Color x:Key="TasktorInk2Color">#FFD6D6D6</Color>
-            <Color x:Key="TasktorInk3Color">#FFABABAB</Color>
+            <Color x:Key="TasktorInk2Color">#FFCFCFCF</Color>
+            <Color x:Key="TasktorInk3Color">#FF9D9D9D</Color>
+            <Color x:Key="TasktorGlanceInkColor">#FFFFFFFF</Color>
+            <Color x:Key="TasktorGlanceInk2Color">#FFD6D6D6</Color>
+            <Color x:Key="TasktorGlanceInk3Color">#FFABABAB</Color>
             <Color x:Key="TasktorAccentColor">#FF60CDFF</Color>
             <Color x:Key="TasktorOnAccentColor">#FF000000</Color>
             <Color x:Key="TasktorCautionColor">#FFFCE100</Color>
@@ -34,7 +39,10 @@
             <SolidColorBrush x:Key="TasktorInkBrush" Color="{StaticResource TasktorInkColor}" />
             <SolidColorBrush x:Key="TasktorInk2Brush" Color="{StaticResource TasktorInk2Color}" />
             <SolidColorBrush x:Key="TasktorInk3Brush" Color="{StaticResource TasktorInk3Color}" />
-            <SolidColorBrush x:Key="TasktorAccentBrush" Color="{ThemeResource SystemAccentColorLight2}" />
+            <SolidColorBrush x:Key="TasktorGlanceInkBrush" Color="{StaticResource TasktorGlanceInkColor}" />
+            <SolidColorBrush x:Key="TasktorGlanceInk2Brush" Color="{StaticResource TasktorGlanceInk2Color}" />
+            <SolidColorBrush x:Key="TasktorGlanceInk3Brush" Color="{StaticResource TasktorGlanceInk3Color}" />
+            <SolidColorBrush x:Key="TasktorAccentBrush" Color="{StaticResource TasktorAccentColor}" />
             <SolidColorBrush x:Key="TasktorOnAccentBrush" Color="{StaticResource TasktorOnAccentColor}" />
             <SolidColorBrush x:Key="TasktorCautionBrush" Color="{StaticResource TasktorCautionColor}" />
             <SolidColorBrush x:Key="TasktorCriticalBrush" Color="{StaticResource TasktorCriticalColor}" />
@@ -48,9 +56,12 @@
             <Color x:Key="TasktorSurfaceColor">#FFFBFBFB</Color>
             <Color x:Key="TasktorSurfaceRaisedColor">#FFF6F6F6</Color>
             <Color x:Key="TasktorRuleColor">#FFD6D6D6</Color>
-            <Color x:Key="TasktorInkColor">#FF111111</Color>
-            <Color x:Key="TasktorInk2Color">#FF3D3D3D</Color>
-            <Color x:Key="TasktorInk3Color">#FF5A5A5A</Color>
+            <Color x:Key="TasktorInkColor">#FF1A1A1A</Color>
+            <Color x:Key="TasktorInk2Color">#FF5D5D5D</Color>
+            <Color x:Key="TasktorInk3Color">#FF616161</Color>
+            <Color x:Key="TasktorGlanceInkColor">#FF111111</Color>
+            <Color x:Key="TasktorGlanceInk2Color">#FF3D3D3D</Color>
+            <Color x:Key="TasktorGlanceInk3Color">#FF5A5A5A</Color>
             <Color x:Key="TasktorAccentColor">#FF005FB8</Color>
             <Color x:Key="TasktorOnAccentColor">#FFFFFFFF</Color>
             <Color x:Key="TasktorCautionColor">#FF9D5D00</Color>
@@ -66,7 +77,10 @@
             <SolidColorBrush x:Key="TasktorInkBrush" Color="{StaticResource TasktorInkColor}" />
             <SolidColorBrush x:Key="TasktorInk2Brush" Color="{StaticResource TasktorInk2Color}" />
             <SolidColorBrush x:Key="TasktorInk3Brush" Color="{StaticResource TasktorInk3Color}" />
-            <SolidColorBrush x:Key="TasktorAccentBrush" Color="{ThemeResource SystemAccentColorDark1}" />
+            <SolidColorBrush x:Key="TasktorGlanceInkBrush" Color="{StaticResource TasktorGlanceInkColor}" />
+            <SolidColorBrush x:Key="TasktorGlanceInk2Brush" Color="{StaticResource TasktorGlanceInk2Color}" />
+            <SolidColorBrush x:Key="TasktorGlanceInk3Brush" Color="{StaticResource TasktorGlanceInk3Color}" />
+            <SolidColorBrush x:Key="TasktorAccentBrush" Color="{StaticResource TasktorAccentColor}" />
             <SolidColorBrush x:Key="TasktorOnAccentBrush" Color="{StaticResource TasktorOnAccentColor}" />
             <SolidColorBrush x:Key="TasktorCautionBrush" Color="{StaticResource TasktorCautionColor}" />
             <SolidColorBrush x:Key="TasktorCriticalBrush" Color="{StaticResource TasktorCriticalColor}" />
@@ -84,6 +98,9 @@
             <SolidColorBrush x:Key="TasktorInkBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="TasktorInk2Brush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="TasktorInk3Brush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="TasktorGlanceInkBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="TasktorGlanceInk2Brush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="TasktorGlanceInk3Brush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="TasktorAccentBrush" Color="{ThemeResource SystemColorHotlightColor}" />
             <SolidColorBrush x:Key="TasktorOnAccentBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
             <SolidColorBrush x:Key="TasktorCautionBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
@@ -92,6 +109,15 @@
             <SolidColorBrush x:Key="TasktorRecordingBrush" Color="{ThemeResource SystemColorHighlightColor}" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
+
+    <!-- The approved accent: Windows' default blue palette, used instead of the user's Windows accent. -->
+    <Color x:Key="SystemAccentColor">#FF0078D4</Color>
+    <Color x:Key="SystemAccentColorLight1">#FF0093F9</Color>
+    <Color x:Key="SystemAccentColorLight2">#FF60CDFF</Color>
+    <Color x:Key="SystemAccentColorLight3">#FF99EBFF</Color>
+    <Color x:Key="SystemAccentColorDark1">#FF005FB8</Color>
+    <Color x:Key="SystemAccentColorDark2">#FF003E92</Color>
+    <Color x:Key="SystemAccentColorDark3">#FF001A68</Color>
 
     <!-- Spacing (4 px grid). The shelf pads 24 vertical, 48 horizontal. -->
     <x:Double x:Key="TasktorSpace4">4</x:Double>

@@ -13,24 +13,24 @@
                          FontSize="34" FontWeight="SemiLight" BorderThickness="0,0,0,1" Background="Transparent"
                          AutomationProperties.Name="Find or do anything" />
                 <TextBlock x:Name="Verdict" TextWrapping="Wrap" FontSize="15" LineHeight="22"
-                           Foreground="{ThemeResource TasktorInk2Brush}" AutomationProperties.LiveSetting="Polite" />
+                           Foreground="{ThemeResource TasktorGlanceInk2Brush}" AutomationProperties.LiveSetting="Polite" />
                 <ScrollViewer x:Name="ResultsScroller" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Auto">
                     <StackPanel x:Name="Results" Spacing="2" />
                 </ScrollViewer>
                 <StackPanel x:Name="ConfirmRow" Spacing="12" Visibility="Collapsed">
                     <TextBlock x:Name="ConfirmText" TextWrapping="Wrap" Style="{StaticResource TasktorBodyTextStyle}"
-                               Foreground="{ThemeResource TasktorInkBrush}" />
+                               Foreground="{ThemeResource TasktorGlanceInkBrush}" />
                     <StackPanel Orientation="Horizontal" Spacing="16">
                         <Button x:Name="KeepButton" Style="{StaticResource AccentButtonStyle}" MinHeight="36" Padding="18,7,18,7"
                                 Content="Keep it" Click="OnKeep" />
                         <Button x:Name="ConfirmButton" MinHeight="36" Padding="18,7,18,7" Background="Transparent" BorderThickness="0"
-                                Foreground="{ThemeResource TasktorInk2Brush}" Content="Yes, do it" Click="OnConfirm" />
+                                Foreground="{ThemeResource TasktorGlanceInk2Brush}" Content="Yes, do it" Click="OnConfirm" />
                     </StackPanel>
                 </StackPanel>
                 <TextBlock x:Name="NoticeText" Visibility="Collapsed" Style="{StaticResource TasktorBodyTextStyle}"
-                           Foreground="{ThemeResource TasktorInk2Brush}" AutomationProperties.LiveSetting="Polite" />
+                           Foreground="{ThemeResource TasktorGlanceInk2Brush}" AutomationProperties.LiveSetting="Polite" />
                 <TextBlock Text="Enter runs it, Esc closes. Type an app, a job or a page." Style="{StaticResource TasktorCaptionTextStyle}"
-                           Foreground="{ThemeResource TasktorInk3Brush}" />
+                           Foreground="{ThemeResource TasktorGlanceInk3Brush}" />
             </StackPanel>
         </ScrollViewer>
     </Grid>

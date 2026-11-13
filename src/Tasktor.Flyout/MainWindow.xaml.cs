@@ -39,7 +39,12 @@ public sealed partial class MainWindow : Window
         _invoker = new ActionInvoker(ActAsync, Origin.Flyout);
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(WindowTitleBar);
-        AppWindow.Resize(new Windows.Graphics.SizeInt32(1280, 800));
+        // 1280 x 800 DIPs on the monitor it opens on (AppWindow sizes are physical pixels), never past the work area.
+        var work = Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(AppWindow.Id, Microsoft.UI.Windowing.DisplayAreaFallback.Primary).WorkArea;
+        var scale = Tasktor.Hosts.Common.Command.DisplayScale.At(work.X + (work.Width / 2), work.Y + (work.Height / 2));
+        AppWindow.Resize(new Windows.Graphics.SizeInt32(Math.Min(work.Width, (int)Math.Round(1280 * scale)), Math.Min(work.Height, (int)Math.Round(800 * scale))));
+        // The board's 480-DIP search field, narrowed only when the title bar cannot fit it beside the mark and captions.
+        Root.SizeChanged += (_, e) => FindButton.Width = Math.Clamp(e.NewSize.Width - 300, 160, 480);
         snapshot.Changed += _ => DispatcherQueue.TryEnqueue(() => Refresh(fromSnapshot: true));
         PageContent.LostFocus += (_, _) => DispatcherQueue.TryEnqueue(() =>
         {
@@ -59,6 +64,10 @@ public sealed partial class MainWindow : Window
     public event Action? FindRequested;
 
     private void OnFind(object sender, RoutedEventArgs args) => FindRequested?.Invoke();
+
+    // Windows Settings shows the pane button only when the pane can collapse; the expanded board has none.
+    private void OnNavDisplayModeChanged(NavigationView sender, NavigationViewDisplayModeChangedEventArgs args) =>
+        sender.IsPaneToggleButtonVisible = args.DisplayMode != NavigationViewDisplayMode.Expanded;
 
     private Task<ActionResult> ActAsync(ActionRequest request, CancellationToken ct) =>
         _snapshot.Client is { } client ? client.ActAsync(request, ct) : Task.FromException<ActionResult>(new IOException("not connected"));
@@ -88,9 +97,17 @@ public sealed partial class MainWindow : Window
         }
 
         Nav.SelectedItem = Nav.MenuItems.OfType<NavigationViewItem>().FirstOrDefault(i => (string)i.Tag == _page);
+        // The real registered shortcut only; nothing when it is unset or another program holds it.
+        FindShortcut.Text = SettingsPage.Hotkey(_snapshot.Mirror.Root) is { Note: null } hotkey ? hotkey.Keys : string.Empty;
         if (fromSnapshot && _page == "system" && _systemMounted)
         {
             RefreshSystem(cards);
+            return;
+        }
+
+        if (fromSnapshot && _page == "data" && _dataProblemOffline && _snapshot.Connected)
+        {
+            RetryData();
             return;
         }
 
@@ -116,6 +133,7 @@ public sealed partial class MainWindow : Window
         _systemMounted = false;
         var page = DeepPages.All.First(p => p.Id == _page);
         PageTitle.Text = page.Name;
+        PageTitle.Margin = new Thickness(0, 8, 0, _page is "system" or "activity" or "learned" ? 8 : 20);
         PageContent.Children.Clear();
         var resolver = new BindingResolver(_snapshot.Mirror.Root);
         if (_page == "system")
@@ -192,11 +210,14 @@ public sealed partial class MainWindow : Window
     private bool _exportRaw;
     private bool _exportCapture;
     private bool _exporting;
+    private string? _dataProblem; // why the first count failed; null while counting or once counted
+    private bool _dataProblemOffline;
+    private string? _redrawPage;
 
     private void DrawData()
     {
         var fresh = _data is null ? TimeSpan.FromSeconds(2) : TimeSpan.FromSeconds(15);
-        if (DateTimeOffset.Now - _dataAt > fresh && !_pullingData)
+        if (_dataProblem is null && DateTimeOffset.Now - _dataAt > fresh && !_pullingData)
         {
             _pullingData = true;
             _ = PullDataAsync();
@@ -204,7 +225,17 @@ public sealed partial class MainWindow : Window
 
         if (_data is null)
         {
-            PageContent.Children.Add(Text("Counting what Tasktor keeps…", "TasktorInk2Brush"));
+            if (_dataProblem is null)
+            {
+                PageContent.Children.Add(Text("Counting what Tasktor keeps…", "TasktorInk2Brush"));
+                return;
+            }
+
+            // A failed count says so and waits for the user (or the agent coming back) instead of retrying in a loop.
+            PageContent.Children.Add(Text(_dataProblem, "TasktorInk2Brush"));
+            var retry = new Button { Content = "Try again", Margin = new Thickness(0, 12, 0, 0) };
+            retry.Click += (_, _) => RetryData();
+            PageContent.Children.Add(retry);
             return;
         }
 
@@ -375,9 +406,9 @@ public sealed partial class MainWindow : Window
             _workflowsAttempted = true;
         }
 
-        if (_page == "learned" && _learnedTab == "workflows")
+        if (_learnedTab == "workflows")
         {
-            Draw(_snapshot.Mirror.Cards);
+            RequestRedraw("learned");
         }
     }
 
@@ -397,9 +428,9 @@ public sealed partial class MainWindow : Window
             _learnedAttempted = true;
         }
 
-        if (_page == "learned" && _learnedTab == "jobs")
+        if (_learnedTab == "jobs")
         {
-            Draw(_snapshot.Mirror.Cards);
+            RequestRedraw("learned");
         }
     }
 
@@ -472,10 +503,7 @@ public sealed partial class MainWindow : Window
             _focusAt = DateTimeOffset.Now;
         }
 
-        if (_page == "focus")
-        {
-            Draw(_snapshot.Mirror.Cards);
-        }
+        RequestRedraw("focus");
     }
 
     private System.Text.Json.Nodes.JsonNode? _windowsPull;
@@ -716,10 +744,7 @@ public sealed partial class MainWindow : Window
             _windowsAt = DateTimeOffset.Now;
         }
 
-        if (_page == "windows")
-        {
-            Draw(_snapshot.Mirror.Cards);
-        }
+        RequestRedraw("windows");
     }
 
     private Contracts.Config.ModulesReport? _modules;
@@ -990,9 +1015,9 @@ public sealed partial class MainWindow : Window
             _pullingPlugins = false;
         }
 
-        if (_page == "settings" && _plugins is not null)
+        if (_plugins is not null)
         {
-            Draw(_snapshot.Mirror.Cards);
+            RequestRedraw("settings");
         }
     }
 
@@ -1158,9 +1183,9 @@ public sealed partial class MainWindow : Window
             _pullingRules = false;
         }
 
-        if (_page == "settings" && _rules is not null)
+        if (_rules is not null)
         {
-            Draw(_snapshot.Mirror.Cards);
+            RequestRedraw("settings");
         }
     }
 
@@ -1271,14 +1296,23 @@ public sealed partial class MainWindow : Window
 
     private async Task PullDataAsync()
     {
+        var problem = _dataProblem;
         try
         {
             var node = await _snapshot.PullAsync("data");
-            _data = node is null ? _data : System.Text.Json.JsonSerializer.Deserialize(node, Contracts.ContractsJsonContext.Default.DataReport);
+            if (node is not null)
+            {
+                _data = System.Text.Json.JsonSerializer.Deserialize(node, Contracts.ContractsJsonContext.Default.DataReport);
+            }
+            else if (_data is null)
+            {
+                DataFailed("Tasktor didn't report what it keeps.");
+            }
         }
         catch (Exception e) when (e is IOException or OperationCanceledException or ObjectDisposedException or InvalidOperationException or System.Text.Json.JsonException)
         {
-            // keep what we had; try again on the next refresh
+            // Agent loss is an IOException too. Once counted, keep what we had and try again on the next refresh.
+            if (_data is null) DataFailed("Couldn't count what Tasktor keeps.");
         }
         finally
         {
@@ -1286,6 +1320,29 @@ public sealed partial class MainWindow : Window
             _pullingData = false;
         }
 
+        if (_data is not null)
+        {
+            _dataProblem = null;
+        }
+
+        // Counted (the 15 s refresh) or a new problem to show; an unchanged problem draws nothing, so nothing loops.
+        if (_data is not null || problem != _dataProblem)
+        {
+            RequestRedraw("data");
+        }
+    }
+
+    private void DataFailed(string reason)
+    {
+        _dataProblemOffline = !_snapshot.Connected;
+        _dataProblem = _dataProblemOffline ? "Tasktor is not running." : reason;
+    }
+
+    private void RetryData()
+    {
+        _dataProblem = null;
+        _dataProblemOffline = false;
+        _dataAt = DateTimeOffset.MinValue;
         if (_page == "data")
         {
             Draw(_snapshot.Mirror.Cards);
@@ -1505,7 +1562,7 @@ public sealed partial class MainWindow : Window
             _pullingProcs = false;
         }
 
-        if (_page == "system") RefreshSystem(_snapshot.Mirror.Cards);
+        RequestRedraw("system");
     }
 
     /// <summary>A sparkline row: label, the line, and the latest value; a series is pulled from the agent and cached.</summary>
@@ -1521,7 +1578,7 @@ public sealed partial class MainWindow : Window
 
             if ((!_series.ContainsKey(id) || DateTimeOffset.Now - cached.At > SeriesFresh) && _pulling.Add(id))
             {
-                _ = PullSeriesAsync(id);
+                _ = PullSeriesAsync(id, _page);
             }
         }
 
@@ -1540,10 +1597,11 @@ public sealed partial class MainWindow : Window
             line.Children.Insert(line.Children.Count - 1, poly);
         }
 
+        line.Tag = ChartTag + (row.Series ?? row.Label); // lets System swap the line in while the page has focus
         return line;
     }
 
-    private async Task PullSeriesAsync(string id)
+    private async Task PullSeriesAsync(string id, string page)
     {
         try
         {
@@ -1559,14 +1617,46 @@ public sealed partial class MainWindow : Window
             _pulling.Remove(id);
         }
 
-        if (_page == "system")
+        RequestRedraw(page);
+    }
+
+    /// <summary>
+    /// The one way an async result (a pull that finished) redraws: queued behind input already waiting, coalesced so
+    /// several results in one turn rebuild the page once, and applied only if that page is still showing. System
+    /// updates in place (<see cref="RefreshSystem"/>) so expanded rows, focus and open menus survive.
+    /// </summary>
+    private void RequestRedraw(string page)
+    {
+        if (_page != page)
         {
-            RefreshSystem(_snapshot.Mirror.Cards);
+            return;
         }
-        else
+
+        var queued = _redrawPage is not null;
+        _redrawPage = page;
+        if (queued)
         {
-            Draw(_snapshot.Mirror.Cards);
+            return;
         }
+
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            var wanted = _redrawPage;
+            _redrawPage = null;
+            if (wanted != _page)
+            {
+                return;
+            }
+
+            if (_page == "system")
+            {
+                RefreshSystem(_snapshot.Mirror.Cards);
+            }
+            else
+            {
+                Draw(_snapshot.Mirror.Cards);
+            }
+        });
     }
 
     /// <summary>A label-left, value-right row with a hairline under it.</summary>

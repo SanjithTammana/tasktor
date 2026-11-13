@@ -29,4 +29,18 @@ public sealed class SparkTests
         Assert.Null(Sparks.From([], JsonNode.Parse("{}"), "%"));
         Assert.Equal([0.0, 0.0], Sparks.From([double.NaN, 0], null, null)!.Values);
     }
+
+    [Theory]
+    [InlineData("[0.2, 0.4, 0.3]")]
+    [InlineData("42")]
+    [InlineData("\"hour\"")]
+    [InlineData("""{ "hour": 5, "severity": "warn" }""")]
+    public void A_series_of_any_other_shape_draws_nothing_instead_of_throwing(string json)
+    {
+        // An off-contract pull once threw inside a redraw callback, which Windows turns into a fatal stowed exception.
+        var pulled = JsonNode.Parse(json);
+        Assert.Null(Sparks.From(null, pulled, "%"));
+        Assert.Empty(EdgeGrain.LoadFromSeries(pulled));
+        Assert.All(EdgeGrain.HotFromSeries(pulled, 3), Assert.False);
+    }
 }

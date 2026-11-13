@@ -28,7 +28,7 @@ public static class TrayArt
         ArgumentNullException.ThrowIfNull(palette);
         ArgumentOutOfRangeException.ThrowIfLessThan(size, 8);
         var c = new Canvas(size);
-        var lines = open ? palette.Accent : palette.Ink;
+        var lines = open ? palette.Accent : palette.GlanceInk;
         switch (state)
         {
             case TrayIconState.Paused:
@@ -83,7 +83,7 @@ public static class TrayArt
         {
             var x0 = (int)Math.Round((t.X + 1) * scale);
             var h = Math.Clamp((int)Math.Round(t.Height * height), 1, height);
-            var color = Opaque(t.Hot ? palette.Ink : palette.Ink3);
+            var color = Opaque(t.Hot ? palette.GlanceInk : palette.GlanceInk3);
             for (var x = x0; x < Math.Min(width, x0 + w); x++)
             {
                 for (var y = height - h; y < height; y++)

@@ -131,7 +131,7 @@ public sealed partial class MainWindow
                     HorizontalContentAlignment = HorizontalAlignment.Stretch,
                     Background = ThemeBrush("TasktorSurfaceBrush"),
                     BorderThickness = new Thickness(0),
-                    Padding = new Thickness(0),
+                    Padding = new Thickness(16, 12, 16, 12),
                     Content = expanded ? Chart(history) : null,
                 };
                 expander.Expanding += (_, _) =>
@@ -148,6 +148,7 @@ public sealed partial class MainWindow
                 group.Children.Add(expander);
             }
 
+            ShapeGroup(group);
             resources.Children.Add(group);
             if (rows.Severity != Severity.Normal)
             {
@@ -266,7 +267,7 @@ public sealed partial class MainWindow
             var expander = new Expander
             {
                 Tag = "app:" + app.AppId,
-                Header = SystemRow(app.Name, app.Memory, detail, null),
+                Header = AppHeader(app.Name, app.Memory, detail),
                 Content = _expanded.Contains(app.AppId) ? MakeBody() : null,
                 IsExpanded = _expanded.Contains(app.AppId),
                 HorizontalAlignment = HorizontalAlignment.Stretch,
@@ -289,6 +290,7 @@ public sealed partial class MainWindow
             group.Children.Add(Text(_procs is null ? "Reading the process table…" : "No apps in this snapshot.", "TasktorInk2Brush"));
         }
 
+        ShapeGroup(group);
         panel.Children.Add(group);
         if (canPin)
         {
@@ -432,12 +434,30 @@ public sealed partial class MainWindow
         return result;
     }
 
+    private const string ChartTag = "chart:";
+
     private static void SyncCompatibleSystemTree(UIElement oldElement, UIElement newElement)
     {
 
         if (SameSystemStructure(oldElement, newElement))
         {
             SyncSystemTree(oldElement, newElement);
+            return;
+        }
+
+        // A chart holds nothing focusable, so its history line (which arrives after the row opens) can replace the
+        // empty one while the user is on the page; deferring it left an expanded row without its chart.
+        if (oldElement is StackPanel { Tag: string oldTag } oldChart && oldTag.StartsWith(ChartTag, StringComparison.Ordinal) &&
+            newElement is StackPanel { Tag: string newTag } newChart && newTag == oldTag)
+        {
+            oldChart.Children.Clear();
+            while (newChart.Children.Count > 0)
+            {
+                var child = newChart.Children[0];
+                newChart.Children.RemoveAt(0);
+                oldChart.Children.Add(child);
+            }
+
             return;
         }
 
@@ -525,9 +545,38 @@ public sealed partial class MainWindow
         Foreground = ThemeBrush("TasktorInkBrush"),
     };
 
+    // The board's settings-pattern group: rows 2 DIP apart with one stroke each, and only the group's outer corners rounded.
+    private static void ShapeGroup(Panel group)
+    {
+        var rows = group.Children.Where(c => c is Border or Expander).ToList();
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var top = i == 0 ? 8 : 0;
+            var bottom = i == rows.Count - 1 ? 8 : 0;
+            var radius = new CornerRadius(top, top, bottom, bottom);
+            if (rows[i] is Border border)
+            {
+                border.CornerRadius = radius;
+            }
+            else if (rows[i] is Expander expander)
+            {
+                expander.CornerRadius = radius;
+            }
+        }
+    }
+
+    private static Grid AppHeader(string name, string memory, string detail)
+    {
+        var header = SystemRow(name, memory, detail, null);
+        header.MinHeight = 64;
+        return header;
+    }
+
     private static Border SystemSurface(UIElement content) => new()
     {
         Background = ThemeBrush("TasktorSurfaceBrush"),
+        BorderBrush = ThemeBrush("CardStrokeColorDefaultBrush"),
+        BorderThickness = new Thickness(1),
         CornerRadius = new CornerRadius(4),
         Padding = new Thickness(16, 8, 16, 8),
         Child = content,

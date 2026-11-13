@@ -127,6 +127,6 @@ public sealed partial class MainWindow
             _pullingActivitySummary = false;
         }
 
-        if (_page == "activity") Draw(_snapshot.Mirror.Cards);
+        RequestRedraw("activity");
     }
 }
