@@ -7,6 +7,9 @@ namespace Tasktor.Hosts.Common.Deep;
 /// <summary>One Module row: its description, whether it is on in config.json, and a note when that waits for a restart.</summary>
 public sealed record ModuleRow(ModuleInfo Info, bool On, string? Note, bool CanTurnOnHere);
 
+/// <summary>One heading of Settings → Modules, with an optional caption under it.</summary>
+public sealed record ModuleGroup(string Title, string? Caption, IReadOnlyList<ModuleRow> Rows);
+
 /// <summary>Settings → Rules: one rule with its switch; <see cref="Note"/> says where it comes from and when it last fired.</summary>
 public sealed record RuleRow(string Id, string Title, string Note, bool On);
 
@@ -48,6 +51,24 @@ public static class SettingsPage
                     : null;
                 return new ModuleRow(info, on, note, CanTurnOnHere: info.Id != "capture");
             }),
+        ];
+    }
+
+    private static readonly HashSet<string> ForDevelopers = new(StringComparer.Ordinal) { "ports", "folders" };
+
+    // The 2026-11-13 usefulness decisions: parked (switcher, presets), packed (focus) and the pack-or-cut Modules keep
+    // working but get no new work. Any Module not named here is core, so a new one is never hidden among them.
+    private static readonly HashSet<string> Extras = new(StringComparer.Ordinal) { "focus", "presets", "switcher", "windows_watch", "event_mode", "connectivity", "batteries" };
+
+    /// <summary>Settings → Modules as three headings: core Modules, those for developers, and Extras; catalog order within each.</summary>
+    public static IReadOnlyList<ModuleGroup> ModuleGroups(ModulesReport? report)
+    {
+        var rows = Modules(report);
+        return
+        [
+            new("Modules", null, [.. rows.Where(r => !ForDevelopers.Contains(r.Info.Id) && !Extras.Contains(r.Info.Id))]),
+            new("For developers", null, [.. rows.Where(r => ForDevelopers.Contains(r.Info.Id))]),
+            new("Extras", "These keep working as they are. Windows has its own version of most of them.", [.. rows.Where(r => Extras.Contains(r.Info.Id))]),
         ];
     }
 

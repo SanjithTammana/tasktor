@@ -835,26 +835,22 @@ public sealed partial class MainWindow : Window
         DrawSwitcherSettings(left);
 
         left.Children.Add(new TextBlock { Text = "Modules", Style = StyleOf("TasktorSubtitleTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
-        var list = new StackPanel();
-        foreach (var row in SettingsPage.Modules(_modules))
+        foreach (var group in SettingsPage.ModuleGroups(_modules))
         {
-            var grid = new Grid { MinHeight = 56 };
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            text.Children.Add(new TextBlock { Text = row.Info.Name, Style = StyleOf("TasktorBodyTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
-            text.Children.Add(new TextBlock { Text = row.Note ?? row.Info.Reads, TextWrapping = TextWrapping.Wrap, Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush("TasktorInk3Brush") });
-            grid.Children.Add(text);
-            var toggle = new ToggleSwitch { IsOn = row.On, IsEnabled = _modules is not null, OnContent = "On", OffContent = "Off", VerticalAlignment = VerticalAlignment.Center };
-            AutomationProperties.SetName(toggle, row.Info.Name);
-            toggle.Toggled += async (_, _) => await ToggleModuleAsync(row, toggle);
-            Grid.SetColumn(toggle, 1);
-            grid.Children.Add(toggle);
-            list.Children.Add(grid);
-            list.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
-        }
+            if (group.Title != "Modules")
+            {
+                var heading = SystemHeading(group.Title);
+                AutomationProperties.SetHeadingLevel(heading, Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel.Level3);
+                left.Children.Add(heading);
+            }
 
-        left.Children.Add(list);
+            if (group.Caption is { } caption)
+            {
+                left.Children.Add(new TextBlock { Text = caption, TextWrapping = TextWrapping.Wrap, Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush("TasktorInk2Brush") });
+            }
+
+            left.Children.Add(ModuleList(group.Rows));
+        }
 
         DrawRules(right);
         DrawPlugins(right);
@@ -876,6 +872,31 @@ public sealed partial class MainWindow : Window
             Grid.SetRow(right, narrow ? 1 : 0);
         };
         PageContent.Children.Add(columns);
+    }
+
+    /// <summary>One Module group's rows: name, what it reads (or a restart note), and its switch.</summary>
+    private StackPanel ModuleList(IReadOnlyList<ModuleRow> rows)
+    {
+        var list = new StackPanel();
+        foreach (var row in rows)
+        {
+            var grid = new Grid { MinHeight = 56 };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = row.Info.Name, Style = StyleOf("TasktorBodyTextStyle"), Foreground = ThemeBrush("TasktorInkBrush") });
+            text.Children.Add(new TextBlock { Text = row.Note ?? row.Info.Reads, TextWrapping = TextWrapping.Wrap, Style = StyleOf("TasktorCaptionTextStyle"), Foreground = ThemeBrush("TasktorInk3Brush") });
+            grid.Children.Add(text);
+            var toggle = new ToggleSwitch { IsOn = row.On, IsEnabled = _modules is not null, OnContent = "On", OffContent = "Off", VerticalAlignment = VerticalAlignment.Center };
+            AutomationProperties.SetName(toggle, row.Info.Name);
+            toggle.Toggled += async (_, _) => await ToggleModuleAsync(row, toggle);
+            Grid.SetColumn(toggle, 1);
+            grid.Children.Add(toggle);
+            list.Children.Add(grid);
+            list.Children.Add(new Border { Height = 1, Background = ThemeBrush("TasktorRuleBrush") });
+        }
+
+        return list;
     }
 
     /// <summary>Settings → Windows (U3 / U4): the window switcher's shortcut and "this desktop only", while its Module is on.</summary>

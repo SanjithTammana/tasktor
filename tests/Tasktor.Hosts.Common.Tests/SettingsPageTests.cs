@@ -28,6 +28,25 @@ public sealed class SettingsPageTests
     }
 
     [Fact]
+    public void Modules_are_grouped_core_first_with_parked_ones_under_extras()
+    {
+        // 2026-11-13 decisions: capture is a main feature; focus is packed and the switcher and presets are parked, so they
+        // sit under Extras (kept working, no new work) instead of beside the core Modules.
+        var groups = SettingsPage.ModuleGroups(null);
+        Assert.Equal(["Modules", "For developers", "Extras"], groups.Select(g => g.Title));
+        Assert.Contains(groups[0].Rows, r => r.Info.Id == "capture");
+        Assert.Equal(["ports", "folders"], groups[1].Rows.Select(r => r.Info.Id));
+        foreach (var id in new[] { "focus", "presets", "switcher" })
+        {
+            Assert.Contains(groups[2].Rows, r => r.Info.Id == id);
+        }
+
+        Assert.NotNull(groups[2].Caption);
+        var all = groups.SelectMany(g => g.Rows).Select(r => r.Info.Id).ToList();
+        Assert.Equal(ModuleCatalog.All.Select(m => m.Id).Order(), all.Order()); // every Module exactly once
+    }
+
+    [Fact]
     public void Capture_is_never_turned_on_from_the_switch()
     {
         var rows = SettingsPage.Modules(null);
