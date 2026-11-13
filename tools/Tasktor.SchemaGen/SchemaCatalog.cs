@@ -7,8 +7,11 @@ using Tasktor.Contracts.Cards;
 
 namespace Tasktor.SchemaGen;
 
-/// <summary>One public schema file: its name (<c>schemas/&lt;file&gt;</c>), contract id and root type.</summary>
-public sealed record SchemaEntry(string File, string ContractId, string Title, JsonTypeInfo TypeInfo);
+/// <summary>
+/// One public schema file: its name (<c>schemas/&lt;file&gt;</c>), contract id and root type. A <paramref name="Frozen"/>
+/// file is a published major kept exactly as released: never regenerated, while its fixtures must still parse.
+/// </summary>
+public sealed record SchemaEntry(string File, string ContractId, string Title, JsonTypeInfo TypeInfo, bool Frozen = false);
 
 /// <summary>Generates the JSON Schemas for every public contract from the C# records (U1 D-H1).</summary>
 public static class SchemaCatalog
@@ -18,9 +21,11 @@ public static class SchemaCatalog
     private static List<SchemaEntry> Build()
     {
         var c = ContractsJsonContext.Default;
+        var strict = ContractsJsonContext.Strict;
         return
         [
-            new("tasktor.browser-1.json", ContractIds.Browser, "Tasktor browser messages", c.BrowserMessage),
+            new("tasktor.browser-1.json", ContractIds.Browser, "Tasktor browser messages", c.BrowserMessage, Frozen: true),
+            new("tasktor.browser-2.json", ContractIds.Browser2, "Tasktor browser messages", c.BrowserMessage),
             new("tasktor.snapshot-1.json", ContractIds.Snapshot, "Tasktor snapshot (state + cards)", c.Snapshot),
             new("tasktor.action-request-1.json", ContractIds.Action, "Tasktor action request", c.ActionRequest),
             new("tasktor.action-result-1.json", ContractIds.Action, "Tasktor action result", c.ActionResult),
@@ -28,6 +33,9 @@ public static class SchemaCatalog
             new("tasktor.plugin-1.json", ContractIds.Plugin, "Tasktor plugin manifest (plugin.json)", c.PluginManifest),
             new("tasktor.plugin-input-1.json", ContractIds.Plugin, "Tasktor plugin input (stdin)", c.PluginInput),
             new("tasktor.plugin-output-1.json", ContractIds.Plugin, "Tasktor plugin output (stdout)", c.PluginOutput),
+            new("tasktor.plugin-2.json", ContractIds.Plugin2, "Tasktor plugin manifest, contract 2 (plugin.json)", strict.PluginManifest2),
+            new("tasktor.plugin-input-2.json", ContractIds.Plugin2, "Tasktor plugin input, contract 2 (stdin)", strict.PluginInput2),
+            new("tasktor.plugin-output-2.json", ContractIds.Plugin2, "Tasktor plugin output, contract 2 (stdout)", strict.PluginOutput2),
             new("tasktor.pack-1.json", ContractIds.Plugin, "Tasktor plugin pack (pack.json)", c.PackManifest),
             new("tasktor.job-1.json", ContractIds.Job, "Tasktor job progress file (jobs/<id>.json)", c.ProgressFile),
             new("tasktor.agent-1.json", ContractIds.Agent, "Tasktor agent hook file (agents/<session>.json)", c.AgentHookFile),

@@ -1,0 +1,12 @@
+{
+  "contract": 2,
+  "call": "submit",
+  "now": "2026-11-13T20:26:10Z",
+  "granted": [ "page", "notify", "timer", "state" ],
+  "action": "notes",
+  "form": { "note": "Finished the parser.\nNext: tests for contract 2." },
+  "events_dropped": 0,
+  "settings": {},
+  "snapshot_path": "C:\\Tasktor\\snapshot.json",
+  "data_dir": "C:\\Tasktor\\plugin-data\\tasktor.focus"
+}

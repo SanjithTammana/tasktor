@@ -12,7 +12,7 @@ internal static class Program
         var dir = args.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal)) ?? FindSchemasDir();
         Directory.CreateDirectory(dir);
         var stale = 0;
-        foreach (var entry in SchemaCatalog.Entries)
+        foreach (var entry in SchemaCatalog.Entries.Where(e => !e.Frozen))
         {
             var path = Path.Combine(dir, entry.File);
             var text = SchemaCatalog.Generate(entry);

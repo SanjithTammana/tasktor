@@ -1,0 +1,2190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tasktor:schema:tasktor.browser-2.json",
+  "title": "Tasktor browser messages",
+  "description": "Contract tasktor.browser/2. Generated from the C# records in Tasktor.Contracts; do not edit by hand.",
+  "type": "object",
+  "required": [
+    "type"
+  ],
+  "anyOf": [
+    {
+      "properties": {
+        "type": {
+          "const": "hello"
+        },
+        "contract": {
+          "type": "integer"
+        },
+        "client": {
+          "type": "string"
+        },
+        "browser": {
+          "type": "string"
+        },
+        "extension_version": {
+          "type": "string"
+        },
+        "incognito": {
+          "type": "boolean"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "contract",
+        "client",
+        "browser",
+        "extension_version",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "tab"
+        },
+        "tab": {
+          "type": "integer"
+        },
+        "window": {
+          "type": "integer"
+        },
+        "host": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-z0-9.-]{1,253}$"
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "audible": {
+          "type": "boolean"
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "incognito": {
+          "type": "boolean"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "tab",
+        "window",
+        "active",
+        "audible",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "focus"
+        },
+        "tab": {
+          "type": "integer"
+        },
+        "field": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "tab",
+        "field",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "visibility"
+        },
+        "tab": {
+          "type": "integer"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "tab",
+        "visible",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "tab_closed"
+        },
+        "tab": {
+          "type": "integer"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "tab",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "text"
+        },
+        "tab": {
+          "type": "integer"
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "tab",
+        "lines",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "media"
+        },
+        "tab": {
+          "type": "integer"
+        },
+        "playing": {
+          "type": "boolean"
+        },
+        "position_s": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "tab",
+        "playing",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "block_request"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "op": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "host": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-z0-9.-]{1,253}$"
+        },
+        "tab": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "minutes": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "request_id",
+        "op",
+        "kind",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "welcome"
+        },
+        "contract": {
+          "type": "integer"
+        },
+        "blocks": {
+          "type": "object",
+          "properties": {
+            "paused": {
+              "type": "boolean"
+            },
+            "paused_until": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            },
+            "excluded_hosts": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "paused_tabs": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
+          },
+          "required": [
+            "paused",
+            "excluded_hosts",
+            "paused_tabs"
+          ]
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "contract",
+        "blocks",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "blocks"
+        },
+        "state": {
+          "type": "object",
+          "properties": {
+            "paused": {
+              "type": "boolean"
+            },
+            "paused_until": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            },
+            "excluded_hosts": {
+              "$ref": "#/anyOf/8/properties/blocks/properties/excluded_hosts"
+            },
+            "paused_tabs": {
+              "$ref": "#/anyOf/8/properties/blocks/properties/paused_tabs"
+            }
+          },
+          "required": [
+            "paused",
+            "excluded_hosts",
+            "paused_tabs"
+          ]
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "state",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "ack"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "request_id",
+        "ok",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "site_blocks"
+        },
+        "blocks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "plugin": {
+                "type": "string"
+              },
+              "plugin_name": {
+                "type": "string"
+              },
+              "hosts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "until": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "plugin",
+              "plugin_name",
+              "hosts",
+              "until"
+            ]
+          }
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "blocks",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "site_unblock"
+        },
+        "plugin": {
+          "type": "string"
+        },
+        "host": {
+          "type": "string",
+          "pattern": "^[a-z0-9.-]{1,253}$"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "plugin",
+        "host",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "popup_cards"
+        },
+        "cards": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "plugin": {
+                "type": "string"
+              },
+              "plugin_name": {
+                "type": "string"
+              },
+              "card": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "enum": [
+                          "core",
+                          "module",
+                          "plugin"
+                        ]
+                      },
+                      "plugin": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "name": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "icon": {
+                    "enum": [
+                      "none",
+                      "cpu",
+                      "ram",
+                      "gpu",
+                      "disk",
+                      "network",
+                      "battery",
+                      "apps",
+                      "jobs",
+                      "workflow",
+                      "list",
+                      "calendar",
+                      "clock",
+                      "alert",
+                      "plugin",
+                      "folder",
+                      "git",
+                      "focus",
+                      "windows",
+                      "capture",
+                      "shield",
+                      "power",
+                      "ports",
+                      "agent",
+                      "note",
+                      "info",
+                      null
+                    ]
+                  },
+                  "severity": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "bind": {
+                            "type": "string",
+                            "pattern": "^(/.*)?$"
+                          }
+                        },
+                        "required": [
+                          "bind"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": [
+                          "number",
+                          "string",
+                          "boolean",
+                          "array",
+                          "null"
+                        ]
+                      }
+                    ]
+                  },
+                  "blocks": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "kind"
+                      ],
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "kind": {
+                              "const": "Metric"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "unit": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "trend": {
+                              "enum": [
+                                "flat",
+                                "up",
+                                "down",
+                                null
+                              ]
+                            },
+                            "priority": {
+                              "type": "integer"
+                            },
+                            "severity": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "accent": {
+                              "enum": [
+                                "neutral",
+                                "primary",
+                                "positive",
+                                "caution",
+                                "negative",
+                                "info",
+                                null
+                              ]
+                            },
+                            "icon": {
+                              "enum": [
+                                "none",
+                                "cpu",
+                                "ram",
+                                "gpu",
+                                "disk",
+                                "network",
+                                "battery",
+                                "apps",
+                                "jobs",
+                                "workflow",
+                                "list",
+                                "calendar",
+                                "clock",
+                                "alert",
+                                "plugin",
+                                "folder",
+                                "git",
+                                "focus",
+                                "windows",
+                                "capture",
+                                "shield",
+                                "power",
+                                "ports",
+                                "agent",
+                                "note",
+                                "info",
+                                null
+                              ]
+                            }
+                          },
+                          "required": [
+                            "label",
+                            "value"
+                          ]
+                        },
+                        {
+                          "properties": {
+                            "kind": {
+                              "const": "Sparkline"
+                            },
+                            "label": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "series": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "points": {
+                              "type": [
+                                "array",
+                                "null"
+                              ],
+                              "items": {
+                                "type": "number"
+                              }
+                            },
+                            "unit": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "priority": {
+                              "type": "integer"
+                            },
+                            "severity": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "accent": {
+                              "enum": [
+                                "neutral",
+                                "primary",
+                                "positive",
+                                "caution",
+                                "negative",
+                                "info",
+                                null
+                              ]
+                            },
+                            "icon": {
+                              "enum": [
+                                "none",
+                                "cpu",
+                                "ram",
+                                "gpu",
+                                "disk",
+                                "network",
+                                "battery",
+                                "apps",
+                                "jobs",
+                                "workflow",
+                                "list",
+                                "calendar",
+                                "clock",
+                                "alert",
+                                "plugin",
+                                "folder",
+                                "git",
+                                "focus",
+                                "windows",
+                                "capture",
+                                "shield",
+                                "power",
+                                "ports",
+                                "agent",
+                                "note",
+                                "info",
+                                null
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "properties": {
+                            "kind": {
+                              "const": "Bar"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "max": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "unit": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "text": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "priority": {
+                              "type": "integer"
+                            },
+                            "severity": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "accent": {
+                              "enum": [
+                                "neutral",
+                                "primary",
+                                "positive",
+                                "caution",
+                                "negative",
+                                "info",
+                                null
+                              ]
+                            },
+                            "icon": {
+                              "enum": [
+                                "none",
+                                "cpu",
+                                "ram",
+                                "gpu",
+                                "disk",
+                                "network",
+                                "battery",
+                                "apps",
+                                "jobs",
+                                "workflow",
+                                "list",
+                                "calendar",
+                                "clock",
+                                "alert",
+                                "plugin",
+                                "folder",
+                                "git",
+                                "focus",
+                                "windows",
+                                "capture",
+                                "shield",
+                                "power",
+                                "ports",
+                                "agent",
+                                "note",
+                                "info",
+                                null
+                              ]
+                            }
+                          },
+                          "required": [
+                            "label",
+                            "value"
+                          ]
+                        },
+                        {
+                          "properties": {
+                            "kind": {
+                              "const": "Gauge"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "min": {
+                              "type": "number"
+                            },
+                            "max": {
+                              "type": "number"
+                            },
+                            "unit": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "priority": {
+                              "type": "integer"
+                            },
+                            "severity": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "accent": {
+                              "enum": [
+                                "neutral",
+                                "primary",
+                                "positive",
+                                "caution",
+                                "negative",
+                                "info",
+                                null
+                              ]
+                            },
+                            "icon": {
+                              "enum": [
+                                "none",
+                                "cpu",
+                                "ram",
+                                "gpu",
+                                "disk",
+                                "network",
+                                "battery",
+                                "apps",
+                                "jobs",
+                                "workflow",
+                                "list",
+                                "calendar",
+                                "clock",
+                                "alert",
+                                "plugin",
+                                "folder",
+                                "git",
+                                "focus",
+                                "windows",
+                                "capture",
+                                "shield",
+                                "power",
+                                "ports",
+                                "agent",
+                                "note",
+                                "info",
+                                null
+                              ]
+                            }
+                          },
+                          "required": [
+                            "label",
+                            "value"
+                          ]
+                        },
+                        {
+                          "properties": {
+                            "kind": {
+                              "const": "Table"
+                            },
+                            "label": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "columns": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "unit": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "key",
+                                  "label"
+                                ]
+                              }
+                            },
+                            "rows": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "max": {
+                              "type": [
+                                "integer",
+                                "null"
+                              ]
+                            },
+                            "row_key": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "priority": {
+                              "type": "integer"
+                            },
+                            "severity": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "accent": {
+                              "enum": [
+                                "neutral",
+                                "primary",
+                                "positive",
+                                "caution",
+                                "negative",
+                                "info",
+                                null
+                              ]
+                            },
+                            "icon": {
+                              "enum": [
+                                "none",
+                                "cpu",
+                                "ram",
+                                "gpu",
+                                "disk",
+                                "network",
+                                "battery",
+                                "apps",
+                                "jobs",
+                                "workflow",
+                                "list",
+                                "calendar",
+                                "clock",
+                                "alert",
+                                "plugin",
+                                "folder",
+                                "git",
+                                "focus",
+                                "windows",
+                                "capture",
+                                "shield",
+                                "power",
+                                "ports",
+                                "agent",
+                                "note",
+                                "info",
+                                null
+                              ]
+                            }
+                          },
+                          "required": [
+                            "columns",
+                            "rows"
+                          ]
+                        },
+                        {
+                          "properties": {
+                            "kind": {
+                              "const": "List"
+                            },
+                            "label": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "max": {
+                              "type": [
+                                "integer",
+                                "null"
+                              ]
+                            },
+                            "priority": {
+                              "type": "integer"
+                            },
+                            "severity": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "accent": {
+                              "enum": [
+                                "neutral",
+                                "primary",
+                                "positive",
+                                "caution",
+                                "negative",
+                                "info",
+                                null
+                              ]
+                            },
+                            "icon": {
+                              "enum": [
+                                "none",
+                                "cpu",
+                                "ram",
+                                "gpu",
+                                "disk",
+                                "network",
+                                "battery",
+                                "apps",
+                                "jobs",
+                                "workflow",
+                                "list",
+                                "calendar",
+                                "clock",
+                                "alert",
+                                "plugin",
+                                "folder",
+                                "git",
+                                "focus",
+                                "windows",
+                                "capture",
+                                "shield",
+                                "power",
+                                "ports",
+                                "agent",
+                                "note",
+                                "info",
+                                null
+                              ]
+                            }
+                          },
+                          "required": [
+                            "items"
+                          ]
+                        },
+                        {
+                          "properties": {
+                            "kind": {
+                              "const": "Progress"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "pct": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "done": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "total": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "unit": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "text": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "priority": {
+                              "type": "integer"
+                            },
+                            "severity": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "accent": {
+                              "enum": [
+                                "neutral",
+                                "primary",
+                                "positive",
+                                "caution",
+                                "negative",
+                                "info",
+                                null
+                              ]
+                            },
+                            "icon": {
+                              "enum": [
+                                "none",
+                                "cpu",
+                                "ram",
+                                "gpu",
+                                "disk",
+                                "network",
+                                "battery",
+                                "apps",
+                                "jobs",
+                                "workflow",
+                                "list",
+                                "calendar",
+                                "clock",
+                                "alert",
+                                "plugin",
+                                "folder",
+                                "git",
+                                "focus",
+                                "windows",
+                                "capture",
+                                "shield",
+                                "power",
+                                "ports",
+                                "agent",
+                                "note",
+                                "info",
+                                null
+                              ]
+                            }
+                          },
+                          "required": [
+                            "label"
+                          ]
+                        },
+                        {
+                          "properties": {
+                            "kind": {
+                              "const": "Tree"
+                            },
+                            "label": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "table": {
+                              "type": "string"
+                            },
+                            "columns": {
+                              "type": [
+                                "array",
+                                "null"
+                              ],
+                              "items": {
+                                "$ref": "#/anyOf/13/properties/cards/items/properties/card/properties/blocks/items/anyOf/4/properties/columns/items"
+                              }
+                            },
+                            "priority": {
+                              "type": "integer"
+                            },
+                            "severity": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "accent": {
+                              "enum": [
+                                "neutral",
+                                "primary",
+                                "positive",
+                                "caution",
+                                "negative",
+                                "info",
+                                null
+                              ]
+                            },
+                            "icon": {
+                              "enum": [
+                                "none",
+                                "cpu",
+                                "ram",
+                                "gpu",
+                                "disk",
+                                "network",
+                                "battery",
+                                "apps",
+                                "jobs",
+                                "workflow",
+                                "list",
+                                "calendar",
+                                "clock",
+                                "alert",
+                                "plugin",
+                                "folder",
+                                "git",
+                                "focus",
+                                "windows",
+                                "capture",
+                                "shield",
+                                "power",
+                                "ports",
+                                "agent",
+                                "note",
+                                "info",
+                                null
+                              ]
+                            }
+                          },
+                          "required": [
+                            "table"
+                          ]
+                        },
+                        {
+                          "properties": {
+                            "kind": {
+                              "const": "Alert"
+                            },
+                            "text": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "priority": {
+                              "type": "integer"
+                            },
+                            "severity": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "accent": {
+                              "enum": [
+                                "neutral",
+                                "primary",
+                                "positive",
+                                "caution",
+                                "negative",
+                                "info",
+                                null
+                              ]
+                            },
+                            "icon": {
+                              "enum": [
+                                "none",
+                                "cpu",
+                                "ram",
+                                "gpu",
+                                "disk",
+                                "network",
+                                "battery",
+                                "apps",
+                                "jobs",
+                                "workflow",
+                                "list",
+                                "calendar",
+                                "clock",
+                                "alert",
+                                "plugin",
+                                "folder",
+                                "git",
+                                "focus",
+                                "windows",
+                                "capture",
+                                "shield",
+                                "power",
+                                "ports",
+                                "agent",
+                                "note",
+                                "info",
+                                null
+                              ]
+                            }
+                          },
+                          "required": [
+                            "text"
+                          ]
+                        },
+                        {
+                          "properties": {
+                            "kind": {
+                              "const": "Badge"
+                            },
+                            "text": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "priority": {
+                              "type": "integer"
+                            },
+                            "severity": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "accent": {
+                              "enum": [
+                                "neutral",
+                                "primary",
+                                "positive",
+                                "caution",
+                                "negative",
+                                "info",
+                                null
+                              ]
+                            },
+                            "icon": {
+                              "enum": [
+                                "none",
+                                "cpu",
+                                "ram",
+                                "gpu",
+                                "disk",
+                                "network",
+                                "battery",
+                                "apps",
+                                "jobs",
+                                "workflow",
+                                "list",
+                                "calendar",
+                                "clock",
+                                "alert",
+                                "plugin",
+                                "folder",
+                                "git",
+                                "focus",
+                                "windows",
+                                "capture",
+                                "shield",
+                                "power",
+                                "ports",
+                                "agent",
+                                "note",
+                                "info",
+                                null
+                              ]
+                            }
+                          },
+                          "required": [
+                            "text"
+                          ]
+                        },
+                        {
+                          "properties": {
+                            "kind": {
+                              "const": "Countdown"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "until": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "priority": {
+                              "type": "integer"
+                            },
+                            "severity": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "accent": {
+                              "enum": [
+                                "neutral",
+                                "primary",
+                                "positive",
+                                "caution",
+                                "negative",
+                                "info",
+                                null
+                              ]
+                            },
+                            "icon": {
+                              "enum": [
+                                "none",
+                                "cpu",
+                                "ram",
+                                "gpu",
+                                "disk",
+                                "network",
+                                "battery",
+                                "apps",
+                                "jobs",
+                                "workflow",
+                                "list",
+                                "calendar",
+                                "clock",
+                                "alert",
+                                "plugin",
+                                "folder",
+                                "git",
+                                "focus",
+                                "windows",
+                                "capture",
+                                "shield",
+                                "power",
+                                "ports",
+                                "agent",
+                                "note",
+                                "info",
+                                null
+                              ]
+                            }
+                          },
+                          "required": [
+                            "label",
+                            "until"
+                          ]
+                        },
+                        {
+                          "properties": {
+                            "kind": {
+                              "const": "Actions"
+                            },
+                            "actions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "priority": {
+                              "type": "integer"
+                            },
+                            "severity": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "bind": {
+                                      "type": "string",
+                                      "pattern": "^(/.*)?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "bind"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": [
+                                    "number",
+                                    "string",
+                                    "boolean",
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              ]
+                            },
+                            "accent": {
+                              "enum": [
+                                "neutral",
+                                "primary",
+                                "positive",
+                                "caution",
+                                "negative",
+                                "info",
+                                null
+                              ]
+                            },
+                            "icon": {
+                              "enum": [
+                                "none",
+                                "cpu",
+                                "ram",
+                                "gpu",
+                                "disk",
+                                "network",
+                                "battery",
+                                "apps",
+                                "jobs",
+                                "workflow",
+                                "list",
+                                "calendar",
+                                "clock",
+                                "alert",
+                                "plugin",
+                                "folder",
+                                "git",
+                                "focus",
+                                "windows",
+                                "capture",
+                                "shield",
+                                "power",
+                                "ports",
+                                "agent",
+                                "note",
+                                "info",
+                                null
+                              ]
+                            }
+                          },
+                          "required": [
+                            "actions"
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  "actions": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "priority": {
+                          "type": "integer"
+                        },
+                        "action": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "target": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "args": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "destructive": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "noun": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "label"
+                      ]
+                    }
+                  },
+                  "link": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "stale_after_s": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "updated_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title",
+                  "blocks"
+                ]
+              }
+            },
+            "required": [
+              "plugin",
+              "plugin_name",
+              "card"
+            ]
+          }
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "cards",
+        "at"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "popup_action"
+        },
+        "plugin": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "plugin",
+        "action",
+        "at"
+      ]
+    }
+  ]
+}

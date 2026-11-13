@@ -1,0 +1,18 @@
+{
+  "contract": 2,
+  "call": "event",
+  "now": "2026-11-13T20:30:02Z",
+  "granted": [ "events:process", "events:network", "browser:tabs", "capture:browser" ],
+  "events": [
+    { "kind": "process_started", "at": "2026-11-13T20:30:00Z", "exe": "python.exe", "pid": 4120, "created": 134390718000000000 },
+    { "kind": "process_exited", "at": "2026-11-13T20:30:00Z", "exe": "node.exe", "pid": 3900, "exit_code": 0 },
+    { "kind": "network", "at": "2026-11-13T20:30:01Z", "connected": true, "captive_portal": false, "metered": false },
+    { "kind": "browser_tab", "at": "2026-11-13T20:30:01Z", "host": "docs.python.org", "title": "json — JSON encoder and decoder", "incognito": false },
+    { "kind": "browser_text", "at": "2026-11-13T20:30:01Z", "host": "docs.python.org", "url": "https://docs.python.org/3/library/json.html",
+      "lines": [ "json — JSON encoder and decoder", "Source code: Lib/json/__init__.py" ] }
+  ],
+  "events_dropped": 2,
+  "settings": {},
+  "snapshot_path": "C:\\Tasktor\\snapshot.json",
+  "data_dir": "C:\\Tasktor\\plugin-data\\reading-list"
+}

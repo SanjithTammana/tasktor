@@ -55,6 +55,9 @@ namespace Tasktor.Contracts;
 [JsonSerializable(typeof(PluginManifest))]
 [JsonSerializable(typeof(PluginInput))]
 [JsonSerializable(typeof(PluginOutput))]
+[JsonSerializable(typeof(PluginManifest2))]
+[JsonSerializable(typeof(PluginInput2))]
+[JsonSerializable(typeof(PluginOutput2))]
 [JsonSerializable(typeof(PackManifest))]
 [JsonSerializable(typeof(ProgressFile))]
 [JsonSerializable(typeof(JobControlFile))]
@@ -81,4 +84,13 @@ public sealed partial class ContractsJsonContext : JsonSerializerContext
     /// <summary>The same context, writing indented JSON (for files people read).</summary>
     public static ContractsJsonContext Indented =>
         s_indented ??= new ContractsJsonContext(new JsonSerializerOptions(Default.Options) { WriteIndented = true });
+
+    private static ContractsJsonContext? s_strict;
+
+    /// <summary>
+    /// The same context, refusing unknown fields at every depth: plugin contract 2 reads with it, so a typo cannot quietly
+    /// drop or widen a permission (<see cref="ContractSpelling"/> words the refusal).
+    /// </summary>
+    public static ContractsJsonContext Strict =>
+        s_strict ??= new ContractsJsonContext(new JsonSerializerOptions(Default.Options) { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow });
 }

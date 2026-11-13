@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tasktor:schema:tasktor.plugin-2.json",
+  "title": "Tasktor plugin manifest, contract 2 (plugin.json)",
+  "description": "Contract tasktor.plugin/2. Generated from the C# records in Tasktor.Contracts; do not edit by hand.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "contract": {
+      "type": "integer"
+    },
+    "id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "author": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "command": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "interval": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "timeout": {
+      "type": "string"
+    },
+    "reads": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "network": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "capabilities": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "enum": [
+          "page",
+          "notify",
+          "timer",
+          "state",
+          "events:process",
+          "events:foreground",
+          "events:network",
+          "events:windows",
+          "read:listeners",
+          "read:jobs",
+          "act:job",
+          "act:arrange",
+          "browser:tabs",
+          "browser:block",
+          "browser:card",
+          "capture:browser",
+          "resident"
+        ]
+      }
+    },
+    "watch_exes": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "settings": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "string",
+              "path",
+              "bool",
+              "number",
+              "choice",
+              "secret"
+            ]
+          },
+          "default": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "choices": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "type"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "actions": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "class": {
+            "enum": [
+              "read",
+              "reversible",
+              "destructive"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "class"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "min_tasktor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "contract",
+    "id",
+    "name",
+    "version",
+    "command",
+    "timeout",
+    "reads",
+    "network"
+  ],
+  "additionalProperties": false
+}

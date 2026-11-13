@@ -64,6 +64,11 @@ public sealed class GSchemaTests
         {
             var path = Path.Combine(RepoPaths.Schemas, entry.File);
             Assert.True(File.Exists(path), "missing " + path + " (run: dotnet run --project tools/Tasktor.SchemaGen)");
+            if (entry.Frozen)
+            {
+                continue; // published as released; PluginContract2Tests pins its bytes
+            }
+
             var committed = File.ReadAllText(path).Replace("\r\n", "\n", StringComparison.Ordinal);
             Assert.True(committed == SchemaCatalog.Generate(entry), entry.File + " is stale (run: dotnet run --project tools/Tasktor.SchemaGen)");
         }
@@ -85,6 +90,10 @@ public sealed class GSchemaTests
     [InlineData("tasktor.rules-1.json", "no-when.json")]
     [InlineData("tasktor.agent-1.json", "bad-state.json")]
     [InlineData("tasktor.job-1.json", "bad-state.json")]
+    [InlineData("tasktor.plugin-2.json", "unknown-capability.json")]
+    [InlineData("tasktor.plugin-2.json", "misspelled-field.json")]
+    [InlineData("tasktor.plugin-2.json", "nested-unknown-field.json")]
+    [InlineData("tasktor.plugin-output-2.json", "unknown-field.json")]
     public void Invalid_fixture_is_rejected_by_csharp_too(string schemaFile, string fixture)
     {
         var entry = SchemaCatalog.Entries.Single(e => e.File == schemaFile);

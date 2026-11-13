@@ -1,0 +1,7 @@
+{
+  "type": "site_blocks",
+  "at": "2026-11-13T20:25:01Z",
+  "blocks": [
+    { "plugin": "tasktor.focus", "plugin_name": "Focus", "hosts": [ "youtube.com", "reddit.com" ], "until": "2026-11-13T20:50:00Z" }
+  ]
+}

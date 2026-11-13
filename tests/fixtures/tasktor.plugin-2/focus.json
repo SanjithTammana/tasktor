@@ -1,0 +1,26 @@
+{
+  "contract": 2,
+  "id": "tasktor.focus",
+  "name": "Focus",
+  "version": "2.0.0",
+  "author": "Tasktor",
+  "description": "Focus blocks with breaks, notes per block, and optional site blocking while a block runs.",
+  "command": [ "{python}", "main.py" ],
+  "timeout": "10s",
+  "reads": [ "Your focus blocks and the notes you write (kept in its own folder)" ],
+  "network": [],
+  "capabilities": [ "page", "notify", "timer", "state", "read:jobs", "act:job", "browser:block", "browser:card" ],
+  "settings": [
+    { "key": "block_minutes", "label": "Block length (minutes)", "type": "number", "default": "25" },
+    { "key": "break_minutes", "label": "Break length (minutes)", "type": "number", "default": "5" },
+    { "key": "blocked_sites", "label": "Sites to block during a block (one per line)", "type": "string" },
+    { "key": "pause_jobs", "label": "Pause busy jobs during a block", "type": "bool", "default": "false" }
+  ],
+  "actions": [
+    { "id": "start", "label": "Start", "class": "reversible" },
+    { "id": "skip", "label": "Skip", "class": "reversible" },
+    { "id": "stop", "label": "Stop", "class": "reversible" },
+    { "id": "extend", "label": "+5 min", "class": "reversible" }
+  ],
+  "min_tasktor": "1.1"
+}

@@ -1,0 +1,11 @@
+{
+  "contract": 2,
+  "id": "x",
+  "name": "X",
+  "version": "1.0.0",
+  "command": [ "x.exe" ],
+  "timeout": "5s",
+  "reads": [],
+  "network": [],
+  "capabilities": [ "process:end" ]
+}

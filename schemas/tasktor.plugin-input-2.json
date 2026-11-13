@@ -1,0 +1,396 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tasktor:schema:tasktor.plugin-input-2.json",
+  "title": "Tasktor plugin input, contract 2 (stdin)",
+  "description": "Contract tasktor.plugin/2. Generated from the C# records in Tasktor.Contracts; do not edit by hand.",
+  "type": "object",
+  "properties": {
+    "contract": {
+      "type": "integer"
+    },
+    "call": {
+      "enum": [
+        "render",
+        "action",
+        "timer",
+        "event",
+        "submit"
+      ]
+    },
+    "now": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "granted": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "page",
+          "notify",
+          "timer",
+          "state",
+          "events:process",
+          "events:foreground",
+          "events:network",
+          "events:windows",
+          "read:listeners",
+          "read:jobs",
+          "act:job",
+          "act:arrange",
+          "browser:tabs",
+          "browser:block",
+          "browser:card",
+          "capture:browser",
+          "resident"
+        ]
+      }
+    },
+    "action": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "args": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "form": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "events": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "anyOf": [
+          {
+            "properties": {
+              "kind": {
+                "const": "process_started"
+              },
+              "exe": {
+                "type": "string"
+              },
+              "pid": {
+                "type": "integer"
+              },
+              "created": {
+                "type": "integer"
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "exe",
+              "pid",
+              "at"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "process_exited"
+              },
+              "exe": {
+                "type": "string"
+              },
+              "pid": {
+                "type": "integer"
+              },
+              "exit_code": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "exe",
+              "pid",
+              "at"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "foreground"
+              },
+              "exe": {
+                "type": "string"
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "exe",
+              "at"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "network"
+              },
+              "connected": {
+                "type": "boolean"
+              },
+              "captive_portal": {
+                "type": "boolean"
+              },
+              "metered": {
+                "type": "boolean"
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "connected",
+              "at"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "window"
+              },
+              "exe": {
+                "type": "string"
+              },
+              "opened": {
+                "type": "boolean"
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "exe",
+              "opened",
+              "at"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "browser_tab"
+              },
+              "host": {
+                "type": "string",
+                "pattern": "^[a-z0-9.-]{1,253}$"
+              },
+              "title": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "incognito": {
+                "type": "boolean"
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "host",
+              "at"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "browser_text"
+              },
+              "host": {
+                "type": "string",
+                "pattern": "^[a-z0-9.-]{1,253}$"
+              },
+              "url": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "lines": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "host",
+              "lines",
+              "at"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "events_dropped": {
+      "type": "integer"
+    },
+    "results": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "waiting",
+              "refused",
+              "failed"
+            ]
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "state": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "jobs": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "pct": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "listeners": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "port": {
+            "type": "integer"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "exe": {
+            "type": "string"
+          },
+          "pid": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "port",
+          "protocol",
+          "exe"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "settings": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "snapshot_path": {
+      "type": "string"
+    },
+    "data_dir": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "contract",
+    "call",
+    "now",
+    "granted",
+    "settings",
+    "snapshot_path",
+    "data_dir"
+  ],
+  "additionalProperties": false
+}

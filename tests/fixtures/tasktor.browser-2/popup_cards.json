@@ -1,0 +1,16 @@
+{
+  "type": "popup_cards",
+  "at": "2026-11-13T20:25:01Z",
+  "cards": [
+    {
+      "plugin": "tasktor.focus",
+      "plugin_name": "Focus",
+      "card": {
+        "id": "now",
+        "title": "Focus",
+        "blocks": [ { "kind": "Countdown", "priority": 1, "label": "Block ends", "until": "2026-11-13T20:50:00Z" } ],
+        "actions": [ { "id": "skip", "label": "Skip", "priority": 1 } ]
+      }
+    }
+  ]
+}

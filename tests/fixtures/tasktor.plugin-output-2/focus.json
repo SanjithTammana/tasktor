@@ -1,0 +1,44 @@
+{
+  "contract": 2,
+  "cards": [
+    {
+      "id": "now",
+      "title": "Focus",
+      "blocks": [
+        { "kind": "Countdown", "priority": 1, "label": "Break ends", "until": "2026-11-13T20:30:00Z" },
+        { "kind": "Metric", "priority": 2, "label": "Blocks today", "value": 3 }
+      ],
+      "actions": [ { "id": "skip", "label": "Skip", "priority": 1 }, { "id": "stop", "label": "Stop", "priority": 2 } ]
+    }
+  ],
+  "browser_card": "now",
+  "page": {
+    "title": "Focus",
+    "sections": [
+      {
+        "heading": "Now",
+        "blocks": [ { "kind": "Countdown", "priority": 1, "label": "Break ends", "until": "2026-11-13T20:30:00Z" } ],
+        "actions": [ { "id": "skip", "label": "Skip", "priority": 1 }, { "id": "extend", "label": "+5 min", "priority": 2 } ]
+      },
+      {
+        "heading": "Notes for block 3",
+        "form": {
+          "id": "notes",
+          "fields": [ { "key": "note", "label": "Notes", "type": "text", "value": "", "max_length": 65536 } ],
+          "submit_label": "Save notes"
+        }
+      }
+    ]
+  },
+  "notify": [ { "id": "phase", "title": "Block 3 done", "body": "Break until 20:30.", "buttons": [ "skip", "extend" ] } ],
+  "wake_at": "2026-11-13T20:30:00Z",
+  "clear_wake": false,
+  "state": { "phase": "break", "block": 3, "running": true },
+  "requests": [
+    { "kind": "browser.unblock", "id": "unblock-3" },
+    { "kind": "browser.block", "id": "block-4", "hosts": [ "youtube.com", "reddit.com" ], "until": "2026-11-13T20:55:00Z" },
+    { "kind": "job.pause", "id": "pause-train", "job": "p100-134390696410359444", "mode": "polite" },
+    { "kind": "job.resume", "id": "resume-train", "job": "p100-134390696410359444" },
+    { "kind": "arrange", "id": "layout", "preset": "Deep work" }
+  ]
+}

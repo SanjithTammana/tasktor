@@ -1,0 +1,16 @@
+{
+  "contract": 2,
+  "call": "timer",
+  "now": "2026-11-13T20:25:00Z",
+  "granted": [ "page", "notify", "timer", "state", "read:jobs", "act:job", "browser:block", "browser:card" ],
+  "events_dropped": 0,
+  "results": [
+    { "id": "block-3", "status": "ok" },
+    { "id": "pause-train", "status": "refused", "message": "act:job was not granted" }
+  ],
+  "state": { "phase": "focus", "block": 3, "running": true },
+  "jobs": [ { "id": "p100-134390696410359444", "label": "train.py", "status": "working", "pct": 52 } ],
+  "settings": { "block_minutes": "25", "break_minutes": "5", "blocked_sites": "youtube.com\nreddit.com", "pause_jobs": "false" },
+  "snapshot_path": "C:\\Users\\me\\AppData\\Local\\Tasktor\\snapshot.json",
+  "data_dir": "C:\\Users\\me\\AppData\\Local\\Tasktor\\plugin-data\\tasktor.focus"
+}

@@ -82,6 +82,8 @@ U1 fixes **three contracts** once, as types, so every other unit cites them:
   | `tasktor.action/1` | action request / result (D-H4) | U1 |
   | `tasktor.rules/1` | `rules.json` (D-H6) | U1 |
   | `tasktor.plugin/1` | `plugin.json` + plugin output (D-H7) | U1 |
+  | `tasktor.plugin/2` | contract 2: capabilities, wakes, requests, pages (D-H7 amendment) | Frame P |
+  | `tasktor.browser/2` | browser messages + site blocks, popup cards (browser-1 frozen) | Frame P |
   | `tasktor.job/1` | progress file `jobs\<id>.json` | B (D-B6), schema hosted here |
   | `tasktor.agent/1` | agent hook file `agents\<session>.json` (I1) | U1 format, U2 behaviour |
 - **Internal contracts** carry no promise and can change in any release, because Tasktor ships both ends:
@@ -253,6 +255,10 @@ Every action in Tasktor becomes an `ActionRequest` that passes through **one** `
 - Shipped default rules live read-only in the install dir. A user rule with the same `id` overrides one; `"enabled": false` turns one off.
 
 ### D-H7 Plugins emit A's blocks, a fixed subset
+> **Amended 2026-11-13: plugin contract 2** (`tasktor.plugin/2`, `tasktor.browser/2`) adds host wakes, capabilities,
+> requests, pages and plugin state, read strictly; contract 1 below is unchanged. Records:
+> `src/Tasktor.Contracts/Plugins/PluginContracts2.cs`; user docs: `docs/plugins.md` § Contract 2. `browser-1.json` is
+> frozen as published; `browser-2.json` is generated.
 **`plugin.json` (contract 1).** The example is a local one, so no feature we cut is used as the example:
 ```json
 { "$schema": "https://…/schemas/tasktor.plugin-1.json", "contract": 1,

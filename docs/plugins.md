@@ -92,6 +92,28 @@ So the declarations are a promise to your users. Keep `reads` and `network` true
 Plugins never get the event store, the capture vault, the search index, other plugins' data, Tasktor's settings, the
 install key or any process action.
 
+## Contract 2 (schemas only; the host lands in P1)
+
+Contract 2 keeps everything above and adds what a plugin may ask of Tasktor. The schemas are published now
+([`tasktor.plugin-2.json`](../schemas/tasktor.plugin-2.json), [`-input-2`](../schemas/tasktor.plugin-input-2.json),
+[`-output-2`](../schemas/tasktor.plugin-output-2.json), [`tasktor.browser-2.json`](../schemas/tasktor.browser-2.json));
+Tasktor does not run contract-2 plugins yet. Examples: [`tests/fixtures/tasktor.plugin-2/`](../tests/fixtures/tasktor.plugin-2).
+
+- **`contract` is read first.** `1` keeps contract 1 exactly; `2` reads the contract-2 records.
+- **Woken, not polling.** Tasktor runs the plugin on `render`, `action`, `timer` (the `wake_at` it asked for), `event`
+  (a batch of what it subscribed to) and `submit` (a form on its page). `interval` defaults to `manual`.
+- **Capabilities.** `capabilities` lists what the plugin may do; each is one plain line in the consent dialog and the
+  user can untick any. `granted` on stdin says what was allowed: `page`, `notify`, `timer`, `state`,
+  `events:process|foreground|network|windows` (narrowed by `watch_exes`), `read:jobs`, `read:listeners`, `act:job`,
+  `act:arrange`, `browser:tabs`, `browser:block`, `browser:card`, `capture:browser` (live page text while capture is
+  on, never history), `resident`.
+- **Requests, not actions.** A plugin asks (`job.pause`, `job.resume`, `arrange`, `browser.block`, `browser.unblock`);
+  Tasktor does it through the same guards and undo as a click and answers in the next run's `results`.
+- **Strict.** An unknown field or capability, at any depth, refuses the plugin; the message names the closest known
+  name ("Unknown field 'capabilites'. Did you mean 'capabilities'?"). Contract 1 still ignores unknown fields.
+- **Limits.** ≤ 64 KB out; ≤ 6 cards × 4 actions; page ≤ 20 sections; ≤ 3 notices per run and 12 per hour; `wake_at`
+  1 s to 7 days ahead; `state` ≤ 4 KB; ≤ 5 requests per run; ≤ 50 hosts per block, ≤ 12 h.
+
 ## Packs
 
 A pack is a folder with a `pack.json` (`id`, `name`, `version`, `author`, `plugins`: the folder names inside it) and

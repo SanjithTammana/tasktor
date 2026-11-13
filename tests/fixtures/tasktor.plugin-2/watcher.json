@@ -1,0 +1,13 @@
+{
+  "contract": 2,
+  "id": "reading-list",
+  "name": "Reading list",
+  "version": "0.1.0",
+  "command": [ "{python}", "main.py" ],
+  "interval": "manual",
+  "timeout": "5s",
+  "reads": [ "Pages you read while capture is on" ],
+  "network": [],
+  "capabilities": [ "events:process", "capture:browser", "page" ],
+  "watch_exes": [ "python.exe" ]
+}

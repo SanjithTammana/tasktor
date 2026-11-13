@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Tasktor.Contracts.Cards;
 
 namespace Tasktor.Contracts.Capture;
 
@@ -14,6 +15,10 @@ namespace Tasktor.Contracts.Capture;
 [JsonDerivedType(typeof(BrowserWelcome), "welcome")]
 [JsonDerivedType(typeof(BrowserBlocks), "blocks")]
 [JsonDerivedType(typeof(BrowserAck), "ack")]
+[JsonDerivedType(typeof(BrowserSiteBlocks), "site_blocks")]
+[JsonDerivedType(typeof(BrowserSiteUnblock), "site_unblock")]
+[JsonDerivedType(typeof(BrowserPopupCards), "popup_cards")]
+[JsonDerivedType(typeof(BrowserPopupAction), "popup_action")]
 public abstract record BrowserMessage
 {
     public required DateTimeOffset At { get; init; }
@@ -142,6 +147,74 @@ public sealed record BrowserAck : BrowserMessage
     public string? Reason { get; init; }
 }
 
+// ───────── tasktor.browser/2 (plugin contract 2, S6) ─────────
+// tasktor-nmh routes these four to the agent's pipe, not capture's, so site blocks and popup cards work while capture is
+// off. An extension that said contract 1 in its hello never receives them. Frozen schema: browser-1.json; current: browser-2.
+
+/// <summary>agent → extension: the complete set of active plugin site blocks (replaces the last set; empty clears).</summary>
+public sealed record BrowserSiteBlocks : BrowserMessage
+{
+    public required IReadOnlyList<SiteBlock> Blocks { get; init; }
+}
+
+public sealed record SiteBlock
+{
+    /// <summary>The plugin id that asked.</summary>
+    public required string Plugin { get; init; }
+
+    /// <summary>Shown on the blocked page.</summary>
+    public required string PluginName { get; init; }
+
+    private readonly IReadOnlyList<string> _hosts = [];
+
+    /// <summary>Bare host names (≤ 50); each also blocks its subdomains.</summary>
+    public required IReadOnlyList<string> Hosts
+    {
+        get => _hosts;
+        init => _hosts = BrowserHost.ValidateAll(value);
+    }
+
+    /// <summary>The extension lifts the block at this time even if the agent is gone.</summary>
+    public required DateTimeOffset Until { get; init; }
+}
+
+/// <summary>extension → agent: the user pressed Unblock on the blocked page (the plugin learns it in its next run).</summary>
+public sealed record BrowserSiteUnblock : BrowserMessage
+{
+    public required string Plugin { get; init; }
+
+    private readonly string _host = "";
+
+    public required string Host
+    {
+        get => _host;
+        init => _host = BrowserHost.Validate(value)!;
+    }
+}
+
+/// <summary>agent → extension: every popup card (≤ 3, one per plugin); an empty list clears the popup.</summary>
+public sealed record BrowserPopupCards : BrowserMessage
+{
+    public required IReadOnlyList<PopupCard> Cards { get; init; }
+}
+
+public sealed record PopupCard
+{
+    public required string Plugin { get; init; }
+
+    public required string PluginName { get; init; }
+
+    public required Card Card { get; init; }
+}
+
+/// <summary>extension → agent: a popup card button, run as the plugin's declared action with origin <c>browser</c>.</summary>
+public sealed record BrowserPopupAction : BrowserMessage
+{
+    public required string Plugin { get; init; }
+
+    public required string Action { get; init; }
+}
+
 internal static class BrowserHost
 {
     internal static string? Validate(string? host)
@@ -153,5 +226,21 @@ internal static class BrowserHost
         }
 
         return host;
+    }
+
+    internal static IReadOnlyList<string> ValidateAll(IReadOnlyList<string> hosts)
+    {
+        ArgumentNullException.ThrowIfNull(hosts);
+        if (hosts.Count > 50)
+        {
+            throw new System.Text.Json.JsonException("At most 50 hosts");
+        }
+
+        foreach (var h in hosts)
+        {
+            Validate(h ?? throw new System.Text.Json.JsonException("Invalid hostname"));
+        }
+
+        return hosts;
     }
 }
