@@ -316,7 +316,17 @@ public sealed class BrowserEndpointTests : IDisposable
             // closed before the write landed: also a refusal
         }
 
-        Assert.Null(await new PipeFraming.LineReader(pipe).ReadLineAsync(cts.Token));
+        string? reply;
+        try
+        {
+            reply = await new PipeFraming.LineReader(pipe).ReadLineAsync(cts.Token);
+        }
+        catch (IOException)
+        {
+            reply = null; // Linux reports the close as a connection reset; Windows as end of stream
+        }
+
+        Assert.Null(reply);
         Assert.Equal(1, server.RefusedClients);
         Assert.Null(ep.BrowserOf("s1"));
     }
