@@ -116,6 +116,30 @@ public sealed class PipeServer : IAsyncDisposable
         _ => new HashSet<Origin> { Origin.Cli },
     };
 
+    /// <summary>
+    /// F-PIPE1: a viewer's origins only for Tasktor's own exe of that name, in the install folder (or its folder of the
+    /// same name); any other program that says "flyout" acts as the CLI. <paramref name="imageOf"/> reads the client's
+    /// exe path from the pipe handle (<see cref="PipeCaller.ImagePath(NamedPipeServerStream)"/>; injectable for tests).
+    /// </summary>
+    public static Func<string, NamedPipeServerStream, IReadOnlySet<Origin>> VerifiedOrigins(string installDir, Func<NamedPipeServerStream, string?>? imageOf = null)
+    {
+        imageOf ??= PipeCaller.ImagePath;
+        return (client, stream) =>
+        {
+            var exe = client switch
+            {
+                "flyout" => "Tasktor.Flyout.exe",
+                "widget" => "Tasktor.Widget.exe",
+                "shell" => "tasktor-shell.exe",
+                _ => null,
+            };
+            var image = exe is null ? null : imageOf(stream);
+            var ours = exe is not null && image is not null && new[] { Path.Combine(installDir, exe), Path.Combine(installDir, client, exe) }
+                .Any(p => string.Equals(Path.GetFullPath(p), Path.GetFullPath(image), StringComparison.OrdinalIgnoreCase));
+            return ours ? DefaultOrigins(client, stream) : new HashSet<Origin> { Origin.Cli };
+        };
+    }
+
     private async Task AcceptLoop()
     {
         while (!_cts.IsCancellationRequested)

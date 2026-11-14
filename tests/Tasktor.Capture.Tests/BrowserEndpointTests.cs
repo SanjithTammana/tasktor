@@ -297,6 +297,72 @@ public sealed class BrowserEndpointTests : IDisposable
         }
     }
     [Fact]
+    public async Task A_client_that_is_not_the_nmh_is_closed_without_a_word()
+    {
+        // F-PIPE2: any same-user program can open the pipe; only Tasktor's NMH may speak on it.
+        var (_, ep, _) = World();
+        var name = "tasktor-test-cap-" + Guid.NewGuid().ToString("N")[..10];
+        await using var server = new CapturePipeServer(ep, name) { AllowClient = _ => false };
+        server.Start();
+        await using var pipe = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await pipe.ConnectAsync(cts.Token);
+        try
+        {
+            await PipeFraming.WriteAsync(pipe, JsonSerializer.Serialize<BrowserMessage>(Hello(), ContractsJsonContext.Default.BrowserMessage), cts.Token);
+        }
+        catch (IOException)
+        {
+            // closed before the write landed: also a refusal
+        }
+
+        Assert.Null(await new PipeFraming.LineReader(pipe).ReadLineAsync(cts.Token));
+        Assert.Equal(1, server.RefusedClients);
+        Assert.Null(ep.BrowserOf("s1"));
+    }
+
+    [Fact]
+    public async Task Lines_the_nmh_would_refuse_are_refused_here_too_and_a_typeless_line_is_not_fatal()
+    {
+        // F-PIPE2: the capture side runs the same rules as the NMH. F-PIPE4: "{}" is dropped and counted; the session lives.
+        var (_, ep, _) = World();
+        var recorded = new List<string?>();
+        ep.ContextChanged += (_, _, ctx) => recorded.Add(ctx?.Host?.Reveal());
+        var name = "tasktor-test-cap-" + Guid.NewGuid().ToString("N")[..10];
+        await using var server = new CapturePipeServer(ep, name);
+        server.Start();
+        await using var pipe = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await pipe.ConnectAsync(cts.Token);
+        var reader = new PipeFraming.LineReader(pipe);
+        async Task Send(BrowserMessage m) => await PipeFraming.WriteAsync(pipe, JsonSerializer.Serialize(m, ContractsJsonContext.Default.BrowserMessage), cts.Token);
+        await Send(Hello());
+        Assert.NotNull(await reader.ReadLineAsync(cts.Token));
+
+        await pipe.WriteAsync("{}\n"u8.ToArray(), cts.Token);
+        await Send(Page(2, "news.example", "https://bank.example/account")); // the url's host is not the tab's host
+        await Send(new BrowserBlockRequest { At = T0, RequestId = "q1", Op = "add", Kind = "site", Host = "docs.example.org" });
+        var replies = new[] { await reader.ReadLineAsync(cts.Token), await reader.ReadLineAsync(cts.Token) }; // the ack and the block push
+        Assert.Contains(replies, r => r?.Contains("\"q1\"", StringComparison.Ordinal) == true); // still open
+
+        Assert.Equal(2, server.InvalidLines);
+        Assert.DoesNotContain("news.example", recorded);
+    }
+
+    [Fact]
+    public async Task The_control_pipe_answers_only_the_agent()
+    {
+        // F-PIPE3: a lift "by_user" from another program must not reach the blocks.
+        var (_, _, ctl) = World();
+        var name = "tasktor-test-cap-" + Guid.NewGuid().ToString("N")[..10] + "-ctl";
+        await using var control = new ControlPipeServer(ctl, name) { AllowClient = _ => false };
+        control.Start();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await Assert.ThrowsAsync<IOException>(() => CaptureLink.SendAsync(new CaptureCommand { Verb = CaptureVerb.Resume, ByUser = true }, cts.Token, name, 5000));
+        Assert.Equal(1, control.RefusedClients);
+    }
+
+    [Fact]
     public async Task A_refused_hello_is_answered_then_the_connection_closes()
     {
         var (_, ep, _) = World();
@@ -337,6 +403,9 @@ public sealed class BrowserEndpointTests : IDisposable
         var (messages, invalid) = drain.GetAwaiter().GetResult();
         Assert.Equal(3, messages.Count); // tab, focus, tab_closed; the block request is never accepted from the queue
         Assert.Equal(2, invalid);
+        File.WriteAllLines(path, [JsonSerializer.Serialize<BrowserMessage>(Page(1, "news.example", "https://bank.example/"), ContractsJsonContext.Default.BrowserMessage), "{}"]);
+        var forged = QueueDrain.Drain(path); // the NMH's rules apply to the file too
+        Assert.Equal((0, 2), (forged.Messages.Count, forged.Invalid));
         Assert.False(File.Exists(path));
     }
 }

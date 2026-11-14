@@ -213,6 +213,15 @@ public sealed class ControlPipeServer : IAsyncDisposable
 
     public static string Name() => PipeName.ForCapture() + "-ctl";
 
+    /// <summary>
+    /// Whether this connection is the agent (F-PIPE3): the only legitimate client, and the one that sets <c>by_user</c>
+    /// honestly. The capture host passes a check against the agent that started it; null (tests) admits any same-user
+    /// client.
+    /// </summary>
+    public Func<NamedPipeServerStream, bool>? AllowClient { get; init; }
+
+    public long RefusedClients { get; private set; }
+
     public void Start() => _loop = LoopAsync(_cts.Token);
 
     private async Task LoopAsync(CancellationToken ct)
@@ -223,6 +232,12 @@ public sealed class ControlPipeServer : IAsyncDisposable
             try
             {
                 await pipe.WaitForConnectionAsync(ct).ConfigureAwait(false);
+                if (AllowClient is { } allow && !allow(pipe))
+                {
+                    RefusedClients++;
+                    continue; // not the agent: no status, no search, no lift
+                }
+
                 var line = await new CappedLineReader(pipe, 64 * 1024).ReadLineAsync(ct).ConfigureAwait(false);
                 CaptureStatus reply;
                 try

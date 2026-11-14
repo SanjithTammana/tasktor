@@ -45,7 +45,10 @@ public sealed class HostSupervisor : IDisposable
     {
         Kind = WorkerKind.Capture,
         Exe = Path.Combine(installDir, OperatingSystem.IsWindows() ? "tasktor-capture.exe" : "tasktor-capture"),
-        Args = dataDir is null ? null : ["--data-dir", dataDir],
+        // The agent's pid: the capture host's control pipe answers this process only (F-PIPE3).
+        Args = dataDir is null
+            ? ["--agent-pid", Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture)]
+            : ["--data-dir", dataDir, "--agent-pid", Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture)],
         WorkingDir = installDir,
         MemoryMb = 64, // D-C21: ≤ 40 MB private; the Job Object cap leaves headroom and stops a runaway
     };

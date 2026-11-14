@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Tasktor.Contracts;
 using Tasktor.Contracts.Capture;
+using Tasktor.Hosts.Common.Browser;
 using Tasktor.Hosts.Common.Pipe;
 
 namespace Tasktor.Capture.Browser;
@@ -113,7 +114,8 @@ public static class QueueDrain
         {
             try
             {
-                var m = JsonSerializer.Deserialize(line, ContractsJsonContext.Default.BrowserMessage);
+                // The file is the user's to write, so it gets the same rules as the extension's own messages (F-PIPE2).
+                var m = BrowserRules.Check(JsonSerializer.Deserialize(line, ContractsJsonContext.Default.BrowserMessage));
                 if (m is BrowserTab or BrowserFocus or BrowserVisibility or BrowserTabClosed)
                 {
                     messages.Add(m);
@@ -123,7 +125,7 @@ public static class QueueDrain
                     invalid++;
                 }
             }
-            catch (JsonException)
+            catch (Exception e) when (e is JsonException or NotSupportedException)
             {
                 invalid++;
             }
@@ -155,6 +157,14 @@ public sealed class CapturePipeServer : IAsyncDisposable
         _name = name ?? PipeName.ForCapture();
         _endpoint.BlocksChanged += () => _ = PushAllAsync();
     }
+
+    /// <summary>
+    /// Whether this connection may speak as the NMH (F-PIPE2). The capture host passes a check that the client is
+    /// Tasktor's own <c>tasktor-nmh.exe</c>; null (tests) admits any same-user client.
+    /// </summary>
+    public Func<NamedPipeServerStream, bool>? AllowClient { get; init; }
+
+    public long RefusedClients { get; private set; }
 
     public long DroppedLines { get; private set; }
 
@@ -205,15 +215,23 @@ public sealed class CapturePipeServer : IAsyncDisposable
         var reader = new CappedLineReader(pipe);
         try
         {
+            if (AllowClient is { } allow && !allow(pipe))
+            {
+                RefusedClients++;
+                return; // not Tasktor's NMH: closed without a word
+            }
+
             while (!ct.IsCancellationRequested && await reader.ReadLineAsync(ct).ConfigureAwait(false) is { } line)
             {
                 DroppedLines = reader.Dropped;
                 BrowserMessage? message;
                 try
                 {
-                    message = JsonSerializer.Deserialize(line, ContractsJsonContext.Default.BrowserMessage);
+                    // The NMH checked it already; checked again here, so a line that did not come through the NMH is held to
+                    // the same rules (F-PIPE2), and a line without a known "type" is dropped, not fatal (F-PIPE4).
+                    message = BrowserRules.Check(JsonSerializer.Deserialize(line, ContractsJsonContext.Default.BrowserMessage));
                 }
-                catch (JsonException)
+                catch (Exception e) when (e is JsonException or NotSupportedException)
                 {
                     InvalidLines++;
                     continue;

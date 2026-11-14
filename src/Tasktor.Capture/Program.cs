@@ -38,11 +38,13 @@ internal static class Program
             return bench.WithinTarget ? 0 : 1;
         }
         string? dataDir = null, historyFile = null;
+        uint? agentPid = null;
         for (var i = 0; i < args.Length - 1; i++)
         {
             if (args[i] == "--data-dir") dataDir = args[i + 1];
             // C22 checks: tail this file instead of PSReadLine's own, so a check never touches the owner's real history.
             if (args[i] == "--history-file") historyFile = Path.GetFullPath(args[i + 1]);
+            if (args[i] == "--agent-pid" && uint.TryParse(args[i + 1], System.Globalization.CultureInfo.InvariantCulture, out var ap)) agentPid = ap;
         }
 
         // Checks on a PC whose browsers are running: accept no browser data at all (no browser pipe, no offline queue),
@@ -63,7 +65,7 @@ internal static class Program
         AppDomain.CurrentDomain.ProcessExit += (_, _) => stop.TrySetResult(false);
         // A hook Windows removed and that would not reinstall stops capture like a failed indicator: the agent's supervisor
         // restarts it (and reports repeated failures), instead of capture running on with no input recorded.
-        return await IndicatorHost.RunAsync(indicator, () => new CaptureLifetime(store, stop.Task, indicator, historyFile, browser, () => stop.TrySetResult(true)), stop.Task).ConfigureAwait(false);
+        return await IndicatorHost.RunAsync(indicator, () => new CaptureLifetime(store, stop.Task, indicator, historyFile, browser, () => stop.TrySetResult(true), agentPid), stop.Task).ConfigureAwait(false);
     }
 }
 
@@ -82,7 +84,7 @@ internal sealed class CaptureLifetime : IDisposable
     private bool _disposed;
     private readonly Win32RecordingIndicator _indicator;
 
-    public CaptureLifetime(StoreLayout store, Task<bool> stop, Win32RecordingIndicator indicator, string? historyFile = null, bool browser = true, Action? hookFailed = null)
+    public CaptureLifetime(StoreLayout store, Task<bool> stop, Win32RecordingIndicator indicator, string? historyFile = null, bool browser = true, Action? hookFailed = null, uint? agentPid = null)
     {
         _indicator = indicator;
         try
@@ -186,8 +188,17 @@ internal sealed class CaptureLifetime : IDisposable
             }
 
             if (stop.IsCompleted) return;
-            _browser = browser ? new CapturePipeServer(endpoint) : null;
-            _control = new ControlPipeServer(control);
+            // Only Tasktor's own programs may use these pipes (F-PIPE2, F-PIPE3): the browser pipe takes the NMH next to
+            // this exe, the control pipe the agent that started this host (or, run by hand, the agent exe next to it).
+            var nmhExe = Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "tasktor-nmh.exe" : "tasktor-nmh");
+            var agentExe = Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "tasktor-core.exe" : "tasktor-core");
+            _browser = browser ? new CapturePipeServer(endpoint) { AllowClient = OperatingSystem.IsWindows() ? p => PipeCaller.Is(p, nmhExe) : null } : null;
+            _control = new ControlPipeServer(control)
+            {
+                AllowClient = !OperatingSystem.IsWindows() ? null
+                    : agentPid is { } owner ? p => PipeCaller.ProcessId(p) == owner
+                    : p => PipeCaller.Is(p, agentExe),
+            };
             _browser?.Start();
             _control.Start();
             _expiry = new Timer(_ => endpoint.NotifyBlocksChanged(), null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));

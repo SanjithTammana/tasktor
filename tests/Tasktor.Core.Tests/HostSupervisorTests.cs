@@ -121,7 +121,7 @@ public sealed class HostSupervisorTests : IDisposable
         Assert.Equal(WorkerKind.Capture, spec.Kind);
         Assert.StartsWith("/opt/tasktor", spec.Exe, StringComparison.Ordinal);
         Assert.Contains("tasktor-capture", spec.Exe, StringComparison.Ordinal);
-        Assert.Equal(["--data-dir", "/data"], spec.Args);
+        Assert.Equal(["--data-dir", "/data", "--agent-pid", Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture)], spec.Args); // F-PIPE3
         Assert.True(sup.Running);
         Assert.Null(sup.Failure);
         Assert.Throws<ArgumentException>(() => new HostSupervisor(_context, spec with { Kind = WorkerKind.Plugin }, () => true));
